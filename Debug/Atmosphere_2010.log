@@ -1,23 +1,5 @@
-﻿生成启动时间为 2017/10/27 15:22:53。
-     1>项目“C:\Users\zhengyiming\Documents\Visual Studio 2012\Projects\Atmosphere\Atmosphere_2010.vcxproj”在节点 2 上(Build 个目标)。
-     1>Link:
-         C:\Program Files (x86)\Microsoft Visual Studio 11.0\VC\bin\link.exe /ERRORREPORT:PROMPT /OUT:"C:\Users\zhengyiming\Documents\Visual Studio 2012\Projects\Atmosphere\Debug\Atmosphere.exe" /INCREMENTAL /NOLOGO d3dcompiler.lib d3dx11d.lib d3dx9d.lib dxerr.lib dxguid.lib winmm.lib comctl32.lib Effects11.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /manifestinput:"C:\Program Files (x86)\Microsoft Visual Studio 11.0\VC\Include\Manifest\dpiaware.manifest" /DEBUG /PDB:"C:\Users\zhengyiming\Documents\Visual Studio 2012\Projects\Atmosphere\Debug\Atmosphere.pdb" /SUBSYSTEM:WINDOWS /LARGEADDRESSAWARE /TLBID:1 /DYNAMICBASE /NXCOMPAT /IMPLIB:"C:\Users\zhengyiming\Documents\Visual Studio 2012\Projects\Atmosphere\Debug\Atmosphere.lib" /MACHINE:X86 /SAFESEH  Debug\Atmosphere.res
-         Debug\Atmosphere.obj
-         Debug\DXUT.obj
-         Debug\DXUTDevice11.obj
-         Debug\DXUTDevice9.obj
-         Debug\DXUTmisc.obj
-         Debug\DXUTcamera.obj
-         Debug\DXUTgui.obj
-         Debug\DXUTres.obj
-         Debug\DXUTsettingsdlg.obj
-         Debug\SDKmesh.obj
-         Debug\SDKmisc.obj
-         Debug\main.obj
-     1>Atmosphere.obj : warning LNK4075: 忽略“/EDITANDCONTINUE”(由于“/SAFESEH”规范)
-         Atmosphere_2010.vcxproj -> C:\Users\zhengyiming\Documents\Visual Studio 2012\Projects\Atmosphere\Debug\Atmosphere.exe
-     1>已完成生成项目“C:\Users\zhengyiming\Documents\Visual Studio 2012\Projects\Atmosphere\Atmosphere_2010.vcxproj”(Build 个目标)的操作。
-
-生成成功。
-
-已用时间 00:00:00.78
+﻿  main.cpp
+c:\users\zhengyiming\documents\visual studio 2015\projects\atmosphere\common.h(21): warning C4505: “CompileEffectFromFile”: 未引用的本地函数已移除
+c:\users\zhengyiming\documents\visual studio 2015\projects\atmosphere\common.h(60): warning C4505: “InverseTranspose”: 未引用的本地函数已移除
+  Atmosphere_2010.vcxproj -> C:\Users\zhengyiming\Documents\Visual Studio 2015\Projects\Atmosphere\Debug\Atmosphere.exe
+  Atmosphere_2010.vcxproj -> C:\Users\zhengyiming\Documents\Visual Studio 2015\Projects\Atmosphere\Debug\Atmosphere.pdb (Full PDB)

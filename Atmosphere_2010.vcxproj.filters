@@ -8,8 +8,14 @@
     <Filter Include="DXUT">
       <UniqueIdentifier>{a43c5c25-0e86-4a20-b64a-883785ff74fd}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Header">
+      <UniqueIdentifier>{f72c9766-082f-4153-a3ca-a9e6352d78c4}</UniqueIdentifier>
+    </Filter>
     <Filter Include="Shader">
-      <UniqueIdentifier>{892f7d92-37c8-4208-9d07-35a5d5e6fc8f}</UniqueIdentifier>
+      <UniqueIdentifier>{870a2989-9827-4c12-9544-550c08deca37}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source">
+      <UniqueIdentifier>{4d1453cd-2c73-4c5e-9668-eb1ab49361d1}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -76,12 +82,26 @@
     <ClCompile Include="DXUT\Optional\SDKmisc.cpp">
       <Filter>DXUT</Filter>
     </ClCompile>
-    <None Include="Atmosphere.fx">
-      <Filter>Shader</Filter>
-    </None>
     <None Include="Common.fx">
       <Filter>Shader</Filter>
     </None>
+    <None Include="Atmosphere.fx">
+      <Filter>Header</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Atmosphere.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="RenderStates.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="GeometryGenerator.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="main.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <CLInclude Include="resource.h">
@@ -90,11 +110,20 @@
     <ResourceCompile Include="Atmosphere.rc">
       <Filter>Resource Files</Filter>
     </ResourceCompile>
-    <ClInclude Include="Atmosphere.h" />
-    <ClInclude Include="Common.h" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="main.cpp" />
-    <ClCompile Include="Atmosphere.cpp" />
+    <ClInclude Include="RenderStates.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="D3dBuffurDesc.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="Common.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="Atmosphere.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="GeometryGenerator.h">
+      <Filter>Header</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

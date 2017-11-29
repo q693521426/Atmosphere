@@ -2,12 +2,25 @@
 #include "DXUTcamera.h"
 #include "SDKmisc.h"
 #include "Atmosphere.h"
+#include "RenderStates.h"
+
+#ifdef _DEBUG 
+#define _CRTDBG_MAP_ALLOC
+#include <stdlib.h>
+#include <malloc.h>    // 解决 malloc.h 与 crtdbg.h 顺序导致的 Debug Assertion Failed, "Corrupted pointer passed to _freea" 。
+#include <crtdbg.h>
+#define new new( _NORMAL_BLOCK , __FILE__ , __LINE__ )
+#endif  // _DEBUG
+
 
 CFirstPersonCamera								mCamera;
+ID3D11Device*									gd3dDevice;
+ID3D11DeviceContext*							gd3dImmediateContext;
 Atmosphere*										mAtmosphere;
-
-int												screen_width;
-int												screen_height;
+float	fCameraHeight = 100;
+D3DXVECTOR3 v3CameraPos = D3DXVECTOR3(0,0, fCameraHeight);
+D3DXVECTOR3 LookAt = D3DXVECTOR3(0, 0, 0);
+int	screen_width = 1024,screen_height = 768;
 
 //--------------------------------------------------------------------------------------
 // Reject any D3D11 devices that aren't acceptable by returning false
@@ -35,12 +48,18 @@ HRESULT CALLBACK OnD3D11CreateDevice( ID3D11Device* pd3dDevice, const DXGI_SURFA
                                       void* pUserContext )
 {
 	HRESULT hr = S_OK;
+	gd3dDevice = pd3dDevice;
+	gd3dImmediateContext = DXUTGetD3D11DeviceContext();
+
+	RenderStates::Initialize(gd3dDevice);
 
 	mAtmosphere = new Atmosphere();
-	mAtmosphere->Initialize();
-	mAtmosphere->OnD3D11CreateDevice(pd3dDevice);
+	mAtmosphere->Initialize(gd3dDevice,gd3dImmediateContext);
+	mAtmosphere->OnD3D11CreateDevice();
 
-    return S_OK;
+	mCamera.SetViewParams(&v3CameraPos, &LookAt);
+
+    return hr;
 }
 
 
@@ -80,8 +99,13 @@ void CALLBACK OnD3D11FrameRender( ID3D11Device* pd3dDevice, ID3D11DeviceContext*
     ID3D11RenderTargetView* pRTV = DXUTGetD3D11RenderTargetView();
     ID3D11DepthStencilView* pDSV = DXUTGetD3D11DepthStencilView();
     pd3dImmediateContext->ClearRenderTargetView( pRTV, ClearColor );
-    pd3dImmediateContext->ClearDepthStencilView( pDSV, D3D11_CLEAR_DEPTH, 1.0, 0 );
+	pd3dImmediateContext->ClearDepthStencilView(pDSV, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0, 0);
 
+	v3CameraPos = *mCamera.GetEyePt();
+	D3DXMATRIX viewPro;
+	D3DXMatrixMultiply(&viewPro, mCamera.GetViewMatrix(), mCamera.GetProjMatrix());
+	
+	mAtmosphere->Render(viewPro, v3CameraPos);
 	
 }
 
@@ -99,6 +123,15 @@ void CALLBACK OnD3D11ReleasingSwapChain( void* pUserContext )
 //--------------------------------------------------------------------------------------
 void CALLBACK OnD3D11DestroyDevice( void* pUserContext )
 {
+	gd3dDevice = nullptr;
+	gd3dImmediateContext = nullptr;	
+	if(mAtmosphere)
+	{
+		mAtmosphere->Release();
+		delete mAtmosphere;
+	}
+	
+	RenderStates::Release();
 }
 
 
@@ -147,6 +180,7 @@ int WINAPI wWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdL
 {
     // Enable run-time memory check for debug builds.
 #if defined(DEBUG) | defined(_DEBUG)
+	_CrtSetReportMode(_CRT_ERROR, _CRTDBG_MODE_DEBUG);
     _CrtSetDbgFlag( _CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF );
 #endif
 
@@ -176,10 +210,12 @@ int WINAPI wWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdL
     DXUTCreateWindow( L"Atmosphere" );
 
     // Only require 10-level hardware
-    DXUTCreateDevice( D3D_FEATURE_LEVEL_10_0, true, 640, 480 );
+    DXUTCreateDevice( D3D_FEATURE_LEVEL_10_0, true, screen_width, screen_height );
     DXUTMainLoop(); // Enter into the DXUT ren  der loop
 
+#if defined(DEBUG) | defined(_DEBUG)
+	_CrtDumpMemoryLeaks();
+#endif
     // Perform any application-level cleanup here
-
     return DXUTGetExitCode();
 }

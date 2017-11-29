@@ -3,8 +3,11 @@
 #include "DXUT.h"
 #include "Common.h"
 #include <string>
-#include <map>
 #include "d3dx11effect.h"
+#include "D3dBuffurDesc.h"
+#include "GeometryGenerator.h"
+#include <unordered_map>
+#include <vector>
 
 class Atmosphere
 {
@@ -12,12 +15,12 @@ public:
 	Atmosphere(void);
 	~Atmosphere(void);
 
-	void Initialize();
+	void Initialize(ID3D11Device*,ID3D11DeviceContext*);
 	void Release();
 
-	HRESULT OnD3D11CreateDevice(ID3D11Device* pd3dDevice);
-	
-	void Render();
+	HRESULT OnD3D11CreateDevice();
+
+	void Render(D3DXMATRIX&,D3DXVECTOR3&);
 private:
 	float Kr;
 	float Km;
@@ -26,27 +29,42 @@ private:
 	float ESun;
 	float fKrESun;
 	float fKmESun;
-	float g;
-	float g2;
+	float fMieG;
+	float fMieG2;
 	float fInnerRadius;
+	float fInnerRadius2;
 	float fOutRadius;
+	float fOutRadius2;
 	float fScale;
+	float fScaleOverScaleDepth;
+	float fScaleDepth;
+	float fInvScaleDepth;
 	float fCameraHeight;
 	float fCameraHeight2;
 	D3DXVECTOR3 fWavelength;
 	D3DXVECTOR3 fInvWavelength4;
 	D3DXVECTOR3 SunPos;
 	
-	D3DXMATRIX mView;
-	D3DXMATRIX mProj;
-
 	ID3DX11Effect*									pAtmosphereEffect;
 
-	std::map<std::string,ID3DX11EffectTechnique*>	AtmosphereTechMap;	
-	std::map<std::string,ID3DX11EffectMatrixVariable*>	MatrixVarMap;
-	std::map<std::string,ID3DX11EffectVectorVariable*>	VectorVarMap;
-	std::map<std::string,ID3DX11EffectScalarVariable*>	ScalarVarMap;
-	std::map<std::string,ID3DX11EffectShaderResourceVariable*>	ShaderResourceVarMap;
+	std::unordered_map<std::string,ID3DX11EffectTechnique*>					AtmosphereTechMap;	
+	std::unordered_map<std::string,ID3DX11EffectMatrixVariable*>			MatrixVarMap;
+	std::unordered_map<std::string,ID3DX11EffectVectorVariable*>			VectorVarMap;
+	std::unordered_map<std::string,ID3DX11EffectScalarVariable*>			ScalarVarMap;
+	std::unordered_map<std::string,ID3DX11EffectShaderResourceVariable*>	ShaderResourceVarMap;
 
+	ID3D11InputLayout*								pInputLayout;
+	ID3D11Buffer*									pGroundVB;
+	ID3D11Buffer*									pGroundIB;
+	ID3D11Buffer*									pAtmosphereVB;
+	ID3D11Buffer*									pAtmosphereIB;
+	ID3D11ShaderResourceView*						pGroundSRV;
+
+	ID3D11Device* pd3dDevice;
+	ID3D11DeviceContext* pd3dImmediateContext;
+	UINT groundIndexNum;
+
+	template<typename T1, typename T2>
+	void MapRelease(std::unordered_map<T1,T2>& m);
 };
 

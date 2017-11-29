@@ -1,5 +1,22 @@
 #include "Common.fx"
 
+struct VertexIn
+{
+	float3 PosL		: POSITION;
+	float3 Normal	: NORMAL;
+	float3 Tangent	: TANGENT;
+	float2 Tex		: TEXCOORD;
+};
+
+struct VertexOut
+{
+	float4 PosH		: SV_POSITION;
+	float4 C0		: COLOR0; // The Rayleigh color
+	float4 C1		: COLOR1; // The Mie color
+	float2 Tex		: TEXCOORD0;
+	float3 DirToCam	: POSITION0;
+};
+
 cbuffer cbPerFrame
 {
 	float3 v3CameraPos;
@@ -17,6 +34,8 @@ cbuffer cbPerFrame
 	float fKm4PI;
 	float fScale;					// 1 / (fOuterRadius - fInnerRadius)
 	float fScaleOverScaleDepth;		// fScale / fScaleDepth
+	float fScaleDepth;
+	float fInvScaleDepth;
 	float fMieG;
 	float fMieG2;
 };
@@ -53,8 +72,8 @@ VertexOut GroundFromAtmosphereVS(VertexIn vin)
 	float fDepth = exp((fInnerRadius-fCameraHeight)*fScaleOverScaleDepth); 
 	float fCameraAngle = dot(-v3Ray,v3Pos);
 	float fLightAngle = dot(v3Pos,v3LightPos);
-	float fCameraScale = scale(fCameraAngle);
-	float fLightScale = scale(fLightAngle);
+	float fCameraScale = scale(fCameraAngle, fScaleDepth);
+	float fLightScale = scale(fLightAngle, fScaleDepth);
 	float fCameraOffset = fDepth * fCameraScale;
 	float fTemp = (fLightScale + fCameraScale);
 
@@ -79,12 +98,15 @@ VertexOut GroundFromAtmosphereVS(VertexIn vin)
 	vout.PosH = mul(float4(vin.PosL,1.0f),WorldViewProj);
 	vout.C0.xyz = v3FrontColor * (v3InvWavelength * fKrESun + fKmESun);
 	vout.C1.xyz = v3Attenuate;
+	vout.C0.w = 1;
+	vout.C1.w = 1;
 	vout.Tex = vin.Tex;
+	vout.DirToCam = v3CameraPos - v3Pos;
 
 	return vout;
 }
 
-float4 GroundFromAtmospherePS(VertexOut pin)
+float4 GroundFromAtmospherePS(VertexOut pin) :SV_Target
 {
 	float4 texColor = GroundMap.Sample(samAnisotropic,pin.Tex);
 	return pin.C0 + pin.C1*texColor;
@@ -101,7 +123,7 @@ VertexOut SkyFromAtmosphereVS(VertexIn vin)
 	float fHeight = length(v3Start);
 	float fDepth = exp((fInnerRadius-fCameraHeight)*fScaleOverScaleDepth);
 	float fStartAngle = dot(v3Ray,v3Start) / fHeight;
-	float fStartOffset = fDepth*scale(fStartAngle);
+	float fStartOffset = fDepth*scale(fStartAngle, fScaleDepth);
 
 	float fSampleLength = fFar / fSamples;
 	float fScaledLength = fSampleLength * fScale;
@@ -115,7 +137,7 @@ VertexOut SkyFromAtmosphereVS(VertexIn vin)
 		float fDepth = exp((fInnerRadius-fCameraHeight)*fScaleOverScaleDepth);
 		float fLightAngle = dot(v3LightPos,v3SamplePoint)/fHeight;
 		float fCameraAngle = dot(v3Ray,v3SamplePoint)/fHeight;
-		float fScatter = (fStartOffset + fDepth*(scale(fLightAngle)-scale(fCameraAngle)));
+		float fScatter = (fStartOffset + fDepth*(scale(fLightAngle, fScaleDepth)-scale(fCameraAngle, fScaleDepth)));
 		float3 v3Attenuate = exp(-fScatter * (v3InvWavelength * fKr4PI + fKm4PI));
 		v3FrontColor += v3Attenuate * (fDepth * fScaledLength);
 		v3SamplePoint += v3SampleRay;
@@ -125,13 +147,15 @@ VertexOut SkyFromAtmosphereVS(VertexIn vin)
 	vout.PosH = mul(float4(vin.PosL,1.0f),WorldViewProj);
 	vout.C0.xyz = v3FrontColor * (v3InvWavelength * fKrESun);
 	vout.C1.xyz = v3FrontColor * fKmESun;
+	vout.C0.w = 1;
+	vout.C1.w = 1;
 //  vout.Tex = v3CameraPos - v3Pos;	
 	vout.Tex = vin.Tex;
 	vout.DirToCam = v3CameraPos - v3Pos;
 	return vout;
 }
 
-float4 SkyFromAtmospherePS(VertexOut pin)
+float4 SkyFromAtmospherePS(VertexOut pin) :SV_Target
 {
 	float3 v3Direction = pin.DirToCam;
 	float fCos = dot(v3LightPos,v3Direction)/length(v3Direction);
@@ -140,6 +164,24 @@ float4 SkyFromAtmospherePS(VertexOut pin)
 		getMiePhase(fCos,fCos2,fMieG,fMieG2) * pin.C1;
 	color.w = color.z;
 	return color;
+}
+
+VertexOut TestVS(VertexIn vin)
+{
+	VertexOut vout;
+	vout.PosH = mul(float4(vin.PosL,1.0f),WorldViewProj);
+	vout.Tex = vin.Tex;
+	vout.C0 = float4(0.f, 0.f, 0.f, 0.f);
+	vout.C1 = float4(0.f, 0.f, 0.f, 0.f);
+	vout.DirToCam = v3CameraPos - vin.PosL;
+	return vout;
+}
+
+float4 TestPS(VertexOut pin) :SV_Target
+{
+	//return float4(0,0,0,1);
+	float4 texColor = GroundMap.Sample(samAnisotropic,pin.Tex);
+	return texColor;
 }
 
 technique11 GroundFromAtmosphere
@@ -166,9 +208,9 @@ technique11 SkyFromAtmosphere
 {
 	pass P0
     {
-        SetVertexShader( CompileShader( vs_5_0, GroundFromAtmosphereVS() ) );
+        SetVertexShader( CompileShader( vs_5_0, SkyFromAtmosphereVS() ) );
 		SetGeometryShader( NULL );
-        SetPixelShader( CompileShader( ps_5_0, GroundFromAtmospherePS() ) );
+        SetPixelShader( CompileShader( ps_5_0, SkyFromAtmospherePS() ) );
     }
 }
 
@@ -201,3 +243,14 @@ technique11 SpaceFromSpace
         SetPixelShader( CompileShader( ps_5_0, GroundFromAtmospherePS() ) );
     }
 }
+technique11 Test
+{
+	pass P0
+    {
+        SetVertexShader( CompileShader( vs_5_0, TestVS() ) );
+		SetGeometryShader( NULL );
+        SetPixelShader( CompileShader( ps_5_0, TestPS() ) );
+    }
+}
+
+
