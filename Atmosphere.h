@@ -1,10 +1,8 @@
 #pragma once
 
 #include "DXUT.h"
-#include "Common.h"
 #include <string>
 #include "d3dx11effect.h"
-#include "D3dBuffurDesc.h"
 #include "GeometryGenerator.h"
 #include <unordered_map>
 #include <vector>
@@ -19,8 +17,9 @@ public:
 	void Release();
 
 	HRESULT OnD3D11CreateDevice();
-
-	void Render(D3DXMATRIX&,D3DXVECTOR3&);
+	void ResetInputView(GeometryGenerator::MeshData&);
+	
+	void Render(D3DXMATRIX&,D3DXVECTOR3&,GeometryGenerator::MeshData&);
 private:
 	float Kr;
 	float Km;
@@ -66,5 +65,8 @@ private:
 
 	template<typename T1, typename T2>
 	void MapRelease(std::unordered_map<T1,T2>& m);
+
+	void ResetShaderParam();
+
 };
 

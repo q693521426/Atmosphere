@@ -270,7 +270,7 @@ void GeometryGenerator::Subdivide(MeshData& meshData)
 	}
 }
 
-GeometryGenerator::Vertex GeometryGenerator::MidPoint(const Vertex& v0, const Vertex& v1)
+Vertex GeometryGenerator::MidPoint(const Vertex& v0, const Vertex& v1)
 {
     D3DXVECTOR3 p0 = v0.Position;
     D3DXVECTOR3 p1 = v1.Position;

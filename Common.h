@@ -3,20 +3,33 @@
 
 #define D3D_COMPILE_STANDARD_FILE_INCLUDE ((ID3DInclude*)(UINT_PTR)1)
 
-namespace Vertex
+struct Vertex
 {
-	struct Basic32
-	{
-		Basic32() : Pos(0.0f, 0.0f, 0.0f), Normal(0.0f, 0.0f, 0.0f), Tex(0.0f, 0.0f) {}
-		Basic32(const D3DXVECTOR3& p, const D3DXVECTOR3& n, const D3DXVECTOR2& uv)
-			: Pos(p), Normal(n), Tex(uv) {}
-		Basic32(float px, float py, float pz, float nx, float ny, float nz, float u, float v)
-			: Pos(px, py, pz), Normal(nx, ny, nz), Tex(u,v) {}
-		D3DXVECTOR3 Pos;
-		D3DXVECTOR3 Normal;
-		D3DXVECTOR2 Tex;
-	};	
-}
+	Vertex() {}
+	Vertex(
+		const D3DXVECTOR3& p,
+		const D3DXVECTOR3& n,
+		const D3DXVECTOR3& t,
+		const D3DXVECTOR2& uv) :
+		Position(p),
+		Normal(n),
+		TangentU(t),
+		TexC(uv) {}
+	Vertex(
+		float px, float py, float pz,
+		float nx, float ny, float nz,
+		float tx, float ty, float tz,
+		float u, float v) :
+		Position(px, py, pz),
+		Normal(nx, ny, nz),
+		TangentU(tx, ty, tz),
+		TexC(u, v) {}
+
+	D3DXVECTOR3 Position;
+	D3DXVECTOR3 Normal;
+	D3DXVECTOR3 TangentU;
+	D3DXVECTOR2 TexC;
+};
 
 static HRESULT CompileEffectFromFile(ID3D11Device* pd3dDevice,ID3DX11Effect** pEffect,wchar_t* FileName)
 {

@@ -1,256 +1,105 @@
-#include "Common.fx"
-
-struct VertexIn
+//  'exp_term' * exp('exp_scale' * h) + 'linear_term' * h + 'constant_term'
+// clamp [0,1]
+struct DensityProfileLayer
 {
-	float3 PosL		: POSITION;
-	float3 Normal	: NORMAL;
-	float3 Tangent	: TANGENT;
-	float2 Tex		: TEXCOORD;
+	float width;
+	float exp_term;
+	float exp_scale;
+	float linear_term;
+	float const_term;
 };
 
-struct VertexOut
+struct DensityProfile
 {
-	float4 PosH		: SV_POSITION;
-	float4 C0		: COLOR0; // The Rayleigh color
-	float4 C1		: COLOR1; // The Mie color
-	float2 Tex		: TEXCOORD0;
-	float3 DirToCam	: POSITION0;
+	DensityProfileLayer layer[2];
 };
 
-cbuffer cbPerFrame
+struct AtmosphereParameters
 {
-	float3 v3CameraPos;
-	float3 v3LightPos;
-	float3 v3InvWavelength;
-	float fCameraHeight;
-	float fCameraHeight2;
-	float fOuterRadius;
-	float fOuterRadius2;
-	float fInnerRadius;
-	float fInnerRadius2;
-	float fKrESun;
-	float fKmESun;
-	float fKr4PI;
-	float fKm4PI;
-	float fScale;					// 1 / (fOuterRadius - fInnerRadius)
-	float fScaleOverScaleDepth;		// fScale / fScaleDepth
-	float fScaleDepth;
-	float fInvScaleDepth;
-	float fMieG;
-	float fMieG2;
+	float bottom_radius;
+	float top_radius;
+
+	DensityProfile rayleigh_density;
+	float3 rayleigh_scattering;
+
+	DensityProfile mie_density;
+	float3 mie_scattering;
+
+
 };
 
-cbuffer cbPerObject
+cbuffer cbAtmosphere
 {
-	float4x4 World;
-	float4x4 WorldInvTranspose;
-	float4x4 WorldViewProj;
+
 };
 
-Texture2D GroundMap;
+Texture2D transmittance_texture;
 
-SamplerState samAnisotropic
+float GetLayerDesity(DensityProfileLayer layer, float altitude)
 {
-	Filter = ANISOTROPIC;
-	MaxAnisotropy = 4;
+	float desity = layer.exp_term * exp(layer.scale_term * altitude) + layer.linear_term * altitude + layer.const_term;
+	return clamp(desity, 0.f, 1.f);
+}
 
-	AddressU = WRAP;
-	AddressV = WRAP;
-};
-
-
-VertexOut GroundFromAtmosphereVS(VertexIn vin)
+float GetProfileDesity(DensityProfile profile, float altitude)
 {
-	float3 v3Pos = vin.PosL;
-	float3 v3Ray = v3Pos - v3CameraPos;
-	v3Pos = normalize(v3Pos);
-	float fFar = length(v3Ray);
-	v3Ray /= fFar;
+	return altitude < profile.layer[0].width ?
+		GetLayerDesity(profile.layer[0], altitude) : GetLayerDesity(profile.layer[1], altitude);
+}
 
-	float3 v3Start = v3CameraPos;
-	//float fDepth = exp((fInnerRadius-fCameraHeight)*fInvScaleDepth); 
-	float fDepth = exp((fInnerRadius-fCameraHeight)*fScaleOverScaleDepth); 
-	float fCameraAngle = dot(-v3Ray,v3Pos);
-	float fLightAngle = dot(v3Pos,v3LightPos);
-	float fCameraScale = scale(fCameraAngle, fScaleDepth);
-	float fLightScale = scale(fLightAngle, fScaleDepth);
-	float fCameraOffset = fDepth * fCameraScale;
-	float fTemp = (fLightScale + fCameraScale);
+float DistanceToTopAtmosphereBoundary(AtmosphereParameters atmosphere, float r, float mu)
+{
+	float discriminant = r * r * (mu * mu - 1) + atmosphere.top_radius * atmosphere.top_radius;
+	return max(-r * mu + sqrt(max(discriminant, 0.f)), 0.f);
+}
 
-	float fSampleLength = fFar / fSamples;
-	float fScaledLength = fSampleLength * fScale;
-	float3 v3SampleRay = v3Ray * fSampleLength;
-	float3 v3SamplePoint = v3Start + v3SampleRay * 0.5;
+float DistanceToBottomAtmosphereBoundary(AtmosphereParameters atmosphere, float r, float mu)
+{
+	float discriminant = r * r * (mu * mu - 1) + atmosphere.bottom_radius * atmosphere.bottom_radius;
+	return max(-r * mu - sqrt(max(discriminant, 0.f)), 0.f);
+}
 
-	float3 v3FrontColor = float3(0.f,0.f,0.f);
-	float3 v3Attenuate;
-	for(int i=0;i<nSamples;i++)
+float ComputeOpticalLengthToTopAtmosphereBoundary(AtmosphereParameters atmosphere, DensityProfile profile,
+												float r, float mu)
+{
+	const int SAMPLE_COUNT = 500;
+	float dx = DistanceToTopAtmosphereBoundary(atmosphere, r, mu);
+
+	float result = 0.f;
+	for (int i = 0; i < SAMPLE_COUNT; i++)
 	{
-		float fHeight = length(v3SamplePoint);
-		float fDepth = exp(fScaleOverScaleDepth * (fInnerRadius - fHeight));
-		float fScatter = fDepth * fTemp - fCameraOffset;
-		v3Attenuate = exp(-fScatter * (v3InvWavelength * fKr4PI + fKm4PI));
-		v3FrontColor += v3Attenuate * (fDepth * fScaledLength); 
-		v3SamplePoint += v3SampleRay;
+		float d = dx * i;
+		float r_d = sqrt(r * r + d * d + 2 * r * d * mu);
+		// float mu_d = (d + r * mu) / r_d;
+		float desity = GetProfileDesity(profile, r_d - atmosphere.bottom_radius);
+
+		float weight = (i == 0 || i == SAMPLE_COUNT - 1) ? 0.5 : 1.0;
+
+		result += weight * dx * desity;
 	}
-
-	VertexOut vout;
-	vout.PosH = mul(float4(vin.PosL,1.0f),WorldViewProj);
-	vout.C0.xyz = v3FrontColor * (v3InvWavelength * fKrESun + fKmESun);
-	vout.C1.xyz = v3Attenuate;
-	vout.C0.w = 1;
-	vout.C1.w = 1;
-	vout.Tex = vin.Tex;
-	vout.DirToCam = v3CameraPos - v3Pos;
-
-	return vout;
+	return result;
 }
 
-float4 GroundFromAtmospherePS(VertexOut pin) :SV_Target
+float ComputeTransmittanceToTopAtmosphereBoundary(AtmosphereParameters atmosphere, float r, float mu)
 {
-	float4 texColor = GroundMap.Sample(samAnisotropic,pin.Tex);
-	return pin.C0 + pin.C1*texColor;
+	//return exp(-(
+	//	atmosphere.rayleigh_scattering *
+	//	ComputeOpticalLengthToTopAtmosphereBoundary(
+	//		atmosphere, atmosphere.rayleigh_density, r, mu) +
+	//	atmosphere.mie_extinction *
+	//	ComputeOpticalLengthToTopAtmosphereBoundary(
+	//		atmosphere, atmosphere.mie_density, r, mu) +
+	//	atmosphere.absorption_extinction *
+	//	ComputeOpticalLengthToTopAtmosphereBoundary(
+	//		atmosphere, atmosphere.absorption_density, r, mu)));
+	return exp(-(
+		atmosphere.rayleigh_scattering * 
+				ComputeOpticalLengthToTopAtmosphereBoundary(atmosphere, atmosphere.rayleigh_density, r, mu) +
+		atmosphere.mie_scattering * 
+				ComputeOpticalLengthToTopAtmosphereBoundary(atmosphere, atmosphere.mie_density, r, mu)));
 }
 
-VertexOut SkyFromAtmosphereVS(VertexIn vin)
+float GetTransmittance(AtmosphereParameters atmosphere, float r, float mu)
 {
-	float3 v3Pos = vin.PosL;
-	float3 v3Ray = v3Pos - v3CameraPos;
-	float fFar = length(v3Ray);
-	v3Ray /= fFar;
 
-	float3 v3Start = v3CameraPos;
-	float fHeight = length(v3Start);
-	float fDepth = exp((fInnerRadius-fCameraHeight)*fScaleOverScaleDepth);
-	float fStartAngle = dot(v3Ray,v3Start) / fHeight;
-	float fStartOffset = fDepth*scale(fStartAngle, fScaleDepth);
-
-	float fSampleLength = fFar / fSamples;
-	float fScaledLength = fSampleLength * fScale;
-	float3 v3SampleRay = v3Ray * fSampleLength;
-	float3 v3SamplePoint = v3Start + v3SampleRay * 0.5f;
-
-	float3 v3FrontColor = float3(0.f,0.f,0.f);
-	for(int i=0;i<nSamples;i++)
-	{
-		float fHeight = length(v3SamplePoint);
-		float fDepth = exp((fInnerRadius-fCameraHeight)*fScaleOverScaleDepth);
-		float fLightAngle = dot(v3LightPos,v3SamplePoint)/fHeight;
-		float fCameraAngle = dot(v3Ray,v3SamplePoint)/fHeight;
-		float fScatter = (fStartOffset + fDepth*(scale(fLightAngle, fScaleDepth)-scale(fCameraAngle, fScaleDepth)));
-		float3 v3Attenuate = exp(-fScatter * (v3InvWavelength * fKr4PI + fKm4PI));
-		v3FrontColor += v3Attenuate * (fDepth * fScaledLength);
-		v3SamplePoint += v3SampleRay;
-	}
-
-	VertexOut vout;
-	vout.PosH = mul(float4(vin.PosL,1.0f),WorldViewProj);
-	vout.C0.xyz = v3FrontColor * (v3InvWavelength * fKrESun);
-	vout.C1.xyz = v3FrontColor * fKmESun;
-	vout.C0.w = 1;
-	vout.C1.w = 1;
-//  vout.Tex = v3CameraPos - v3Pos;	
-	vout.Tex = vin.Tex;
-	vout.DirToCam = v3CameraPos - v3Pos;
-	return vout;
 }
-
-float4 SkyFromAtmospherePS(VertexOut pin) :SV_Target
-{
-	float3 v3Direction = pin.DirToCam;
-	float fCos = dot(v3LightPos,v3Direction)/length(v3Direction);
-	float fCos2 = fCos*fCos;
-	float4 color = getRayleighPhase(fCos2) * pin.C0 + 
-		getMiePhase(fCos,fCos2,fMieG,fMieG2) * pin.C1;
-	color.w = color.z;
-	return color;
-}
-
-VertexOut TestVS(VertexIn vin)
-{
-	VertexOut vout;
-	vout.PosH = mul(float4(vin.PosL,1.0f),WorldViewProj);
-	vout.Tex = vin.Tex;
-	vout.C0 = float4(0.f, 0.f, 0.f, 0.f);
-	vout.C1 = float4(0.f, 0.f, 0.f, 0.f);
-	vout.DirToCam = v3CameraPos - vin.PosL;
-	return vout;
-}
-
-float4 TestPS(VertexOut pin) :SV_Target
-{
-	//return float4(0,0,0,1);
-	float4 texColor = GroundMap.Sample(samAnisotropic,pin.Tex);
-	return texColor;
-}
-
-technique11 GroundFromAtmosphere
-{
-	pass P0
-    {
-        SetVertexShader( CompileShader( vs_5_0, GroundFromAtmosphereVS() ) );
-		SetGeometryShader( NULL );
-        SetPixelShader( CompileShader( ps_5_0, GroundFromAtmospherePS() ) );
-    }
-}
-
-technique11 GroundFromSpace
-{
-	pass P0
-    {
-        SetVertexShader( CompileShader( vs_5_0, GroundFromAtmosphereVS() ) );
-		SetGeometryShader( NULL );
-        SetPixelShader( CompileShader( ps_5_0, GroundFromAtmospherePS() ) );
-    }
-}
-
-technique11 SkyFromAtmosphere
-{
-	pass P0
-    {
-        SetVertexShader( CompileShader( vs_5_0, SkyFromAtmosphereVS() ) );
-		SetGeometryShader( NULL );
-        SetPixelShader( CompileShader( ps_5_0, SkyFromAtmospherePS() ) );
-    }
-}
-
-technique11 SkyFromSpace
-{
-	pass P0
-    {
-        SetVertexShader( CompileShader( vs_5_0, GroundFromAtmosphereVS() ) );
-		SetGeometryShader( NULL );
-        SetPixelShader( CompileShader( ps_5_0, GroundFromAtmospherePS() ) );
-    }
-}
-
-technique11 SpaceFromAtmosphere
-{
-	pass P0
-    {
-        SetVertexShader( CompileShader( vs_5_0, GroundFromAtmosphereVS() ) );
-		SetGeometryShader( NULL );
-        SetPixelShader( CompileShader( ps_5_0, GroundFromAtmospherePS() ) );
-    }
-}
-
-technique11 SpaceFromSpace
-{
-	pass P0
-    {
-        SetVertexShader( CompileShader( vs_5_0, GroundFromAtmosphereVS() ) );
-		SetGeometryShader( NULL );
-        SetPixelShader( CompileShader( ps_5_0, GroundFromAtmospherePS() ) );
-    }
-}
-technique11 Test
-{
-	pass P0
-    {
-        SetVertexShader( CompileShader( vs_5_0, TestVS() ) );
-		SetGeometryShader( NULL );
-        SetPixelShader( CompileShader( ps_5_0, TestPS() ) );
-    }
-}
-
-

@@ -17,10 +17,13 @@ CFirstPersonCamera								mCamera;
 ID3D11Device*									gd3dDevice;
 ID3D11DeviceContext*							gd3dImmediateContext;
 Atmosphere*										mAtmosphere;
-float	fCameraHeight = 100;
+float	fCameraHeight = 6357.0f;
 D3DXVECTOR3 v3CameraPos = D3DXVECTOR3(0,0, fCameraHeight);
-D3DXVECTOR3 LookAt = D3DXVECTOR3(0, 0, 0);
-int	screen_width = 1024,screen_height = 768;
+D3DXVECTOR3 LookAt = D3DXVECTOR3(1, 0, fCameraHeight);
+int	screen_width = 1024, screen_height = 768;
+float fAspect;
+float fNear = 0.1f, fFar = 100.0f;
+float fFov = D3DX_PI * 0.25f;
 
 //--------------------------------------------------------------------------------------
 // Reject any D3D11 devices that aren't acceptable by returning false
@@ -71,8 +74,9 @@ HRESULT CALLBACK OnD3D11ResizedSwapChain( ID3D11Device* pd3dDevice, IDXGISwapCha
 {
 	screen_width = pBackBufferSurfaceDesc->Width;
 	screen_height = pBackBufferSurfaceDesc->Height;
-	const float fAspect = static_cast<float>(screen_width) / static_cast<float>(screen_height);
-	mCamera.SetProjParams(D3DX_PI * 0.25f, fAspect, 0.1f, 100.f);
+	fAspect = static_cast<float>(screen_width) / static_cast<float>(screen_height);
+	mCamera.SetProjParams(fFov, fAspect, fNear, fFar);
+
 
     return S_OK;
 }
@@ -105,7 +109,33 @@ void CALLBACK OnD3D11FrameRender( ID3D11Device* pd3dDevice, ID3D11DeviceContext*
 	D3DXMATRIX viewPro;
 	D3DXMatrixMultiply(&viewPro, mCamera.GetViewMatrix(), mCamera.GetProjMatrix());
 	
-	mAtmosphere->Render(viewPro, v3CameraPos);
+	D3DXVECTOR3 lookAhead = *mCamera.GetWorldAhead();
+	D3DXVECTOR3 lookUp = *mCamera.GetWorldUp();
+	D3DXVECTOR3 lookRight = *mCamera.GetWorldRight();
+	
+	lookAhead *= (fNear + fFar) / 2;
+	float height_half = tanf(fFov / 2) * (fNear + fFar) / 2;
+	float width_half = height_half * fAspect;
+	
+	std::vector<Vertex> v=
+	{
+		{ v3CameraPos + lookAhead - height_half * lookUp - width_half * lookRight,{0.f,0.f,0.f},{ 0.f,0.f,0.f } ,{ 0.f,0.f }},
+		{ v3CameraPos + lookAhead + height_half * lookUp - width_half * lookRight,{ 0.f,0.f,0.f },{ 0.f,0.f,0.f } ,{ 0.f,0.f }},
+		{ v3CameraPos + lookAhead - height_half * lookUp + width_half * lookRight,{ 0.f,0.f,0.f },{ 0.f,0.f,0.f } ,{ 0.f,0.f }},
+		{ v3CameraPos + lookAhead + height_half * lookUp + width_half * lookRight,{ 0.f,0.f,0.f },{ 0.f,0.f,0.f } ,{ 0.f,0.f}}
+	};
+
+	std::vector<GeometryGenerator::uint32> index =
+	{
+		0,1,2,
+		2,1,3
+	};
+
+	GeometryGenerator::MeshData mesh;
+	mesh.Vertices = v;
+	mesh.Indices32 = index;
+
+	mAtmosphere->Render(viewPro, v3CameraPos,mesh);
 	
 }
 

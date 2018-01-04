@@ -17,6 +17,7 @@
 #include <cstdint>
 //#include <DirectXMath.h>
 #include <vector>
+#include "Common.h"
 
 class GeometryGenerator
 {
@@ -25,34 +26,6 @@ public:
 	//typedef std::uint32_t uint32;
     using uint16 = std::uint16_t;
     using uint32 = std::uint32_t;
-
-	struct Vertex
-	{
-		Vertex(){}
-        Vertex(
-            const D3DXVECTOR3& p, 
-            const D3DXVECTOR3& n, 
-            const D3DXVECTOR3& t, 
-            const D3DXVECTOR2& uv) :
-            Position(p), 
-            Normal(n), 
-            TangentU(t), 
-            TexC(uv){}
-		Vertex(
-			float px, float py, float pz, 
-			float nx, float ny, float nz,
-			float tx, float ty, float tz,
-			float u, float v) : 
-            Position(px,py,pz), 
-            Normal(nx,ny,nz),
-			TangentU(tx, ty, tz), 
-            TexC(u,v){}
-
-        D3DXVECTOR3 Position;
-        D3DXVECTOR3 Normal;
-        D3DXVECTOR3 TangentU;
-        D3DXVECTOR2 TexC;
-	};
 
 	struct MeshData
 	{
