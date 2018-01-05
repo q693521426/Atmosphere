@@ -85,7 +85,7 @@
     <None Include="Common.fx">
       <Filter>Shader</Filter>
     </None>
-    <None Include="Atmosphere.fx">
+    <None Include="Atmosphere1.fx">
       <Filter>Shader</Filter>
     </None>
   </ItemGroup>
@@ -125,5 +125,10 @@
     <ClInclude Include="GeometryGenerator.h">
       <Filter>Header</Filter>
     </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <FxCompile Include="Atmosphere.fx">
+      <Filter>Shader</Filter>
+    </FxCompile>
   </ItemGroup>
 </Project>

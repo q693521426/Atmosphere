@@ -416,7 +416,7 @@
     <ClCompile Include="DXUT\Optional\SDKmisc.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="Atmosphere.fx">
+    <None Include="Atmosphere1.fx">
       <FileType>Document</FileType>
     </None>
     <None Include="Common.fx">
@@ -430,6 +430,14 @@
     <ResourceCompile Include="Atmosphere.rc" />
   </ItemGroup>
   <ItemGroup>
+    <FxCompile Include="Atmosphere.fx">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Profile|x64'">Vertex</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Profile|Win32'">Vertex</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Vertex</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Vertex</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Vertex</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Vertex</ShaderType>
+    </FxCompile>
   </ItemGroup>
   <ItemGroup>
   </ItemGroup>
