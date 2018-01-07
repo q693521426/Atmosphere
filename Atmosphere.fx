@@ -249,7 +249,7 @@ float3 GetTransmittance(float r, float mu, float d, bool ray_r_mu_intersects_gro
 }
 
 
-technique11 PreComputeTransimittanceTextureTech
+technique11 ComputeTransmittanceTextureTech
 {
     pass P0
     {

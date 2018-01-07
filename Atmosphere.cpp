@@ -5,57 +5,6 @@
 #include <algorithm>
 #include <iostream>
 
-std::vector<std::string> TechStr
-{
-	"GroundFromAtmosphere",
-	"GroundFromSpace",
-	"SkyFromAtmosphere",
-	"SkyFromSpace",
-	"SpaceFromAtmosphere",
-	"SpaceFromSpace",
-	"Test",
-	"mSkyfromAtmosphere"
-};
-
-std::vector<std::string> MatrixVarStr
-{
-	"World",
-	"WorldViewProj",
-	"WorldInvTranspose"
-};
-
-std::vector<std::string> VectorVarStr
-{
-	"v3CameraPos",
-	"v3LightPos",
-	"v3InvWavelength"
-};
-
-std::vector<std::string> ScalarVarStr
-{
-	"fCameraHeight",
-	"fCameraHeight2",
-	"fOuterRadius",
-	"fOuterRadius2",
-	"fInnerRadius",
-	"fInnerRadius2",
-	"fKrESun",
-	"fKmESun",
-	"fKr4PI",
-	"fKm4PI",
-	"fScale",
-	"fScaleOverScaleDepth",
-	"fScaleDepth",
-	"fInvScaleDepth",
-	"fMieG",
-	"fMieG2"
-};
-
-std::vector<std::string> ShaderResourceVarStr
-{
-	"GroundMap"
-};
-
 Atmosphere::Atmosphere(void) :pAtmosphereEffect(nullptr), pInputLayout(nullptr),
 pGroundVB(nullptr), pGroundIB(nullptr), pAtmosphereVB(nullptr),
 pAtmosphereIB(nullptr), pGroundSRV(nullptr),
@@ -179,6 +128,28 @@ HRESULT Atmosphere::OnD3D11CreateDevice()
 	V_RETURN(D3DX11CreateShaderResourceViewFromFile(pd3dDevice, L"Resource/earthmap1k.dds",
 		nullptr, nullptr, &pGroundSRV, nullptr));
 
+	D3D11_TEXTURE2D_DESC PreCompute2DTexDesc;
+	ZeroMemory(&PreCompute2DTexDesc, sizeof(PreCompute2DTexDesc));
+	PreCompute2DTexDesc.Width = TRANSMITTANCE_TEXTURE_WIDTH;
+	PreCompute2DTexDesc.Height = TRANSMITTANCE_TEXTURE_HEIGHT;
+	PreCompute2DTexDesc.MipLevels = 1;
+	PreCompute2DTexDesc.ArraySize = 1;
+	PreCompute2DTexDesc.Format = DXGI_FORMAT_R32G32B32_FLOAT;
+	PreCompute2DTexDesc.SampleDesc.Count = 1;
+	PreCompute2DTexDesc.SampleDesc.Quality = 0;
+	PreCompute2DTexDesc.Usage = D3D11_USAGE_DEFAULT;
+	PreCompute2DTexDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;;
+	PreCompute2DTexDesc.CPUAccessFlags = 0;
+	PreCompute2DTexDesc.MiscFlags = 0;
+	V_RETURN(pd3dDevice->CreateTexture2D(&PreCompute2DTexDesc, nullptr, &pTransmittanceTex2D));
+	
+	D3D11_RENDER_TARGET_VIEW_DESC PreComputeRTVDesc;
+	PreComputeRTVDesc.Format = PreCompute2DTexDesc.Format;
+	PreComputeRTVDesc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
+	PreComputeRTVDesc.Texture2D.MipSlice = 0;
+	V_RETURN(pd3dDevice->CreateRenderTargetView(pTransmittanceTex2D, &PreComputeRTVDesc, &pTransmittanceRTV));
+
+
 	return hr;
 }
 
@@ -193,6 +164,16 @@ void Atmosphere::ResetInputView(GeometryGenerator::MeshData& viewQuad)
 void Atmosphere::ResetShaderParam()
 {
 	
+}
+
+void Atmosphere::PreCompute()
+{
+
+}
+
+void Atmosphere::PreComputeTransmittance()
+{
+
 }
 
 void Atmosphere::Render(D3DXMATRIX& viewProj, D3DXVECTOR3& v3CameraPos, GeometryGenerator::MeshData& viewQuad)
