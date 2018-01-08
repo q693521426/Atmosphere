@@ -138,7 +138,7 @@ HRESULT Atmosphere::OnD3D11CreateDevice()
 	PreCompute2DTexDesc.SampleDesc.Count = 1;
 	PreCompute2DTexDesc.SampleDesc.Quality = 0;
 	PreCompute2DTexDesc.Usage = D3D11_USAGE_DEFAULT;
-	PreCompute2DTexDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;;
+	PreCompute2DTexDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
 	PreCompute2DTexDesc.CPUAccessFlags = 0;
 	PreCompute2DTexDesc.MiscFlags = 0;
 	V_RETURN(pd3dDevice->CreateTexture2D(&PreCompute2DTexDesc, nullptr, &pTransmittanceTex2D));
@@ -149,6 +149,34 @@ HRESULT Atmosphere::OnD3D11CreateDevice()
 	PreComputeRTVDesc.Texture2D.MipSlice = 0;
 	V_RETURN(pd3dDevice->CreateRenderTargetView(pTransmittanceTex2D, &PreComputeRTVDesc, &pTransmittanceRTV));
 
+	D3D11_SHADER_RESOURCE_VIEW_DESC PreComputeSRVDesc;
+	PreComputeSRVDesc.Format = PreCompute2DTexDesc.Format;
+	PreComputeSRVDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+	PreComputeSRVDesc.Texture2D.MostDetailedMip = 0;
+	PreComputeSRVDesc.Texture2D.MipLevels = 1;
+	V_RETURN(pd3dDevice->CreateShaderResourceView(pTransmittanceTex2D, &PreComputeSRVDesc, &pTransmittanceSRV));
+
+	D3D11_TEXTURE3D_DESC PreComputeSingleSctr3DTexDesc;
+	PreComputeSingleSctr3DTexDesc.Width = SCATTERING_TEXTURE_WIDTH;
+	PreComputeSingleSctr3DTexDesc.Height = SCATTERING_TEXTURE_HEIGHT;
+	PreComputeSingleSctr3DTexDesc.Depth = SCATTERING_TEXTURE_DEPTH;
+	PreComputeSingleSctr3DTexDesc.MipLevels = 1;
+	PreComputeSingleSctr3DTexDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+	PreComputeSingleSctr3DTexDesc.Usage = D3D11_USAGE_DEFAULT;
+	PreComputeSingleSctr3DTexDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+	PreComputeSingleSctr3DTexDesc.CPUAccessFlags = 0;
+	PreComputeSingleSctr3DTexDesc.MiscFlags = 0;
+
+	for (UINT depthSlice = 0; depthSlice < PreComputeSingleSctr3DTexDesc.Depth; ++depthSlice)
+	{
+		D3D11_RENDER_TARGET_VIEW_DESC PreComputeSingleSctrRTVDesc;
+		PreComputeSingleSctrRTVDesc.Format = PreComputeSingleSctr3DTexDesc.Format;
+		PreComputeSingleSctrRTVDesc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE3D;
+		PreComputeSingleSctrRTVDesc.Texture3D.MipSlice = 0;
+		PreComputeSingleSctrRTVDesc.Texture3D.FirstWSlice = depthSlice;
+		PreComputeSingleSctrRTVDesc.Texture3D.WSize = 1;
+		
+	}
 
 	return hr;
 }

@@ -87,6 +87,14 @@ private:
 	ID3D11ShaderResourceView*						pTransmittanceSRV;
 	ID3D11RenderTargetView*							pTransmittanceRTV;
 
+	ID3D11Texture3D*								pSingleScatteringTex3D;
+	ID3D11ShaderResourceView*						pSingleScatteringSRV;
+	ID3D11RenderTargetView*							pSingleScatteringRTV;
+
+	ID3D11Texture3D*								pMultiScatteringTex3D;
+	ID3D11ShaderResourceView*						pMultiScatteringSRV;
+	ID3D11RenderTargetView*							pMultiScatteringRTV;
+
 	ID3D11Device* pd3dDevice;
 	ID3D11DeviceContext* pd3dImmediateContext;
 	UINT groundIndexNum;
