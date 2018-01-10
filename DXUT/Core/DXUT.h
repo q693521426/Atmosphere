@@ -6,7 +6,7 @@
 #pragma once
 #ifndef DXUT_H
 #define DXUT_H
-
+#include "d3dx11effect.h"
 #ifndef UNICODE
 #error "DXUT requires a Unicode build."
 #endif

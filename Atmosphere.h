@@ -1,30 +1,58 @@
 #pragma once
 
+#ifndef ATMOSPHERE_H
+#define ATMOSPHERE_H
+
 #include "DXUT.h"
-#include <string>
-#include "d3dx11effect.h"
-#include "GeometryGenerator.h"
-#include <unordered_map>
-#include <vector>
 #include <atlcomcli.h>
+#include <unordered_map>
+#include <string>
+#include <vector>
+
+struct DensityProfileLayer
+{
+	float width;
+	float exp_term;
+	float exp_scale;
+	float linear_term;
+	float const_term;
+};
+
+struct DensityProfile
+{
+	DensityProfileLayer layer[2];
+};
+
+struct AtmosphereParameters
+{
+	float bottom_radius;
+	float top_radius;
+
+	DensityProfile rayleigh_density;
+	float rayleigh_scattering[3];
+
+	DensityProfile mie_density;
+	float mie_scattering[3];
+};
 
 class Atmosphere
 {
 public:
-	Atmosphere(void);
-	~Atmosphere(void);
-
-	void Initialize(ID3D11Device*,ID3D11DeviceContext*);
+	Atmosphere();
+	~Atmosphere();
+	
+	void Initialize();
 	void Release();
 
-	HRESULT OnD3D11CreateDevice();
-	void ResetInputView(GeometryGenerator::MeshData&);
+	HRESULT OnD3D11CreateDevice(ID3D11Device*, ID3D11DeviceContext*);
 
-	void PreCompute();
-
-	void Render(D3DXMATRIX&,D3DXVECTOR3&,GeometryGenerator::MeshData&);
+	void Render(ID3D11Device*, ID3D11DeviceContext*, ID3D11RenderTargetView*);
 private:
-	void PreComputeTransmittance();
+	bool IsPreComputed = false;
+	AtmosphereParameters AtmosphereParams;
+	
+	HRESULT PreComputeTransmittanceTex2D(ID3D11Device*, ID3D11DeviceContext*, ID3D11RenderTargetView*);
+	HRESULT PreComputeSingleSctrTex3D(ID3D11Device*, ID3D11DeviceContext*);
 
 	const int TRANSMITTANCE_TEXTURE_WIDTH = 256;    //mu
 	const int TRANSMITTANCE_TEXTURE_HEIGHT = 64;    //r
@@ -34,8 +62,8 @@ private:
 	const int SCATTERING_TEXTURE_MU_S_SIZE = 32;
 	const int SCATTERING_TEXTURE_NU_SIZE = 8;
 
-	const int SCATTERING_TEXTURE_WIDTH = 
-				SCATTERING_TEXTURE_NU_SIZE * SCATTERING_TEXTURE_MU_S_SIZE;
+	const int SCATTERING_TEXTURE_WIDTH =
+		SCATTERING_TEXTURE_NU_SIZE * SCATTERING_TEXTURE_MU_S_SIZE;
 	const int SCATTERING_TEXTURE_HEIGHT = SCATTERING_TEXTURE_MU_SIZE;
 	const int SCATTERING_TEXTURE_DEPTH = SCATTERING_TEXTURE_R_SIZE;
 
@@ -45,76 +73,22 @@ private:
 	// The conversion factor between watts and lumens.
 	const double MAX_LUMINOUS_EFFICACY = 683.0;
 
-	float Kr;
-	float Km;
-	float fKr4PI;
-	float fKm4PI;
-	float ESun;
-	float fKrESun;
-	float fKmESun;
-	float fMieG;
-	float fMieG2;
-	float fInnerRadius;
-	float fInnerRadius2;
-	float fOutRadius;
-	float fOutRadius2;
-	float fScale;
-	float fScaleOverScaleDepth;
-	float fScaleDepth;
-	float fInvScaleDepth;
-	float fCameraHeight;
-	float fCameraHeight2;
-	D3DXVECTOR3 fWavelength;
-	D3DXVECTOR3 fInvWavelength4;
-	D3DXVECTOR3 SunPos;
+	CComPtr<ID3DX11Effect>		pAtmosphereEffect;
+
+	std::unordered_map<std::string, CComPtr<ID3DX11EffectTechnique>>				AtmosphereTechMap;
+	std::unordered_map<std::string, CComPtr<ID3DX11EffectMatrixVariable>>			MatrixVarMap;
+	std::unordered_map<std::string, CComPtr<ID3DX11EffectVectorVariable>>			VectorVarMap;
+	std::unordered_map<std::string, CComPtr<ID3DX11EffectScalarVariable>>			ScalarVarMap;
+	std::unordered_map<std::string, CComPtr<ID3DX11EffectVariable>>					VarMap;
+	std::unordered_map<std::string, CComPtr<ID3DX11EffectShaderResourceVariable>>	ShaderResourceVarMap;
+
+	CComPtr<ID3D11Texture2D>							pTransmittanceTex2D;
+	CComPtr<ID3D11ShaderResourceView>					pTransmittanceSRV;
+	CComPtr<ID3D11RenderTargetView>						pTransmittanceRTV;
 	
-	ID3DX11Effect*									pAtmosphereEffect;
-
-	std::unordered_map<std::string,ID3DX11EffectTechnique*>					AtmosphereTechMap;	
-	std::unordered_map<std::string,ID3DX11EffectMatrixVariable*>			MatrixVarMap;
-	std::unordered_map<std::string,ID3DX11EffectVectorVariable*>			VectorVarMap;
-	std::unordered_map<std::string,ID3DX11EffectScalarVariable*>			ScalarVarMap;
-	std::unordered_map<std::string,ID3DX11EffectShaderResourceVariable*>	ShaderResourceVarMap;
-
-	ID3D11InputLayout*								pInputLayout;
-	ID3D11Buffer*									pGroundVB;
-	ID3D11Buffer*									pGroundIB;
-	ID3D11Buffer*									pAtmosphereVB;
-	ID3D11Buffer*									pAtmosphereIB;
-	ID3D11ShaderResourceView*						pGroundSRV;
-
-	ID3D11Texture2D*								pTransmittanceTex2D;
-	ID3D11ShaderResourceView*						pTransmittanceSRV;
-	ID3D11RenderTargetView*							pTransmittanceRTV;
-
-	ID3D11Texture3D*								pSingleScatteringTex3D;
-	ID3D11ShaderResourceView*						pSingleScatteringSRV;
-	ID3D11RenderTargetView*							pSingleScatteringRTV;
-
-	ID3D11Texture3D*								pMultiScatteringTex3D;
-	ID3D11ShaderResourceView*						pMultiScatteringSRV;
-	ID3D11RenderTargetView*							pMultiScatteringRTV;
-
-	ID3D11Device* pd3dDevice;
-	ID3D11DeviceContext* pd3dImmediateContext;
-	UINT groundIndexNum;
-
-	template<typename T1, typename T2>
-	void MapRelease(std::unordered_map<T1,T2>& m);
-
-	void ResetShaderParam();
-
 	std::vector<std::string> TechStr
 	{
-		"GroundFromAtmosphere",
-		"GroundFromSpace",
-		"SkyFromAtmosphere",
-		"SkyFromSpace",
-		"SpaceFromAtmosphere",
-		"SpaceFromSpace",
-		"Test",
-		"mSkyfromAtmosphere",
-		"PreComputeTransmittanceTexture"
+		"ComputeTransmittanceTex2DTech"
 	};
 
 	std::vector<std::string> MatrixVarStr
@@ -127,33 +101,23 @@ private:
 	std::vector<std::string> VectorVarStr
 	{
 		"v3CameraPos",
-		"v3LightPos",
-		"v3InvWavelength"
+		"v3LightPos"
 	};
 
 	std::vector<std::string> ScalarVarStr
 	{
-		"fCameraHeight",
-		"fCameraHeight2",
-		"fOuterRadius",
-		"fOuterRadius2",
-		"fInnerRadius",
-		"fInnerRadius2",
-		"fKrESun",
-		"fKmESun",
-		"fKr4PI",
-		"fKm4PI",
-		"fScale",
-		"fScaleOverScaleDepth",
-		"fScaleDepth",
-		"fInvScaleDepth",
-		"fMieG",
-		"fMieG2"
+	};
+
+	std::vector<std::string> VarStr
+	{
+		"AtmosphereParams"
 	};
 
 	std::vector<std::string> ShaderResourceVarStr
 	{
-		"GroundMap"
+		"g_tex2DTransmittanceLUT",
+		"g_tex3DSingleScatteringLUT"
 	};
 };
 
+#endif

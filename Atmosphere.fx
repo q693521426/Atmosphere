@@ -1,27 +1,47 @@
-const int TRANSMITTANCE_TEXTURE_WIDTH = 256;    //mu
-const int TRANSMITTANCE_TEXTURE_HEIGHT = 64;    //r
+static const int TRANSMITTANCE_TEXTURE_WIDTH = 256;    //mu
+static const int TRANSMITTANCE_TEXTURE_HEIGHT = 64; //r
 
-const int SCATTERING_TEXTURE_R_SIZE = 32;
-const int SCATTERING_TEXTURE_MU_SIZE = 128;
-const int SCATTERING_TEXTURE_MU_S_SIZE = 32;
-const int SCATTERING_TEXTURE_NU_SIZE = 8;
+static const int SCATTERING_TEXTURE_R_SIZE = 32;
+static const int SCATTERING_TEXTURE_MU_SIZE = 128;
+static const int SCATTERING_TEXTURE_MU_S_SIZE = 32;
+static const int SCATTERING_TEXTURE_NU_SIZE = 8;
 
-const int SCATTERING_TEXTURE_WIDTH = 
+static const int SCATTERING_TEXTURE_WIDTH =
             SCATTERING_TEXTURE_NU_SIZE * SCATTERING_TEXTURE_MU_S_SIZE;
-const int SCATTERING_TEXTURE_HEIGHT = SCATTERING_TEXTURE_MU_SIZE;
-const int SCATTERING_TEXTURE_DEPTH = SCATTERING_TEXTURE_R_SIZE;
+static const int SCATTERING_TEXTURE_HEIGHT = SCATTERING_TEXTURE_MU_SIZE;
+static const int SCATTERING_TEXTURE_DEPTH = SCATTERING_TEXTURE_R_SIZE;
 
-const int IRRADIANCE_TEXTURE_WIDTH = 64;
-const int IRRADIANCE_TEXTURE_HEIGHT = 16;
+static const int IRRADIANCE_TEXTURE_WIDTH = 64;
+static const int IRRADIANCE_TEXTURE_HEIGHT = 16;
 
 // The conversion factor between watts and lumens.
-const double MAX_LUMINOUS_EFFICACY = 683.0;
+static const float MAX_LUMINOUS_EFFICACY = 683.0;
 
 SamplerState samLinearClamp
 {
     Filter = MIN_MAG_MIP_LINEAR;
     AddressU = Clamp;
     AddressV = Clamp;
+};
+
+// Depth stencil state disabling depth test
+DepthStencilState DSS_NoDepthTest
+{
+    DepthEnable = false;
+    DepthWriteMask = ZERO;
+};
+
+RasterizerState RS_SolidFill_NoCull
+{
+    FILLMODE = Solid;
+    CullMode = NONE;
+};
+
+BlendState NoBlending
+{
+    BlendEnable[0] = FALSE;
+    BlendEnable[1] = FALSE;
+    BlendEnable[2] = FALSE;
 };
 
 struct DensityProfileLayer
@@ -48,8 +68,6 @@ struct AtmosphereParameters
 
 	DensityProfile mie_density;
 	float3 mie_scattering;
-
-
 };
 
 struct VertexIn
@@ -215,12 +233,26 @@ float2 GetTransmittanceUVFromRMu(float r, float mu)
 
 }
 
-float3 ComputeTransmittanceToTopAtmosphereBoundaryTexture(QuadVertexOut In)
+float3 ComputeTransmittanceToTopAtmosphereBoundaryTexture(QuadVertexOut In):SV_Target
 {
     float2 f2UV = ProjToUV(In.m_f2PosPS);
     float2 RMu = GetRMuFromTransmittanceUV(f2UV);
-
+    
     return ComputeTransmittanceToTopAtmosphereBoundary(RMu.x, RMu.y);
+}
+
+technique11 ComputeTransmittanceTex2DTech
+{
+    pass P0
+    {
+        SetBlendState(NoBlending, float4(0.0f, 0.0f, 0.0f, 0.0f), 0xFFFFFFFF);
+        SetRasterizerState(RS_SolidFill_NoCull);
+        SetDepthStencilState(DSS_NoDepthTest, 0);
+
+        SetVertexShader(CompileShader(vs_5_0, GenerateScreenSizeQuadVS()));
+        SetGeometryShader(NULL);
+        SetPixelShader(CompileShader(ps_5_0, ComputeTransmittanceToTopAtmosphereBoundaryTexture()));
+    }
 }
 
 float3 GetTransmittanceToTopAtmosphereBoundary(float r, float mu)
@@ -238,23 +270,13 @@ float3 GetTransmittance(float r, float mu, float d, bool ray_r_mu_intersects_gro
     {
         return min(GetTransmittanceToTopAtmosphereBoundary(r_d, -mu_d) /
                 GetTransmittanceToTopAtmosphereBoundary(r, mu),
-                float3(1.f));
+                float3(1.f,1.f,1.f));
     }
     else
     {
         return min(GetTransmittanceToTopAtmosphereBoundary(r, mu) /
                 GetTransmittanceToTopAtmosphereBoundary(r_d, mu_d),
-                float3(1.f));
+                float3(1.f, 1.f, 1.f));
     }
 }
 
-
-technique11 ComputeTransmittanceTextureTech
-{
-    pass P0
-    {
-        SetVertexShader(CompileShader(vs_5_0, GenerateScreenSizeQuadVS()));
-        SetGeometryShader(NULL);
-        SetPixelShader(CompileShader(ps_5_0, ComputeTransmittanceToTopAtmosphereBoundaryTexture()));
-    }
-}
