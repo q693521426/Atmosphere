@@ -9,6 +9,7 @@
 #include <string>
 #include <vector>
 
+#pragma	pack(push,1)
 struct DensityProfileLayer
 {
 	float width;
@@ -18,22 +19,25 @@ struct DensityProfileLayer
 	float const_term;
 };
 
-struct DensityProfile
-{
-	DensityProfileLayer layer[2];
-};
-
 struct AtmosphereParameters
 {
 	float bottom_radius;
 	float top_radius;
+	float solar_irradiance[3];
 
-	DensityProfile rayleigh_density;
+	DensityProfileLayer rayleigh_density;
 	float rayleigh_scattering[3];
 
-	DensityProfile mie_density;
+	DensityProfileLayer mie_density;
 	float mie_scattering[3];
+	float mie_g;
+
+	DensityProfileLayer ozone_density[2];
+	float absorption_extinction[3];
+
+	float ground_albedo;
 };
+#pragma	pack(pop)
 
 class Atmosphere
 {
@@ -48,6 +52,7 @@ public:
 
 	void Render(ID3D11Device*, ID3D11DeviceContext*, ID3D11RenderTargetView*);
 private:
+
 	bool IsPreComputed = false;
 	AtmosphereParameters AtmosphereParams;
 	
