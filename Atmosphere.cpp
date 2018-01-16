@@ -1,6 +1,7 @@
 #include "DXUT.h"
 #include "Atmosphere.h"
 #include "Common.h"
+#include <minwinbase.h>
 
 Atmosphere::Atmosphere()
 {
@@ -56,17 +57,18 @@ void Atmosphere::Initialize()
 	constexpr double kMieSingleScatteringAlbedo = 0.9;
 	constexpr double kGroundAlbedo = 0.1;
 
-	std::vector<double> solar_irradiance;
-	std::vector<double> rayleigh_scatter;
-	std::vector<double> mie_scatter;
-	std::vector<double> mie_extinction;
-	std::vector<double> absorption_extinction;	//ozone
+	//std::vector<float> solar_irradiance;
+	//std::vector<float> rayleigh_scatter;
+	//std::vector<float> mie_scatter;
+	//std::vector<float> mie_extinction;
+	//std::vector<float> absorption_extinction;	//ozone
 
 	auto lerp = [](double x,double y,double s)
 	{
-		return x*(1 - s) + y*s;
+		return static_cast<float>(x*(1 - s) + y*s);
 	};
 
+	ZeroMemory(&AtmosphereParams, sizeof(AtmosphereParameters));
 	for(int i=0;i<lambda.size();++i)
 	{
 		double l = lambda[i];
@@ -80,46 +82,41 @@ void Atmosphere::Initialize()
 		double s = (l - static_cast<double>(lambda_x)) / 10;
 		
 		double mie = lerp(kMieAngstromBeta / kMieScaleHeight * pow(lambda_x_um, -kMieAngstromAlpha),
-					kMieAngstromBeta / kMieScaleHeight * pow(lambda_y_um, -kMieAngstromAlpha), s);
+					kMieAngstromBeta / kMieScaleHeight * pow(lambda_y_um, -kMieAngstromAlpha), s)*1000;
 
-		solar_irradiance.push_back(
-			lerp(kSolarIrradiance[index], kSolarIrradiance[index + 1], s));
-		rayleigh_scatter.push_back(
-			lerp(kRayleigh * pow(lambda_x_um, -4), kRayleigh *pow(lambda_y_um, -4), s));
-		mie_scatter.push_back(mie);
-		mie_extinction.push_back(mie*kMieSingleScatteringAlbedo);
-		absorption_extinction.push_back(
+		AtmosphereParams.solar_irradiance[i]=
+			lerp(kSolarIrradiance[index], kSolarIrradiance[index + 1], s);
+		AtmosphereParams.rayleigh_scattering[i] = 
+			lerp(kRayleigh * pow(lambda_x_um, -4), kRayleigh *pow(lambda_y_um, -4), s)*1000;
+		AtmosphereParams.mie_scattering[i] = mie;
+		AtmosphereParams.mie_extinction[i] = mie*kMieSingleScatteringAlbedo;
+		AtmosphereParams.absorption_extinction[i] =
 			lerp(kMaxOzoneNumberDensity * kOzoneCrossSection[index],
-				kMaxOzoneNumberDensity * kOzoneCrossSection[index+1],s));
+				kMaxOzoneNumberDensity * kOzoneCrossSection[index+1],s) * 1000;
 
 	}
 	
 	AtmosphereParams.bottom_radius = 6360.f;
 	AtmosphereParams.top_radius = 6420.f;
-	std::move(rayleigh_scatter.begin(), rayleigh_scatter.end(), 
-				AtmosphereParams.rayleigh_scattering);
+	AtmosphereParams.mie_g = 0.8f;
+	AtmosphereParams.ground_albedo = 0.1f;
+	AtmosphereParams.ozone_width = 25.0f;
 	AtmosphereParams.rayleigh_density = DensityProfileLayer
 	{
-		0.f, 1.f, -1.0 / kMieScaleHeight * 1000.0, 0.f, 0.f
+		1.f, -1.0 / kMieScaleHeight * 1000.0, 0.f, 0.f
 	};
-	std::move(mie_scatter.begin(), mie_scatter.end(), 
-				AtmosphereParams.mie_scattering);
 	AtmosphereParams.mie_density = DensityProfileLayer
 	{
-		0.f, 1.f, -1.0 / kRayleighScaleHeight * 1000.0, 0.f, 0.f
+		1.f, -1.0 / kRayleighScaleHeight * 1000.0, 0.f, 0.f
 	};
-	AtmosphereParams.mie_g = 0.8;
-	std::move(absorption_extinction.begin(), absorption_extinction.end(),
-				AtmosphereParams.absorption_extinction);
 	AtmosphereParams.ozone_density[0] = DensityProfileLayer
 	{
-		25.0, 0.0, 0.0, 1.0 / 15.0, -2.0 / 3.0
+		0.0, 0.0, 1.0 / 15.0, -2.0 / 3.0
 	};
 	AtmosphereParams.ozone_density[1] = DensityProfileLayer
 	{
-		0.0, 0.0, 0.0, -1.0 / 15.0, 8.0 / 3.0
+		0.0, 0.0, -1.0 / 15.0, 8.0 / 3.0
 	};
-	AtmosphereParams.ground_albedo = 0.1f;
 }	
 
 
@@ -231,14 +228,34 @@ HRESULT Atmosphere::PreComputeTransmittanceTex2D(ID3D11Device* pDevice, ID3D11De
 
 	ID3DX11EffectTechnique* activeTech = AtmosphereTechMap["ComputeTransmittanceTex2DTech"];
 
+	//VectorVarMap["solar_irradiance"]->SetFloatVector(AtmosphereParams.solar_irradiance);
+	//VectorVarMap["rayleigh_scattering"]->SetFloatVector(AtmosphereParams.rayleigh_scattering);
+	//VectorVarMap["mie_scattering"]->SetFloatVector(AtmosphereParams.mie_scattering);
+	//VectorVarMap["mie_extinction"]->SetFloatVector(AtmosphereParams.mie_extinction);
+	//VectorVarMap["absorption_extinction"]->SetFloatVector(AtmosphereParams.absorption_extinction);
+
+	//ScalarVarMap["bottom_radius"]->SetFloat(AtmosphereParams.bottom_radius);
+	//ScalarVarMap["top_radius"]->SetFloat(AtmosphereParams.top_radius);
+	//ScalarVarMap["mie_g"]->SetFloat(AtmosphereParams.mie_g);
+	//ScalarVarMap["ground_albedo"]->SetFloat(AtmosphereParams.ground_albedo);
+	//ScalarVarMap["ozone_width"]->SetFloat(AtmosphereParams.ozone_width);
+
+	//VarMap["rayleigh_density"]->SetRawValue(&AtmosphereParams.rayleigh_density, 0, sizeof(DensityProfileLayer));
+	//VarMap["mie_density"]->SetRawValue(&AtmosphereParams.mie_density, 0, sizeof(DensityProfileLayer));
+	//VarMap["ozone_density"]->SetRawValue(&AtmosphereParams.ozone_density, 0, 2 * sizeof(DensityProfileLayer));
+
+	VarMap["atmosphere"]->SetRawValue(&AtmosphereParams, 0, sizeof(AtmosphereParameters));
+
 	RenderQuad(pContext, activeTech, &pTransmittanceRTV.p, TRANSMITTANCE_TEXTURE_WIDTH, TRANSMITTANCE_TEXTURE_HEIGHT);
 
-	//V_RETURN(D3DX11SaveTextureToFile(pContext, pTransmittanceTex2D, D3DX11_IFF_DDS, L"transmittance.dds"));
+	//V_RETURN(D3DX11SaveTextureToFile(pContext, pTransmittanceTex2D, D3DX11_IFF_PNG, L"transmittance.png"));
 	return hr;
 }
 
 HRESULT Atmosphere::PreComputeSingleSctrTex3D(ID3D11Device* pDevice, ID3D11DeviceContext* pContext)
 {
 	HRESULT hr = S_OK;
+
+
 	return hr;
 }

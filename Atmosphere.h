@@ -9,10 +9,9 @@
 #include <string>
 #include <vector>
 
-#pragma	pack(push,1)
+
 struct DensityProfileLayer
 {
-	float width;
 	float exp_term;
 	float exp_scale;
 	float linear_term;
@@ -21,23 +20,25 @@ struct DensityProfileLayer
 
 struct AtmosphereParameters
 {
+	D3DXVECTOR3 solar_irradiance;
 	float bottom_radius;
+
+	D3DXVECTOR3 rayleigh_scattering;
 	float top_radius;
-	float solar_irradiance[3];
 
-	DensityProfileLayer rayleigh_density;
-	float rayleigh_scattering[3];
-
-	DensityProfileLayer mie_density;
-	float mie_scattering[3];
+	D3DXVECTOR3 mie_scattering;
 	float mie_g;
 
-	DensityProfileLayer ozone_density[2];
-	float absorption_extinction[3];
-
+	D3DXVECTOR3 mie_extinction;
 	float ground_albedo;
+
+	D3DXVECTOR3 absorption_extinction;
+	float ozone_width;
+
+	DensityProfileLayer rayleigh_density;
+	DensityProfileLayer mie_density;
+	DensityProfileLayer ozone_density[2];
 };
-#pragma	pack(pop)
 
 class Atmosphere
 {
@@ -105,17 +106,30 @@ private:
 
 	std::vector<std::string> VectorVarStr
 	{
+		"solar_irradiance",
+		"rayleigh_scattering",
+		"mie_scattering",
+		"mie_extinction",
+		"absorption_extinction",
 		"v3CameraPos",
 		"v3LightPos"
 	};
 
 	std::vector<std::string> ScalarVarStr
 	{
+		"bottom_radius",
+		"top_radius",
+		"mie_g",
+		"ground_albedo",
+		"ozone_width"
 	};
 
 	std::vector<std::string> VarStr
 	{
-		"AtmosphereParams"
+		"atmosphere",
+		"rayleigh_density",
+		"mie_density",
+		"ozone_density"
 	};
 
 	std::vector<std::string> ShaderResourceVarStr

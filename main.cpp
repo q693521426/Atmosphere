@@ -1,5 +1,5 @@
 //--------------------------------------------------------------------------------------
-// File: Atmosphere.cpp
+// File: cpp
 //
 // Empty starting point for new Direct3D 9 and/or Direct3D 11 applications
 //

@@ -46,28 +46,59 @@ BlendState NoBlending
 
 struct DensityProfileLayer
 {
-	float width;
 	float exp_term;
 	float exp_scale;
 	float linear_term;
 	float const_term;
 };
 
-struct DensityProfile
+//cbuffer cbAtmosphere
+//{
+//    float3 solar_irradiance;
+//    float bottom_radius;
+    
+//    float3 rayleigh_scattering;
+//    float top_radius;
+    
+//    float3 mie_scattering;
+//    float mie_g;
+    
+//    float3 mie_extinction;
+//    float ground_albedo;
+    
+//    float3 absorption_extinction;
+//    float ozone_width;
+
+//    DensityProfileLayer rayleigh_density;
+//    DensityProfileLayer mie_density;
+//    DensityProfileLayer ozone_density[2];
+//};
+
+struct AtmosphereParams
 {
-	DensityProfileLayer layer[2];
+    float3 solar_irradiance;
+    float bottom_radius;
+    
+    float3 rayleigh_scattering;
+    float top_radius;
+    
+    float3 mie_scattering;
+    float mie_g;
+    
+    float3 mie_extinction;
+    float ground_albedo;
+    
+    float3 absorption_extinction;
+    float ozone_width;
+
+    DensityProfileLayer rayleigh_density;
+    DensityProfileLayer mie_density;
+    DensityProfileLayer ozone_density[2];
 };
 
-struct AtmosphereParameters
+cbuffer cbAtmosphere2
 {
-	float bottom_radius;
-	float top_radius;
-
-	DensityProfile rayleigh_density;
-	float3 rayleigh_scattering;
-
-	DensityProfile mie_density;
-	float3 mie_scattering;
+    AtmosphereParams atmosphere;
 };
 
 struct VertexIn
@@ -90,11 +121,6 @@ struct QuadVertexOut
     float4 m_f4Pos : SV_Position;
     float2 m_f2PosPS : PosPS; // Position in projection space [-1,1]x[-1,1]
     float m_fInstID : InstanceID;
-};
-
-cbuffer cbAtmosphereParameters
-{
-	AtmosphereParameters atmosphere;
 };
 
 Texture2D<float3> g_tex2DTransmittanceLUT;
@@ -142,61 +168,51 @@ float GetLayerDesity(DensityProfileLayer layer, float altitude)
 	return clamp(desity, 0.f, 1.f);
 }
 
-float GetProfileDesity(DensityProfile profile, float altitude)
-{
-	return altitude < profile.layer[0].width ?
-		GetLayerDesity(profile.layer[0], altitude) : GetLayerDesity(profile.layer[1], altitude);
-}
-
 float DistanceToTopAtmosphereBoundary(float r, float mu)
 {
-	float discriminant = r * r * (mu * mu - 1) + atmosphere.top_radius * atmosphere.top_radius;
+    float discriminant = r * r * (mu * mu - 1) + atmosphere.top_radius * atmosphere.top_radius;
 	return max(-r * mu + sqrt(max(discriminant, 0.f)), 0.f);
 }
 
 float DistanceToBottomAtmosphereBoundary(float r, float mu)
 {
-	float discriminant = r * r * (mu * mu - 1) + atmosphere.bottom_radius * atmosphere.bottom_radius;
+    float discriminant = r * r * (mu * mu - 1) + atmosphere.bottom_radius * atmosphere.bottom_radius;
 	return max(-r * mu - sqrt(max(discriminant, 0.f)), 0.f);
 }
 
-float ComputeOpticalLengthToTopAtmosphereBoundary(DensityProfile profile,float r, float mu)
+float3 ComputeOpticalLengthToTopAtmosphereBoundary(float r, float mu)
 {
 	const int SAMPLE_COUNT = 500;
 	float dx = DistanceToTopAtmosphereBoundary(r, mu);
 
-	float result = 0.f;
+	float3 result = 0.f;
 	for (int i = 0; i < SAMPLE_COUNT; i++)
 	{
 		float d = dx * i;
 		float r_d = sqrt(r * r + d * d + 2 * r * d * mu);
 		// float mu_d = (d + r * mu) / r_d;
-		float desity = GetProfileDesity(profile, r_d - atmosphere.bottom_radius);
+        
+        float altitude = r_d - atmosphere.bottom_radius;
+        float rayleigh = GetLayerDesity(atmosphere.rayleigh_density, altitude);
+        float mie = GetLayerDesity(atmosphere.mie_density, altitude);
+        float ozone = altitude < atmosphere.ozone_width ?
+                                GetLayerDesity(atmosphere.ozone_density[0], altitude) :
+                                  GetLayerDesity(atmosphere.ozone_density[1], altitude);
 
 		float weight = (i == 0 || i == SAMPLE_COUNT - 1) ? 0.5 : 1.0;
 
-		result += weight * dx * desity;
-	}
+        result += weight * float3(rayleigh,mie,ozone);
+    }
+    result *= dx;
 	return result;
 }
 
 float3 ComputeTransmittanceToTopAtmosphereBoundary(float r, float mu)
 {
-	//return exp(-(
-	//	atmosphere.rayleigh_scattering *
-	//	ComputeOpticalLengthToTopAtmosphereBoundary(
-	//		atmosphere, atmosphere.rayleigh_density, r, mu) +
-	//	atmosphere.mie_extinction *
-	//	ComputeOpticalLengthToTopAtmosphereBoundary(
-	//		atmosphere, atmosphere.mie_density, r, mu) +
-	//	atmosphere.absorption_extinction *
-	//	ComputeOpticalLengthToTopAtmosphereBoundary(
-	//		atmosphere, atmosphere.absorption_density, r, mu)));
-	return exp(-(
-		atmosphere.rayleigh_scattering * 
-				ComputeOpticalLengthToTopAtmosphereBoundary(atmosphere.rayleigh_density, r, mu) +
-		atmosphere.mie_scattering * 
-				ComputeOpticalLengthToTopAtmosphereBoundary(atmosphere.mie_density, r, mu)));
+    float3 optical_length = ComputeOpticalLengthToTopAtmosphereBoundary(r, mu);
+    return exp(-(atmosphere.rayleigh_scattering * optical_length.x +
+                 atmosphere.mie_extinction * optical_length.y +
+                 atmosphere.absorption_extinction * optical_length.z));
 }
 
 float2 GetRMuFromTransmittanceUV(float2 uv)
@@ -224,7 +240,7 @@ float2 GetTransmittanceUVFromRMu(float r, float mu)
 
     float r_x = rho / H;
     float d = DistanceToTopAtmosphereBoundary(r, mu);
-    float d_min = atmosphere.top_radius - r;
+    float d_min = top_radius - r;
     float d_max = rho + H;
     float mu_x = (d - d_min) / (d_max - d_min);
     
