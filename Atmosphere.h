@@ -56,9 +56,10 @@ private:
 
 	bool IsPreComputed = false;
 	AtmosphereParameters AtmosphereParams;
-	
-	HRESULT PreComputeTransmittanceTex2D(ID3D11Device*, ID3D11DeviceContext*, ID3D11RenderTargetView*);
+
+	HRESULT PreComputeTransmittanceTex2D(ID3D11Device*, ID3D11DeviceContext*);
 	HRESULT PreComputeSingleSctrTex3D(ID3D11Device*, ID3D11DeviceContext*);
+	HRESULT PreComputeMultiSctrTex3D(ID3D11Device*, ID3D11DeviceContext*);
 
 	const int TRANSMITTANCE_TEXTURE_WIDTH = 256;    //mu
 	const int TRANSMITTANCE_TEXTURE_HEIGHT = 64;    //r
@@ -91,10 +92,14 @@ private:
 	CComPtr<ID3D11Texture2D>							pTransmittanceTex2D;
 	CComPtr<ID3D11ShaderResourceView>					pTransmittanceSRV;
 	CComPtr<ID3D11RenderTargetView>						pTransmittanceRTV;
+
+	CComPtr<ID3D11Texture3D>							pSingleScaterTex3D;
+	CComPtr<ID3D11ShaderResourceView>					pSingleScaterSRV;
 	
 	std::vector<std::string> TechStr
 	{
-		"ComputeTransmittanceTex2DTech"
+		"ComputeTransmittanceTex2DTech",
+		"ComputeSingleScaterTex3DTech"
 	};
 
 	std::vector<std::string> MatrixVarStr

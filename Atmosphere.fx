@@ -183,7 +183,7 @@ float DistanceToBottomAtmosphereBoundary(float r, float mu)
 float3 ComputeOpticalLengthToTopAtmosphereBoundary(float r, float mu)
 {
 	const int SAMPLE_COUNT = 500;
-	float dx = DistanceToTopAtmosphereBoundary(r, mu);
+    float dx = DistanceToTopAtmosphereBoundary(r, mu) / float(SAMPLE_COUNT);
 
 	float3 result = 0.f;
 	for (int i = 0; i < SAMPLE_COUNT; i++)
@@ -240,7 +240,7 @@ float2 GetTransmittanceUVFromRMu(float r, float mu)
 
     float r_x = rho / H;
     float d = DistanceToTopAtmosphereBoundary(r, mu);
-    float d_min = top_radius - r;
+    float d_min = atmosphere.top_radius - r;
     float d_max = rho + H;
     float mu_x = (d - d_min) / (d_max - d_min);
     
@@ -296,3 +296,38 @@ float3 GetTransmittance(float r, float mu, float d, bool ray_r_mu_intersects_gro
     }
 }
 
+float3 GetRMuMuSNuFromScatterUV()
+{
+
+}
+
+float3 ComputeSingleScatteringTexture(QuadVertexOut In) : SV_Target
+{
+    float r;
+    float mu;
+    float mu_s;
+    float nu;
+    bool ray_r_mu_intersects_ground = mu < -r / sqrt(max(r * r - atmosphere.bottom_radius * atmosphere.bottom_radius, 0.00001));
+
+    const int SAMPLE_COUNT = 50;
+
+    float dx = ray_r_mu_intersects_ground ? DistanceToBottomAtmosphereBoundary(r, mu) :
+                                                DistanceToTopAtmosphereBoundary(r, mu);
+
+
+    return float3(1.0f, 1.0f, 1.0f);
+
+}
+technique11 ComputeSingleScaterTex3DTech
+{
+    pass P0
+    {
+        SetBlendState(NoBlending, float4(0.0f, 0.0f, 0.0f, 0.0f), 0xFFFFFFFF);
+        SetRasterizerState(RS_SolidFill_NoCull);
+        SetDepthStencilState(DSS_NoDepthTest, 0);
+
+        SetVertexShader(CompileShader(vs_5_0, GenerateScreenSizeQuadVS()));
+        SetGeometryShader(NULL);
+        SetPixelShader(CompileShader(ps_5_0, ComputeSingleScatteringTexture()));
+    }
+}

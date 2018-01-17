@@ -188,10 +188,10 @@ void Atmosphere::Render(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, ID
 	//	PreComputeSingleSctrTex3D(pDevice, pContext);
 	//	IsPreComputed = true;
 	//}
-	PreComputeTransmittanceTex2D(pDevice, pContext, pRTV);
+	PreComputeTransmittanceTex2D(pDevice, pContext);
 }
 
-HRESULT Atmosphere::PreComputeTransmittanceTex2D(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, ID3D11RenderTargetView* pRTV = nullptr)
+HRESULT Atmosphere::PreComputeTransmittanceTex2D(ID3D11Device* pDevice, ID3D11DeviceContext* pContext)
 {
 	HRESULT hr = S_OK;
 
@@ -255,7 +255,48 @@ HRESULT Atmosphere::PreComputeTransmittanceTex2D(ID3D11Device* pDevice, ID3D11De
 HRESULT Atmosphere::PreComputeSingleSctrTex3D(ID3D11Device* pDevice, ID3D11DeviceContext* pContext)
 {
 	HRESULT hr = S_OK;
+	D3D11_TEXTURE3D_DESC PreCompute3DTexDesc;
+	ZeroMemory(&PreCompute3DTexDesc, sizeof(PreCompute3DTexDesc));
+	PreCompute3DTexDesc.Width = SCATTERING_TEXTURE_WIDTH;
+	PreCompute3DTexDesc.Height = SCATTERING_TEXTURE_HEIGHT;
+	PreCompute3DTexDesc.Depth = SCATTERING_TEXTURE_DEPTH;
+	PreCompute3DTexDesc.MipLevels = 1;
+	PreCompute3DTexDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+	PreCompute3DTexDesc.Usage = D3D11_USAGE_DEFAULT;
+	PreCompute3DTexDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+	PreCompute3DTexDesc.CPUAccessFlags = 0;
+	PreCompute3DTexDesc.MiscFlags = 0;
+	pSingleScaterTex3D.Release();
+	V_RETURN(pDevice->CreateTexture3D(&PreCompute3DTexDesc, nullptr, &pSingleScaterTex3D));
 
+	pSingleScaterSRV.Release();
+	V_RETURN(pDevice->CreateShaderResourceView(pSingleScaterTex3D, nullptr, &pSingleScaterSRV));
 
+	std::vector<CComPtr<ID3D11RenderTargetView>> pSingleScaterRTVs(SCATTERING_TEXTURE_DEPTH);
+	for(UINT depthSlice = 0;depthSlice<SCATTERING_TEXTURE_DEPTH;++depthSlice)
+	{
+		D3D11_RENDER_TARGET_VIEW_DESC CurrSliceRTVDesc;
+		CurrSliceRTVDesc.Format = PreCompute3DTexDesc.Format;
+		CurrSliceRTVDesc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE3D;
+		CurrSliceRTVDesc.Texture3D.MipSlice = 0;
+		CurrSliceRTVDesc.Texture3D.FirstWSlice = depthSlice;
+		CurrSliceRTVDesc.Texture3D.WSize = 1;
+
+		V_RETURN(pDevice->CreateRenderTargetView(pSingleScaterTex3D, &CurrSliceRTVDesc, &pSingleScaterRTVs[depthSlice]));
+
+		ID3DX11EffectTechnique* activeTech = AtmosphereTechMap["ComputeSingleScaterTex3DTech"];
+
+		VarMap["atmosphere"]->SetRawValue(&AtmosphereParams, 0, sizeof(AtmosphereParameters));
+
+		RenderQuad(pContext, activeTech, &pSingleScaterRTVs[depthSlice].p, SCATTERING_TEXTURE_WIDTH, SCATTERING_TEXTURE_HEIGHT);
+
+	}
+
+	return hr;
+}
+
+HRESULT Atmosphere::PreComputeMultiSctrTex3D(ID3D11Device*, ID3D11DeviceContext*)
+{
+	HRESULT hr = S_OK;
 	return hr;
 }
