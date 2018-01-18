@@ -35,6 +35,9 @@ struct AtmosphereParameters
 	D3DXVECTOR3 absorption_extinction;
 	float ozone_width;
 
+	float sun_angular_radius;
+	float padding[3];
+
 	DensityProfileLayer rayleigh_density;
 	DensityProfileLayer mie_density;
 	DensityProfileLayer ozone_density[2];

@@ -14,6 +14,10 @@ Atmosphere::~Atmosphere()
 
 void Atmosphere::Initialize()
 {
+	constexpr double kPi = 3.1415926;
+	constexpr double kSunAngularRadius = 0.00935 / 2.0;
+	constexpr double kSunSolidAngle = kPi * kSunAngularRadius * kSunAngularRadius;
+
 	std::vector<double> lambda =
 	{
 		680.0,//R
@@ -273,6 +277,8 @@ HRESULT Atmosphere::PreComputeSingleSctrTex3D(ID3D11Device* pDevice, ID3D11Devic
 	V_RETURN(pDevice->CreateShaderResourceView(pSingleScaterTex3D, nullptr, &pSingleScaterSRV));
 
 	std::vector<CComPtr<ID3D11RenderTargetView>> pSingleScaterRTVs(SCATTERING_TEXTURE_DEPTH);
+	std::vector<CComPtr<ID3D11RenderTargetView>> pSingleScaterRayleighRTVs(SCATTERING_TEXTURE_DEPTH);
+	std::vector<CComPtr<ID3D11RenderTargetView>> pSingleScaterMieRTVs(SCATTERING_TEXTURE_DEPTH);
 	for(UINT depthSlice = 0;depthSlice<SCATTERING_TEXTURE_DEPTH;++depthSlice)
 	{
 		D3D11_RENDER_TARGET_VIEW_DESC CurrSliceRTVDesc;
@@ -283,13 +289,22 @@ HRESULT Atmosphere::PreComputeSingleSctrTex3D(ID3D11Device* pDevice, ID3D11Devic
 		CurrSliceRTVDesc.Texture3D.WSize = 1;
 
 		V_RETURN(pDevice->CreateRenderTargetView(pSingleScaterTex3D, &CurrSliceRTVDesc, &pSingleScaterRTVs[depthSlice]));
+		V_RETURN(pDevice->CreateRenderTargetView(pSingleScaterTex3D, &CurrSliceRTVDesc, &pSingleScaterRayleighRTVs[depthSlice]));
+		V_RETURN(pDevice->CreateRenderTargetView(pSingleScaterTex3D, &CurrSliceRTVDesc, &pSingleScaterMieRTVs[depthSlice]));
 
 		ID3DX11EffectTechnique* activeTech = AtmosphereTechMap["ComputeSingleScaterTex3DTech"];
 
 		VarMap["atmosphere"]->SetRawValue(&AtmosphereParams, 0, sizeof(AtmosphereParameters));
+		ShaderResourceVarMap["g_tex2DTransmittanceLUT"]->SetResource(pTransmittanceSRV);
 
-		RenderQuad(pContext, activeTech, &pSingleScaterRTVs[depthSlice].p, SCATTERING_TEXTURE_WIDTH, SCATTERING_TEXTURE_HEIGHT);
+		ID3D11RenderTargetView* pRTV[] =
+		{
+			pSingleScaterRTVs[depthSlice].p,
+			pSingleScaterRayleighRTVs[depthSlice].p,
+			pSingleScaterMieRTVs[depthSlice].p
+		};
 
+		RenderQuad(pContext, activeTech, pRTV, SCATTERING_TEXTURE_WIDTH, SCATTERING_TEXTURE_HEIGHT);
 	}
 
 	return hr;

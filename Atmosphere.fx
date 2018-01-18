@@ -91,14 +91,27 @@ struct AtmosphereParams
     float3 absorption_extinction;
     float ozone_width;
 
+    float sun_angular_radius;
+    float padding[3];
+
     DensityProfileLayer rayleigh_density;
     DensityProfileLayer mie_density;
     DensityProfileLayer ozone_density[2];
 };
 
-cbuffer cbAtmosphere2
+cbuffer cbAtmosphereParams
 {
     AtmosphereParams atmosphere;
+};
+
+struct MiscDynamicParams
+{
+    float2 f2WQ;
+};
+
+cbuffer cbMiscDynamicParams
+{
+    MiscDynamicParams misc;
 };
 
 struct VertexIn
@@ -277,11 +290,8 @@ float3 GetTransmittanceToTopAtmosphereBoundary(float r, float mu)
     return g_tex2DTransmittanceLUT.Sample(samLinearClamp,uv);
 }
 
-float3 GetTransmittance(float r, float mu, float d, bool ray_r_mu_intersects_ground)
+float3 GetTransmittance(float r, float mu, float r_d,float mu_d, bool ray_r_mu_intersects_ground)
 {
-    float r_d = sqrt(r * r + d * d + 2 * r * d * mu);
-    float mu_d = (d + r * mu) / r_d;
-    
     if(ray_r_mu_intersects_ground)
     {
         return min(GetTransmittanceToTopAtmosphereBoundary(r_d, -mu_d) /
@@ -296,28 +306,70 @@ float3 GetTransmittance(float r, float mu, float d, bool ray_r_mu_intersects_gro
     }
 }
 
-float3 GetRMuMuSNuFromScatterUV()
+float3 GetTransmittanceToSun(float r,float mu_s)
 {
-
+    float sin = atmosphere.bottom_radius / r;
+    float cos = -sqrt(max(1.0 - sin * sin, 0.0f));
+    return GetTransmittanceToTopAtmosphereBoundary(r, mu_s) *
+            smoothstep(-sin * atmosphere.sun_angular_radius,
+                        sin * atmosphere.sun_angular_radius,
+                        mu_s - cos);          
 }
 
-float3 ComputeSingleScatteringTexture(QuadVertexOut In) : SV_Target
+void GetRMuMuSNuFromScatterUVWQ(in float4 uvwq,out float r,out float mu,out float mu_s,out float nu)
 {
-    float r;
-    float mu;
-    float mu_s;
-    float nu;
+    float u = GetUnitRangeFromTextureCoord(u);
+}
+
+struct SingleScatterTex
+{
+    float3 rayleigh;
+    float3 mie;
+    float3 single_scatter;
+};
+
+SingleScatterTex ComputeSingleScatteringTexture(QuadVertexOut In) : SV_Target
+{
+    SingleScatterTex res;
+    float r, mu, mu_s, nu;
+
+    float2 f2UV = ProjToUV(In.m_f2PosPS);
+    GetRMuMuSNuFromScatterUVWQ(float4(f2UV,misc.f2WQ), r, mu, mu_s, nu);
+
     bool ray_r_mu_intersects_ground = mu < -r / sqrt(max(r * r - atmosphere.bottom_radius * atmosphere.bottom_radius, 0.00001));
 
     const int SAMPLE_COUNT = 50;
 
     float dx = ray_r_mu_intersects_ground ? DistanceToBottomAtmosphereBoundary(r, mu) :
                                                 DistanceToTopAtmosphereBoundary(r, mu);
+    dx /= SAMPLE_COUNT;
 
+    float3 rayleigh = 0.f;
+    float3 mie = 0.f;
+    for (int i = 0; i < SAMPLE_COUNT;++i)
+    {
+        float d = dx * i;
+        float r_d = sqrt(r * r + d * d + 2 * r * d * mu);
+        float mu_d = (d + r * mu) / r_d;
+        float mu_s_d = (r * mu_s + d * nu) / r_d;
+        float altitude_d = r_d - atmosphere.bottom_radius;
 
-    return float3(1.0f, 1.0f, 1.0f);
-
+        float transmittance = GetTransmittance(r, mu,r_d,mu_d,ray_r_mu_intersects_ground) *
+                                GetTransmittanceToSun(r_d, mu_s_d);
+        float weight = (i == 0 || i == SAMPLE_COUNT) ? 0.5f : 1.0f;
+        
+        rayleigh += weight * transmittance * GetLayerDesity(atmosphere.rayleigh_density, altitude_d);
+        mie += weight * transmittance * GetLayerDesity(atmosphere.mie_density, altitude_d);
+    }
+    rayleigh *= dx * atmosphere.solar_irradiance * atmosphere.rayleigh_scattering;
+    mie *= dx * atmosphere.solar_irradiance * atmosphere.mie_scattering;
+    
+    res.rayleigh = rayleigh;
+    res.mie = mie;
+    res.single_scatter = rayleigh + mie;
+    return res;
 }
+
 technique11 ComputeSingleScaterTex3DTech
 {
     pass P0
