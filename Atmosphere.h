@@ -9,7 +9,6 @@
 #include <string>
 #include <vector>
 
-
 struct DensityProfileLayer
 {
 	float exp_term;
@@ -36,11 +35,17 @@ struct AtmosphereParameters
 	float ozone_width;
 
 	float sun_angular_radius;
-	float padding[3];
+	float mu_s_min;
+	float padding[2];
 
 	DensityProfileLayer rayleigh_density;
 	DensityProfileLayer mie_density;
 	DensityProfileLayer ozone_density[2];
+};
+
+struct MiscDynamicParams
+{
+	D3DXVECTOR2 f2WQ;
 };
 
 class Atmosphere
@@ -48,7 +53,7 @@ class Atmosphere
 public:
 	Atmosphere();
 	~Atmosphere();
-	
+
 	void Initialize();
 	void Release();
 
@@ -58,7 +63,7 @@ public:
 private:
 
 	bool IsPreComputed = false;
-	AtmosphereParameters AtmosphereParams;
+	AtmosphereParameters atmosphereParams;
 
 	HRESULT PreComputeTransmittanceTex2D(ID3D11Device*, ID3D11DeviceContext*);
 	HRESULT PreComputeSingleSctrTex3D(ID3D11Device*, ID3D11DeviceContext*);
@@ -72,10 +77,9 @@ private:
 	const int SCATTERING_TEXTURE_MU_S_SIZE = 32;
 	const int SCATTERING_TEXTURE_NU_SIZE = 8;
 
-	const int SCATTERING_TEXTURE_WIDTH =
-		SCATTERING_TEXTURE_NU_SIZE * SCATTERING_TEXTURE_MU_S_SIZE;
+	const int SCATTERING_TEXTURE_WIDTH = SCATTERING_TEXTURE_R_SIZE;
 	const int SCATTERING_TEXTURE_HEIGHT = SCATTERING_TEXTURE_MU_SIZE;
-	const int SCATTERING_TEXTURE_DEPTH = SCATTERING_TEXTURE_R_SIZE;
+	const int SCATTERING_TEXTURE_DEPTH = SCATTERING_TEXTURE_MU_S_SIZE*SCATTERING_TEXTURE_NU_SIZE;
 
 	const int IRRADIANCE_TEXTURE_WIDTH = 64;
 	const int IRRADIANCE_TEXTURE_HEIGHT = 16;
@@ -98,7 +102,7 @@ private:
 
 	CComPtr<ID3D11Texture3D>							pSingleScaterTex3D;
 	CComPtr<ID3D11ShaderResourceView>					pSingleScaterSRV;
-	
+
 	std::vector<std::string> TechStr
 	{
 		"ComputeTransmittanceTex2DTech",
@@ -137,7 +141,8 @@ private:
 		"atmosphere",
 		"rayleigh_density",
 		"mie_density",
-		"ozone_density"
+		"ozone_density",
+		"misc"
 	};
 
 	std::vector<std::string> ShaderResourceVarStr

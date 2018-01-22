@@ -6,10 +6,9 @@ static const int SCATTERING_TEXTURE_MU_SIZE = 128;
 static const int SCATTERING_TEXTURE_MU_S_SIZE = 32;
 static const int SCATTERING_TEXTURE_NU_SIZE = 8;
 
-static const int SCATTERING_TEXTURE_WIDTH =
-            SCATTERING_TEXTURE_NU_SIZE * SCATTERING_TEXTURE_MU_S_SIZE;
+static const  int SCATTERING_TEXTURE_WIDTH = SCATTERING_TEXTURE_R_SIZE;
 static const int SCATTERING_TEXTURE_HEIGHT = SCATTERING_TEXTURE_MU_SIZE;
-static const int SCATTERING_TEXTURE_DEPTH = SCATTERING_TEXTURE_R_SIZE;
+static const int SCATTERING_TEXTURE_DEPTH = SCATTERING_TEXTURE_NU_SIZE * SCATTERING_TEXTURE_MU_S_SIZE;
 
 static const int IRRADIANCE_TEXTURE_WIDTH = 64;
 static const int IRRADIANCE_TEXTURE_HEIGHT = 16;
@@ -92,7 +91,8 @@ struct AtmosphereParams
     float ozone_width;
 
     float sun_angular_radius;
-    float padding[3];
+    float mu_s_min;
+    float padding[2];
 
     DensityProfileLayer rayleigh_density;
     DensityProfileLayer mie_density;
@@ -155,6 +155,11 @@ QuadVertexOut GenerateScreenSizeQuadVS(in uint VertexId : SV_VertexID,
     return Verts[VertexId];
 }
 
+float SafeSqrt(float x)
+{
+    return sqrt(max(x, 1e-20));
+}
+
 float2 ProjToUV(in float2 f2ProjSpaceXY)
 {
 	return float2(0.5, 0.5) + float2(0.5, -0.5) * f2ProjSpaceXY;
@@ -184,13 +189,13 @@ float GetLayerDesity(DensityProfileLayer layer, float altitude)
 float DistanceToTopAtmosphereBoundary(float r, float mu)
 {
     float discriminant = r * r * (mu * mu - 1) + atmosphere.top_radius * atmosphere.top_radius;
-	return max(-r * mu + sqrt(max(discriminant, 0.f)), 0.f);
+    return max(-r * mu + SafeSqrt(discriminant),1e-20);
 }
 
 float DistanceToBottomAtmosphereBoundary(float r, float mu)
 {
     float discriminant = r * r * (mu * mu - 1) + atmosphere.bottom_radius * atmosphere.bottom_radius;
-	return max(-r * mu - sqrt(max(discriminant, 0.f)), 0.f);
+    return max(-r * mu - SafeSqrt(discriminant), 1e-20);
 }
 
 float3 ComputeOpticalLengthToTopAtmosphereBoundary(float r, float mu)
@@ -249,7 +254,7 @@ float2 GetRMuFromTransmittanceUV(float2 uv)
 float2 GetTransmittanceUVFromRMu(float r, float mu)
 {
     float H = sqrt(atmosphere.top_radius * atmosphere.top_radius - atmosphere.bottom_radius * atmosphere.bottom_radius);
-    float rho = sqrt(max(0.f, r * r - atmosphere.bottom_radius * atmosphere.bottom_radius));
+    float rho = SafeSqrt( r * r - atmosphere.bottom_radius * atmosphere.bottom_radius);
 
     float r_x = rho / H;
     float d = DistanceToTopAtmosphereBoundary(r, mu);
@@ -309,16 +314,101 @@ float3 GetTransmittance(float r, float mu, float r_d,float mu_d, bool ray_r_mu_i
 float3 GetTransmittanceToSun(float r,float mu_s)
 {
     float sin = atmosphere.bottom_radius / r;
-    float cos = -sqrt(max(1.0 - sin * sin, 0.0f));
+    float cos = -SafeSqrt(1.0 - sin * sin);
     return GetTransmittanceToTopAtmosphereBoundary(r, mu_s) *
             smoothstep(-sin * atmosphere.sun_angular_radius,
                         sin * atmosphere.sun_angular_radius,
                         mu_s - cos);          
 }
 
-void GetRMuMuSNuFromScatterUVWQ(in float4 uvwq,out float r,out float mu,out float mu_s,out float nu)
+void GetRMuMuSNuFromUVWQ(in float4 uvwq,out float r,out float mu,
+                                out float mu_s,out float nu,out bool ray_r_mu_intersects_ground)
 {
-    float u = GetUnitRangeFromTextureCoord(u);
+    float u_r = GetUnitRangeFromTextureCoord(uvwq.x, SCATTERING_TEXTURE_R_SIZE);
+    float u_mu = GetUnitRangeFromTextureCoord(1-2*uvwq.y, SCATTERING_TEXTURE_MU_SIZE/2);
+    float u_mu_s = GetUnitRangeFromTextureCoord(uvwq.z, SCATTERING_TEXTURE_MU_S_SIZE);
+    float u_nu = GetUnitRangeFromTextureCoord(uvwq.w, SCATTERING_TEXTURE_NU_SIZE);
+
+    float H = sqrt(atmosphere.top_radius * atmosphere.top_radius -
+                   atmosphere.bottom_radius * atmosphere.bottom_radius);
+    float rho = u_r * H;
+
+    r = sqrt(rho * rho + atmosphere.bottom_radius * atmosphere.bottom_radius);
+    
+    if (uvwq.y<0.5) // [-1,mu_horizon]
+    {
+        float d_min = r - atmosphere.bottom_radius;
+        float d_max = rho;
+        float d = u_mu * (d_max - d_min) + d_min;
+        mu = d == 0.f ? -1.f :
+                -(d * d + rho * rho) / (2.f * r * d);
+        ray_r_mu_intersects_ground = true;
+    }
+    else
+    {
+        float d_min = atmosphere.top_radius;
+        float d_max = rho + H;
+        float d = u_mu * (d_max - d_min) + d_min;
+        mu = d == 0.f ? 1.f :
+                -(d * d + H * H - rho * rho) / (2.f * r * d);
+        ray_r_mu_intersects_ground = false;
+    }
+    mu = clamp(mu, -1.f, 1.f);
+
+    float d_min = atmosphere.top_radius - atmosphere.bottom_radius;
+    float d_max = H;
+    float A = -2.f * atmosphere.mu_s_min * atmosphere.bottom_radius / (d_max - d_min);
+    float a = (A - u_mu_s * A) / max(u_mu_s * A + 1.f, 1e-20);
+    float d = max(a * (d_max - d_min) + d_min, 1e-20);
+    mu_s = clamp(-(d * d - H * H) / (2.f * d * atmosphere.bottom_radius), -1.f, 1.f);
+    
+    nu = clamp((u_nu - 0.5f) * 2.f, -1.f, 1.f);
+
+}
+
+float4 GetUVWQFromrRMuMuSNu(in float r,in float mu,
+                                in float mu_s,in float nu)
+{
+    float u_r, u_mu, u_mu_s, u_nu;
+    float H = sqrt(atmosphere.top_radius * atmosphere.top_radius - atmosphere.bottom_radius * atmosphere.bottom_radius);
+    float rho = SafeSqrt(r * r - atmosphere.bottom_radius * atmosphere.bottom_radius);
+
+    u_r = GetTextureCoordFromUnitRange(rho / H, SCATTERING_TEXTURE_R_SIZE);
+
+    float r_mu = r * mu;
+    float discriminant = r_mu * r_mu - r * r + atmosphere.bottom_radius * atmosphere.bottom_radius;
+
+    if(discriminant>0.f) // [-1,mu_horizon]
+    {
+        float d = -r_mu - SafeSqrt(discriminant);
+        float d_min = r - atmosphere.bottom_radius;
+        float d_max = rho;
+        u_mu = 0.5 - 0.5 * GetTextureCoordFromUnitRange(
+                            d_max == d_min ? 0.f : (d - d_min) / (d_max - d_min),
+                            SCATTERING_TEXTURE_MU_SIZE / 2);
+    }
+    else // [mu_horizon,1]
+    {
+        float d = -r_mu + SafeSqrt(discriminant + H * H);//distance to top atmosphere
+        float d_min = atmosphere.top_radius - r;
+        float d_max = rho + H;
+        u_mu = 0.5 + 0.5 * GetTextureCoordFromUnitRange(
+                            (d - d_min) / (d_max - d_min),
+                            SCATTERING_TEXTURE_MU_SIZE / 2);
+    }
+
+    float d = DistanceToTopAtmosphereBoundary(atmosphere.bottom_radius, mu_s);
+    float d_min = atmosphere.top_radius - atmosphere.bottom_radius;
+    float d_max = H;
+    float a = (d - d_min) / (d_max - d_min);
+    float A = -2.f * atmosphere.mu_s_min * atmosphere.bottom_radius / (d_max - d_min);
+    u_mu_s = GetTextureCoordFromUnitRange(
+                max(1.f - a / A, 1e-20) / (1.f + a),
+                SCATTERING_TEXTURE_MU_S_SIZE);
+
+    u_nu = (1.f + nu) / 2.f;
+
+    return float4(u_r, u_mu, u_mu_s, u_nu);
 }
 
 struct SingleScatterTex
@@ -332,11 +422,10 @@ SingleScatterTex ComputeSingleScatteringTexture(QuadVertexOut In) : SV_Target
 {
     SingleScatterTex res;
     float r, mu, mu_s, nu;
-
     float2 f2UV = ProjToUV(In.m_f2PosPS);
-    GetRMuMuSNuFromScatterUVWQ(float4(f2UV,misc.f2WQ), r, mu, mu_s, nu);
+    bool ray_r_mu_intersects_ground;
 
-    bool ray_r_mu_intersects_ground = mu < -r / sqrt(max(r * r - atmosphere.bottom_radius * atmosphere.bottom_radius, 0.00001));
+    GetRMuMuSNuFromUVWQ(float4(f2UV, misc.f2WQ), r, mu, mu_s, nu, ray_r_mu_intersects_ground);
 
     const int SAMPLE_COUNT = 50;
 

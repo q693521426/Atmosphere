@@ -72,7 +72,7 @@ void Atmosphere::Initialize()
 		return static_cast<float>(x*(1 - s) + y*s);
 	};
 
-	ZeroMemory(&AtmosphereParams, sizeof(AtmosphereParameters));
+	ZeroMemory(&atmosphereParams, sizeof(AtmosphereParameters));
 	for(int i=0;i<lambda.size();++i)
 	{
 		double l = lambda[i];
@@ -88,36 +88,36 @@ void Atmosphere::Initialize()
 		double mie = lerp(kMieAngstromBeta / kMieScaleHeight * pow(lambda_x_um, -kMieAngstromAlpha),
 					kMieAngstromBeta / kMieScaleHeight * pow(lambda_y_um, -kMieAngstromAlpha), s)*1000;
 
-		AtmosphereParams.solar_irradiance[i]=
+		atmosphereParams.solar_irradiance[i]=
 			lerp(kSolarIrradiance[index], kSolarIrradiance[index + 1], s);
-		AtmosphereParams.rayleigh_scattering[i] = 
+		atmosphereParams.rayleigh_scattering[i] =
 			lerp(kRayleigh * pow(lambda_x_um, -4), kRayleigh *pow(lambda_y_um, -4), s)*1000;
-		AtmosphereParams.mie_scattering[i] = mie;
-		AtmosphereParams.mie_extinction[i] = mie*kMieSingleScatteringAlbedo;
-		AtmosphereParams.absorption_extinction[i] =
+		atmosphereParams.mie_scattering[i] = mie;
+		atmosphereParams.mie_extinction[i] = mie*kMieSingleScatteringAlbedo;
+		atmosphereParams.absorption_extinction[i] =
 			lerp(kMaxOzoneNumberDensity * kOzoneCrossSection[index],
 				kMaxOzoneNumberDensity * kOzoneCrossSection[index+1],s) * 1000;
 
 	}
 	
-	AtmosphereParams.bottom_radius = 6360.f;
-	AtmosphereParams.top_radius = 6420.f;
-	AtmosphereParams.mie_g = 0.8f;
-	AtmosphereParams.ground_albedo = 0.1f;
-	AtmosphereParams.ozone_width = 25.0f;
-	AtmosphereParams.rayleigh_density = DensityProfileLayer
+	atmosphereParams.bottom_radius = 6360.f;
+	atmosphereParams.top_radius = 6420.f;
+	atmosphereParams.mie_g = 0.8f;
+	atmosphereParams.ground_albedo = 0.1f;
+	atmosphereParams.ozone_width = 25.0f;
+	atmosphereParams.rayleigh_density = DensityProfileLayer
 	{
 		1.f, -1.0 / kMieScaleHeight * 1000.0, 0.f, 0.f
 	};
-	AtmosphereParams.mie_density = DensityProfileLayer
+	atmosphereParams.mie_density = DensityProfileLayer
 	{
 		1.f, -1.0 / kRayleighScaleHeight * 1000.0, 0.f, 0.f
 	};
-	AtmosphereParams.ozone_density[0] = DensityProfileLayer
+	atmosphereParams.ozone_density[0] = DensityProfileLayer
 	{
 		0.0, 0.0, 1.0 / 15.0, -2.0 / 3.0
 	};
-	AtmosphereParams.ozone_density[1] = DensityProfileLayer
+	atmosphereParams.ozone_density[1] = DensityProfileLayer
 	{
 		0.0, 0.0, -1.0 / 15.0, 8.0 / 3.0
 	};
@@ -193,6 +193,7 @@ void Atmosphere::Render(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, ID
 	//	IsPreComputed = true;
 	//}
 	PreComputeTransmittanceTex2D(pDevice, pContext);
+	PreComputeSingleSctrTex3D(pDevice, pContext);
 }
 
 HRESULT Atmosphere::PreComputeTransmittanceTex2D(ID3D11Device* pDevice, ID3D11DeviceContext* pContext)
@@ -248,10 +249,17 @@ HRESULT Atmosphere::PreComputeTransmittanceTex2D(ID3D11Device* pDevice, ID3D11De
 	//VarMap["mie_density"]->SetRawValue(&AtmosphereParams.mie_density, 0, sizeof(DensityProfileLayer));
 	//VarMap["ozone_density"]->SetRawValue(&AtmosphereParams.ozone_density, 0, 2 * sizeof(DensityProfileLayer));
 
-	VarMap["atmosphere"]->SetRawValue(&AtmosphereParams, 0, sizeof(AtmosphereParameters));
+	VarMap["atmosphere"]->SetRawValue(&atmosphereParams, 0, sizeof(AtmosphereParameters));
 
-	RenderQuad(pContext, activeTech, &pTransmittanceRTV.p, TRANSMITTANCE_TEXTURE_WIDTH, TRANSMITTANCE_TEXTURE_HEIGHT);
+	ID3D11RenderTargetView* pRTVs[] =
+	{
+		pTransmittanceRTV.p,
+	};
 
+	pContext->OMSetRenderTargets(ARRAYSIZE(pRTVs), pRTVs, nullptr);
+
+	RenderQuad(pContext, activeTech, TRANSMITTANCE_TEXTURE_WIDTH, TRANSMITTANCE_TEXTURE_HEIGHT);
+	//pContext->OMSetRenderTargets(0, nullptr, nullptr);
 	//V_RETURN(D3DX11SaveTextureToFile(pContext, pTransmittanceTex2D, D3DX11_IFF_PNG, L"transmittance.png"));
 	return hr;
 }
@@ -294,17 +302,30 @@ HRESULT Atmosphere::PreComputeSingleSctrTex3D(ID3D11Device* pDevice, ID3D11Devic
 
 		ID3DX11EffectTechnique* activeTech = AtmosphereTechMap["ComputeSingleScaterTex3DTech"];
 
-		VarMap["atmosphere"]->SetRawValue(&AtmosphereParams, 0, sizeof(AtmosphereParameters));
+		VarMap["atmosphere"]->SetRawValue(&atmosphereParams, 0, sizeof(AtmosphereParameters));
+
+		MiscDynamicParams misc;
+		UINT uiW = depthSlice % SCATTERING_TEXTURE_MU_S_SIZE;
+		UINT uiQ = depthSlice / SCATTERING_TEXTURE_MU_S_SIZE;
+		misc.f2WQ.x = (uiW + 0.5f) / SCATTERING_TEXTURE_MU_S_SIZE;
+		misc.f2WQ.y = (uiQ + 0.5f) / SCATTERING_TEXTURE_NU_SIZE;
+		VarMap["misc"]->SetRawValue(&misc, 0, sizeof(MiscDynamicParams));
 		ShaderResourceVarMap["g_tex2DTransmittanceLUT"]->SetResource(pTransmittanceSRV);
 
-		ID3D11RenderTargetView* pRTV[] =
+		ID3D11RenderTargetView* pRTVs[] =
 		{
 			pSingleScaterRTVs[depthSlice].p,
 			pSingleScaterRayleighRTVs[depthSlice].p,
 			pSingleScaterMieRTVs[depthSlice].p
 		};
 
-		RenderQuad(pContext, activeTech, pRTV, SCATTERING_TEXTURE_WIDTH, SCATTERING_TEXTURE_HEIGHT);
+		//float zero[] = { 0.f, 0.f,0.f,0.f };
+		//pContext->ClearRenderTargetView(*pRTV, zero);
+		UINT size = ARRAYSIZE(pRTVs);
+		pContext->OMSetRenderTargets(size, pRTVs, nullptr);
+
+		RenderQuad(pContext, activeTech, SCATTERING_TEXTURE_WIDTH, SCATTERING_TEXTURE_HEIGHT);
+		//pContext->OMSetRenderTargets(0, nullptr, nullptr);
 	}
 
 	return hr;

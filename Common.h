@@ -91,12 +91,10 @@ inline D3DXMATRIX InverseTranspose(D3DXMATRIX* m)
 
 inline void RenderQuad(ID3D11DeviceContext* pContext,
 	ID3DX11EffectTechnique* activeTech,
-	ID3D11RenderTargetView** renderTargetView,
 	int iWidth = 0, int iHeight = 0,
 	int iTopLeftX = 0, int iTopLeftY = 0,
 	int iNumInstances = 1)
 {
-	float zero[] = { 0.f, 0.f,0.f,0.f };
 	D3D11_VIEWPORT ViewPort;
 	ViewPort.TopLeftX = static_cast<float>(iTopLeftX);
 	ViewPort.TopLeftY = static_cast<float>(iTopLeftY);
@@ -106,8 +104,6 @@ inline void RenderQuad(ID3D11DeviceContext* pContext,
 	ViewPort.MaxDepth = 1;
 	// Set the viewport
 	pContext->RSSetViewports(1, &ViewPort);
-	pContext->ClearRenderTargetView(*renderTargetView, zero);
-	pContext->OMSetRenderTargets(1, renderTargetView, nullptr);
 
 	D3DX11_TECHNIQUE_DESC techDesc;
 	activeTech->GetDesc(&techDesc);
