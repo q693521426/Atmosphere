@@ -278,11 +278,20 @@ HRESULT Atmosphere::PreComputeSingleSctrTex3D(ID3D11Device* pDevice, ID3D11Devic
 	PreCompute3DTexDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
 	PreCompute3DTexDesc.CPUAccessFlags = 0;
 	PreCompute3DTexDesc.MiscFlags = 0;
+
 	pSingleScaterTex3D.Release();
+	pSingleScaterRayleighTex3D.Release();
+	pSingleScaterMieTex3D.Release();
 	V_RETURN(pDevice->CreateTexture3D(&PreCompute3DTexDesc, nullptr, &pSingleScaterTex3D));
+	V_RETURN(pDevice->CreateTexture3D(&PreCompute3DTexDesc, nullptr, &pSingleScaterRayleighTex3D));
+	V_RETURN(pDevice->CreateTexture3D(&PreCompute3DTexDesc, nullptr, &pSingleScaterMieTex3D));
 
 	pSingleScaterSRV.Release();
+	pSingleScaterRayleighSRV.Release();
+	pSingleScaterMieSRV.Release();
 	V_RETURN(pDevice->CreateShaderResourceView(pSingleScaterTex3D, nullptr, &pSingleScaterSRV));
+	V_RETURN(pDevice->CreateShaderResourceView(pSingleScaterTex3D, nullptr, &pSingleScaterRayleighSRV));
+	V_RETURN(pDevice->CreateShaderResourceView(pSingleScaterTex3D, nullptr, &pSingleScaterMieSRV));
 
 	std::vector<CComPtr<ID3D11RenderTargetView>> pSingleScaterRTVs(SCATTERING_TEXTURE_DEPTH);
 	std::vector<CComPtr<ID3D11RenderTargetView>> pSingleScaterRayleighRTVs(SCATTERING_TEXTURE_DEPTH);
@@ -297,8 +306,8 @@ HRESULT Atmosphere::PreComputeSingleSctrTex3D(ID3D11Device* pDevice, ID3D11Devic
 		CurrSliceRTVDesc.Texture3D.WSize = 1;
 
 		V_RETURN(pDevice->CreateRenderTargetView(pSingleScaterTex3D, &CurrSliceRTVDesc, &pSingleScaterRTVs[depthSlice]));
-		V_RETURN(pDevice->CreateRenderTargetView(pSingleScaterTex3D, &CurrSliceRTVDesc, &pSingleScaterRayleighRTVs[depthSlice]));
-		V_RETURN(pDevice->CreateRenderTargetView(pSingleScaterTex3D, &CurrSliceRTVDesc, &pSingleScaterMieRTVs[depthSlice]));
+		V_RETURN(pDevice->CreateRenderTargetView(pSingleScaterRayleighTex3D, &CurrSliceRTVDesc, &pSingleScaterRayleighRTVs[depthSlice]));
+		V_RETURN(pDevice->CreateRenderTargetView(pSingleScaterMieTex3D, &CurrSliceRTVDesc, &pSingleScaterMieRTVs[depthSlice]));
 
 		ID3DX11EffectTechnique* activeTech = AtmosphereTechMap["ComputeSingleScaterTex3DTech"];
 
@@ -307,8 +316,10 @@ HRESULT Atmosphere::PreComputeSingleSctrTex3D(ID3D11Device* pDevice, ID3D11Devic
 		MiscDynamicParams misc;
 		UINT uiW = depthSlice % SCATTERING_TEXTURE_MU_S_SIZE;
 		UINT uiQ = depthSlice / SCATTERING_TEXTURE_MU_S_SIZE;
-		misc.f2WQ.x = (uiW + 0.5f) / SCATTERING_TEXTURE_MU_S_SIZE;
-		misc.f2WQ.y = (uiQ + 0.5f) / SCATTERING_TEXTURE_NU_SIZE;
+		misc.f2WQ.x = ((float)uiW + 0.5f) / SCATTERING_TEXTURE_MU_S_SIZE;
+		assert(0 < misc.f2WQ.x && misc.f2WQ.x < 1);
+		misc.f2WQ.y = ((float)uiQ + 0.5f) / SCATTERING_TEXTURE_NU_SIZE;
+		assert(0 < misc.f2WQ.y && misc.f2WQ.y < 1);
 		VarMap["misc"]->SetRawValue(&misc, 0, sizeof(MiscDynamicParams));
 		ShaderResourceVarMap["g_tex2DTransmittanceLUT"]->SetResource(pTransmittanceSRV);
 
@@ -319,9 +330,12 @@ HRESULT Atmosphere::PreComputeSingleSctrTex3D(ID3D11Device* pDevice, ID3D11Devic
 			pSingleScaterMieRTVs[depthSlice].p
 		};
 
-		//float zero[] = { 0.f, 0.f,0.f,0.f };
-		//pContext->ClearRenderTargetView(*pRTV, zero);
 		UINT size = ARRAYSIZE(pRTVs);
+		for(UINT i = 0;i<size;++i)
+		{
+			float zero[] = { 0.f, 0.f,0.f,0.f };
+			pContext->ClearRenderTargetView(pRTVs[i], zero);
+		}
 		pContext->OMSetRenderTargets(size, pRTVs, nullptr);
 
 		RenderQuad(pContext, activeTech, SCATTERING_TEXTURE_WIDTH, SCATTERING_TEXTURE_HEIGHT);

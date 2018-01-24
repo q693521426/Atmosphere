@@ -103,6 +103,12 @@ private:
 	CComPtr<ID3D11Texture3D>							pSingleScaterTex3D;
 	CComPtr<ID3D11ShaderResourceView>					pSingleScaterSRV;
 
+	CComPtr<ID3D11Texture3D>							pSingleScaterRayleighTex3D;
+	CComPtr<ID3D11ShaderResourceView>					pSingleScaterRayleighSRV;
+	
+	CComPtr<ID3D11Texture3D>							pSingleScaterMieTex3D;
+	CComPtr<ID3D11ShaderResourceView>					pSingleScaterMieSRV;
+
 	std::vector<std::string> TechStr
 	{
 		"ComputeTransmittanceTex2DTech",
