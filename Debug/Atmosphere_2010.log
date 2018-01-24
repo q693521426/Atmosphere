@@ -1,8 +1,0 @@
-﻿  Atmosphere.cpp
-c:\users\zhengyiming\documents\visual studio 2015\projects\atmosphere\atmosphere.cpp(41): warning C4018: “<”: 有符号/无符号不匹配
-c:\users\zhengyiming\documents\visual studio 2015\projects\atmosphere\atmosphere.cpp(47): warning C4018: “<”: 有符号/无符号不匹配
-c:\users\zhengyiming\documents\visual studio 2015\projects\atmosphere\atmosphere.cpp(53): warning C4018: “<”: 有符号/无符号不匹配
-c:\users\zhengyiming\documents\visual studio 2015\projects\atmosphere\atmosphere.cpp(59): warning C4018: “<”: 有符号/无符号不匹配
-c:\users\zhengyiming\documents\visual studio 2015\projects\atmosphere\atmosphere.cpp(65): warning C4018: “<”: 有符号/无符号不匹配
-  Atmosphere_2010.vcxproj -> C:\Users\zhengyiming\Documents\Visual Studio 2015\Projects\Atmosphere\Debug\Atmosphere.exe
-  Atmosphere_2010.vcxproj -> C:\Users\zhengyiming\Documents\Visual Studio 2015\Projects\Atmosphere\Debug\Atmosphere.pdb (Full PDB)
