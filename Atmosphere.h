@@ -46,6 +46,7 @@ struct AtmosphereParameters
 struct MiscDynamicParams
 {
 	D3DXVECTOR2 f2WQ;
+	int scatter_order;
 };
 
 class Atmosphere
@@ -66,8 +67,13 @@ private:
 	AtmosphereParameters atmosphereParams;
 
 	HRESULT PreComputeTransmittanceTex2D(ID3D11Device*, ID3D11DeviceContext*);
+	HRESULT PreComputeDirectIrradianceTex2D(ID3D11Device*, ID3D11DeviceContext*);
 	HRESULT PreComputeSingleSctrTex3D(ID3D11Device*, ID3D11DeviceContext*);
-	HRESULT PreComputeMultiSctrTex3D(ID3D11Device*, ID3D11DeviceContext*);
+	HRESULT PreComputeInDirectIrradianceTex2D(ID3D11Device*, ID3D11DeviceContext*,int);
+	HRESULT PreComputeMultiSctrTex3D(ID3D11Device*, ID3D11DeviceContext*,int);
+
+	HRESULT PreComputeSingleSctrTex3D_Test(ID3D11Device*, ID3D11DeviceContext*);
+	HRESULT PreComputeMultiSctrTex3D_Test(ID3D11Device*, ID3D11DeviceContext*, int);
 
 	const int TRANSMITTANCE_TEXTURE_WIDTH = 256;    //mu
 	const int TRANSMITTANCE_TEXTURE_HEIGHT = 64;    //r
@@ -98,8 +104,7 @@ private:
 
 	CComPtr<ID3D11Texture2D>							pTransmittanceTex2D;
 	CComPtr<ID3D11ShaderResourceView>					pTransmittanceSRV;
-	CComPtr<ID3D11RenderTargetView>						pTransmittanceRTV;
-
+	
 	CComPtr<ID3D11Texture3D>							pSingleScaterTex3D;
 	CComPtr<ID3D11ShaderResourceView>					pSingleScaterSRV;
 
@@ -109,10 +114,19 @@ private:
 	CComPtr<ID3D11Texture3D>							pSingleScaterMieTex3D;
 	CComPtr<ID3D11ShaderResourceView>					pSingleScaterMieSRV;
 
+	CComPtr<ID3D11Texture2D>							pDirectIrradianceTex2D;
+	CComPtr<ID3D11ShaderResourceView>					pDirectIrradianceSRV;
+
+	CComPtr<ID3D11Texture2D>							pIndirectIrradianceTex2D;
+	CComPtr<ID3D11ShaderResourceView>					pIndirectIrradianceSRV;
+
 	std::vector<std::string> TechStr
 	{
 		"ComputeTransmittanceTex2DTech",
-		"ComputeSingleScaterTex3DTech"
+		"ComputeDirectIrradiance2DTech",
+		"ComputeSingleScaterTex3DTech",
+		"ComputeIndirectIrradiance2DTech",
+		"ComputeMultiScaterTex3DTech"
 	};
 
 	std::vector<std::string> MatrixVarStr
@@ -154,7 +168,9 @@ private:
 	std::vector<std::string> ShaderResourceVarStr
 	{
 		"g_tex2DTransmittanceLUT",
-		"g_tex3DSingleScatteringLUT"
+		"g_tex2DIrradianceLUT",
+		"g_tex3DSingleScatteringLUT",
+		"g_tex3DMultiScatteringLUT"
 	};
 };
 
