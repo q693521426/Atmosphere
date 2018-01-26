@@ -62,6 +62,7 @@ public:
 
 	void Render(ID3D11Device*, ID3D11DeviceContext*, ID3D11RenderTargetView*);
 private:
+	int scatter_order_num;
 
 	bool IsPreComputed = false;
 	AtmosphereParameters atmosphereParams;
@@ -105,14 +106,14 @@ private:
 	CComPtr<ID3D11Texture2D>							pTransmittanceTex2D;
 	CComPtr<ID3D11ShaderResourceView>					pTransmittanceSRV;
 	
-	CComPtr<ID3D11Texture3D>							pSingleScaterTex3D;
-	CComPtr<ID3D11ShaderResourceView>					pSingleScaterSRV;
+	CComPtr<ID3D11Texture3D>							pSingleScatterTex3D;
+	CComPtr<ID3D11ShaderResourceView>					pSingleScatterSRV;
 
-	CComPtr<ID3D11Texture3D>							pSingleScaterRayleighTex3D;
-	CComPtr<ID3D11ShaderResourceView>					pSingleScaterRayleighSRV;
+	CComPtr<ID3D11Texture3D>							pSingleScatterRayleighTex3D;
+	CComPtr<ID3D11ShaderResourceView>					pSingleScatterRayleighSRV;
 	
-	CComPtr<ID3D11Texture3D>							pSingleScaterMieTex3D;
-	CComPtr<ID3D11ShaderResourceView>					pSingleScaterMieSRV;
+	CComPtr<ID3D11Texture3D>							pSingleScatterMieTex3D;
+	CComPtr<ID3D11ShaderResourceView>					pSingleScatterMieSRV;
 
 	CComPtr<ID3D11Texture2D>							pDirectIrradianceTex2D;
 	CComPtr<ID3D11ShaderResourceView>					pDirectIrradianceSRV;
@@ -120,13 +121,16 @@ private:
 	CComPtr<ID3D11Texture2D>							pIndirectIrradianceTex2D;
 	CComPtr<ID3D11ShaderResourceView>					pIndirectIrradianceSRV;
 
+	CComPtr<ID3D11Texture3D>							pMultiScatterTex3D;
+	CComPtr<ID3D11ShaderResourceView>					pMultiScatterSRV;
+
 	std::vector<std::string> TechStr
 	{
 		"ComputeTransmittanceTex2DTech",
 		"ComputeDirectIrradiance2DTech",
-		"ComputeSingleScaterTex3DTech",
+		"ComputeSingleScatterTex3DTech",
 		"ComputeIndirectIrradiance2DTech",
-		"ComputeMultiScaterTex3DTech"
+		"ComputeMultiScatterTex3DTech"
 	};
 
 	std::vector<std::string> MatrixVarStr

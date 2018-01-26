@@ -483,7 +483,7 @@ SingleScatterOutput ComputeSingleScatteringTexture(QuadVertexOut In) : SV_Target
     return res;
 }
 
-technique11 ComputeSingleScaterTex3DTech
+technique11 ComputeSingleScatterTex3DTech
 {
     pass P0
     {
@@ -512,7 +512,7 @@ float3 GetScattering(float r, float mu, float mu_s, float nu, int scatter_order)
     float3 f3UVW1 = f3UVW0 + float3(0, 0, fSliceOffset);
     
     float3 f3Insctr0, f3Insctr1;
-    if (scatter_order==1)
+    if (1==scatter_order)
     {
         f3Insctr0 = g_tex3DSingleScatteringLUT.SampleLevel(samLinearClamp, f3UVW0, 0);
         f3Insctr1 = g_tex3DSingleScatteringLUT.SampleLevel(samLinearClamp, f3UVW1, 0);
@@ -619,14 +619,14 @@ float3 ComputeMultiScatteringTexture(QuadVertexOut In):SV_Target
         
         float weight = (i == 0 || i == SAMPLE_COUNT - 1) ? 0.5 : 1.0;
 
-        //float3 res = weight * transmittance * scatter_density;
-        //rayleigh_mie += res;
+        float3 res = weight * scatter_density * scatter_density;
+        rayleigh_mie += res;
     }
     rayleigh_mie *= dx;
     return rayleigh_mie;
 }
 
-technique11 ComputeMultiScaterTex3DTech
+technique11 ComputeMultiScatterTex3DTech
 {
     pass P0
     {

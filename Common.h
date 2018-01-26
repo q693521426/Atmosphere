@@ -89,6 +89,76 @@ inline D3DXMATRIX InverseTranspose(D3DXMATRIX* m)
 	return out;
 }
 
+inline HRESULT CreateTexture2D(ID3D11Device* pDevice, ID3D11DeviceContext* pContext,
+								UINT width,UINT height, DXGI_FORMAT format,ID3D11Texture2D** ppTex2D,
+								ID3D11ShaderResourceView** ppSRV,ID3D11RenderTargetView** ppRTV)
+{
+	HRESULT hr = S_OK;
+
+	D3D11_TEXTURE2D_DESC PreCompute2DTexDesc;
+	ZeroMemory(&PreCompute2DTexDesc, sizeof(PreCompute2DTexDesc));
+	PreCompute2DTexDesc.Width = width;
+	PreCompute2DTexDesc.Height = height;
+	PreCompute2DTexDesc.MipLevels = 1;
+	PreCompute2DTexDesc.ArraySize = 1;
+	PreCompute2DTexDesc.Format = format;
+	PreCompute2DTexDesc.SampleDesc.Count = 1;
+	PreCompute2DTexDesc.SampleDesc.Quality = 0;
+	PreCompute2DTexDesc.Usage = D3D11_USAGE_DEFAULT;
+	PreCompute2DTexDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+	PreCompute2DTexDesc.CPUAccessFlags = 0;
+	PreCompute2DTexDesc.MiscFlags = 0;
+	SAFE_RELEASE((*ppTex2D));
+	V_RETURN(pDevice->CreateTexture2D(&PreCompute2DTexDesc, nullptr, ppTex2D));
+
+	CComPtr<ID3D11RenderTargetView>	pDirectIrradianceRTV;
+	D3D11_RENDER_TARGET_VIEW_DESC PreComputeRTVDesc;
+	PreComputeRTVDesc.Format = PreCompute2DTexDesc.Format;
+	PreComputeRTVDesc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
+	PreComputeRTVDesc.Texture2D.MipSlice = 0;
+	SAFE_RELEASE((*ppRTV));
+	V_RETURN(pDevice->CreateRenderTargetView(*ppTex2D, &PreComputeRTVDesc, ppRTV));
+
+	D3D11_SHADER_RESOURCE_VIEW_DESC PreComputeSRVDesc;
+	PreComputeSRVDesc.Format = PreCompute2DTexDesc.Format;
+	PreComputeSRVDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+	PreComputeSRVDesc.Texture2D.MostDetailedMip = 0;
+	PreComputeSRVDesc.Texture2D.MipLevels = 1;
+	SAFE_RELEASE((*ppSRV));
+	V_RETURN(pDevice->CreateShaderResourceView(*ppTex2D, &PreComputeSRVDesc, ppSRV));
+
+	return hr;
+}
+
+inline HRESULT CreateTexture3D(ID3D11Device* pDevice, ID3D11DeviceContext* pContext,
+	UINT width, UINT height, UINT depth, DXGI_FORMAT format, 
+	std::vector<ID3D11Texture3D**> ppTex3Ds,std::vector<ID3D11ShaderResourceView**> ppSRVs)
+{
+	HRESULT hr = S_OK;
+
+	D3D11_TEXTURE3D_DESC PreCompute3DTexDesc;
+	ZeroMemory(&PreCompute3DTexDesc, sizeof(PreCompute3DTexDesc));
+	PreCompute3DTexDesc.Width = width;
+	PreCompute3DTexDesc.Height = height;
+	PreCompute3DTexDesc.Depth = depth;
+	PreCompute3DTexDesc.MipLevels = 1;
+	PreCompute3DTexDesc.Format = format;
+	PreCompute3DTexDesc.Usage = D3D11_USAGE_DEFAULT;
+	PreCompute3DTexDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+	PreCompute3DTexDesc.CPUAccessFlags = 0;
+	PreCompute3DTexDesc.MiscFlags = 0;
+
+	for(int i=0;i<ppTex3Ds.size();++i)
+	{
+		SAFE_RELEASE((*ppTex3Ds[i]));
+		SAFE_RELEASE((*ppSRVs[i]));
+		V_RETURN(pDevice->CreateTexture3D(&PreCompute3DTexDesc, nullptr, ppTex3Ds[i]));
+		V_RETURN(pDevice->CreateShaderResourceView(*ppTex3Ds[i], nullptr, ppSRVs[i]));
+	}
+
+	return hr;
+}
+
 inline void RenderQuad(ID3D11DeviceContext* pContext,
 	ID3DX11EffectTechnique* activeTech,
 	int iWidth = 0, int iHeight = 0,
