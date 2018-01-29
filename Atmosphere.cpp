@@ -124,7 +124,20 @@ void Atmosphere::Initialize()
 		0.0, 0.0, -1.0 / 15.0, 8.0 / 3.0
 	};
 	
-	scatter_order_num = 3;
+	scatter_order_num = 4;
+
+#ifdef CREATE_TEXTURE_DDS_TEST
+	CreateDirectory(L"Texture", nullptr);
+	CreateDirectory(L"Texture/SingleScatter", nullptr);
+	CreateDirectory(L"Texture/MultiScatter", nullptr);
+	CreateDirectory(L"Texture/Irradiance", nullptr);
+	for(UINT order =2;order<= scatter_order_num;order++)
+	{
+		std::wstringstream ss;
+		ss << "Texture/MultiScatter/scatter_order_" << order;
+		CreateDirectory(ss.str().c_str(), nullptr);
+	}
+#endif
 }	
 
 
@@ -213,31 +226,21 @@ void Atmosphere::Render(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, ID
 		PreComputeTransmittanceTex2D(pDevice, pContext);
 
 		PreComputeDirectIrradianceTex2D(pDevice, pContext);
-
-		//PreComputeSingleSctrTex3D_Test(pDevice, pContext);
+#ifdef CREATE_TEXTURE_DDS_TEST
+		PreComputeSingleSctrTex3D_Test(pDevice, pContext);
+#endif
 		PreComputeSingleSctrTex3D(pDevice, pContext);
 
 		for (int scatter_order = 2; scatter_order <= scatter_order_num; ++scatter_order)
 		{
 			PreComputeInDirectIrradianceTex2D(pDevice, pContext, scatter_order - 1);
+#ifdef CREATE_TEXTURE_DDS_TEST
 			PreComputeMultiSctrTex3D_Test(pDevice, pContext, scatter_order);
-			if(scatter_order!=scatter_order_num)
-				PreComputeMultiSctrTex3D(pDevice, pContext, scatter_order);
+#endif
+			PreComputeMultiSctrTex3D(pDevice, pContext, scatter_order);
 		}
 		IsPreComputed = true;
 	}
-	//PreComputeTransmittanceTex2D(pDevice, pContext);
-
-	//PreComputeDirectIrradianceTex2D(pDevice, pContext);
-
-	////PreComputeSingleSctrTex3D_Test(pDevice, pContext);
-	//PreComputeSingleSctrTex3D(pDevice, pContext);
-
-	//for(int scatter_order = 2;scatter_order<=scatter_order_num;++scatter_order)
-	//{
-	//	PreComputeInDirectIrradianceTex2D(pDevice, pContext, scatter_order-1);
-	//	PreComputeMultiSctrTex3D_Test(pDevice, pContext, scatter_order - 1);
-	//}
 }
 
 HRESULT Atmosphere::PreComputeTransmittanceTex2D(ID3D11Device* pDevice, ID3D11DeviceContext* pContext)
@@ -264,7 +267,9 @@ HRESULT Atmosphere::PreComputeTransmittanceTex2D(ID3D11Device* pDevice, ID3D11De
 
 	RenderQuad(pContext, activeTech, TRANSMITTANCE_TEXTURE_WIDTH, TRANSMITTANCE_TEXTURE_HEIGHT);
 	//pContext->OMSetRenderTargets(0, nullptr, nullptr);
+#ifdef CREATE_TEXTURE_DDS_TEST
 	V_RETURN(D3DX11SaveTextureToFile(pContext, pTransmittanceTex2D, D3DX11_IFF_DDS, L"Texture/Transmittance.dds"));
+#endif
 	return hr;
 }
 
@@ -291,8 +296,9 @@ HRESULT Atmosphere::PreComputeDirectIrradianceTex2D(ID3D11Device* pDevice, ID3D1
 	ShaderResourceVarMap["g_tex2DTransmittanceLUT"]->SetResource(pTransmittanceSRV);
 
 	RenderQuad(pContext, activeTech, IRRADIANCE_TEXTURE_WIDTH, IRRADIANCE_TEXTURE_HEIGHT);
-
+#ifdef CREATE_TEXTURE_DDS_TEST
 	V_RETURN(D3DX11SaveTextureToFile(pContext, pDirectIrradianceTex2D, D3DX11_IFF_DDS, L"Texture/DirectIrradiance.dds"));
+#endif
 	return hr;
 }
 
@@ -361,8 +367,9 @@ HRESULT Atmosphere::PreComputeSingleSctrTex3D(ID3D11Device* pDevice, ID3D11Devic
 
 		RenderQuad(pContext, activeTech, SCATTERING_TEXTURE_WIDTH, SCATTERING_TEXTURE_HEIGHT);
 	}
+#ifdef CREATE_TEXTURE_DDS_TEST
 	V_RETURN(D3DX11SaveTextureToFile(pContext, pSingleScatterTex3D, D3DX11_IFF_DDS, L"Texture/SingleScatter3D.dds"));
-
+#endif
 	return hr;
 }
 
@@ -397,10 +404,11 @@ HRESULT Atmosphere::PreComputeInDirectIrradianceTex2D(ID3D11Device* pDevice, ID3
 	VarMap["misc"]->SetRawValue(&misc, 0, sizeof(MiscDynamicParams));
 
 	RenderQuad(pContext, activeTech, IRRADIANCE_TEXTURE_WIDTH, IRRADIANCE_TEXTURE_HEIGHT);
-
+#ifdef CREATE_TEXTURE_DDS_TEST
 	std::wstringstream ss;
 	ss << "Texture/Irradiance/IndirectIrradiance_" << scatter_order << ".dds";
 	V_RETURN(D3DX11SaveTextureToFile(pContext, pIndirectIrradianceTex2D, D3DX11_IFF_DDS, ss.str().c_str()));
+#endif
 	return hr;
 }
 
@@ -467,11 +475,11 @@ HRESULT Atmosphere::PreComputeMultiSctrTex3D(ID3D11Device* pDevice, ID3D11Device
 		RenderQuad(pContext, activeTech, SCATTERING_TEXTURE_WIDTH, SCATTERING_TEXTURE_HEIGHT);
 		//pContext->OMSetRenderTargets(0, nullptr, nullptr);
 	}
-
+#ifdef CREATE_TEXTURE_DDS_TEST
 	std::wstringstream ss;
 	ss << "Texture/MultiScatter/MultiScatter_" << scatter_order << ".dds";
 	V_RETURN(D3DX11SaveTextureToFile(pContext, pTex3D, D3DX11_IFF_DDS, ss.str().c_str()));
-
+#endif
 	pMultiScatterTex3D.Release();
 	pMultiScatterSRV.Release();
 
@@ -558,10 +566,10 @@ HRESULT Atmosphere::PreComputeSingleSctrTex3D_Test(ID3D11Device* pDevice, ID3D11
 
 		RenderQuad(pContext, activeTech, SCATTERING_TEXTURE_WIDTH, SCATTERING_TEXTURE_HEIGHT);
 		//pContext->OMSetRenderTargets(0, nullptr, nullptr);
-
+#ifdef CREATE_TEXTURE_DDS_TEST
 		std::wstringstream ss;
 		ss << L"Texture/SingleScatter/SingleScatter_" << depthSlice<<".dds";
-
+#endif
 		V_RETURN(D3DX11SaveTextureToFile(pContext, pSingleScatterTex2D, D3DX11_IFF_DDS, ss.str().c_str()));
 	}
 	return hr;
@@ -637,9 +645,11 @@ HRESULT Atmosphere::PreComputeMultiSctrTex3D_Test(ID3D11Device* pDevice, ID3D11D
 
 		RenderQuad(pContext, activeTech, SCATTERING_TEXTURE_WIDTH, SCATTERING_TEXTURE_HEIGHT);
 		//pContext->OMSetRenderTargets(0, nullptr, nullptr);
+#ifdef CREATE_TEXTURE_DDS_TEST
 		std::wstringstream ss;
 		ss << "Texture/MultiScatter/scatter_order_" << scatter_order<<"/"<< "MultiScatter_" <<depthSlice << ".dds";
 		V_RETURN(D3DX11SaveTextureToFile(pContext, pMultiScatterTex2D, D3DX11_IFF_DDS, ss.str().c_str()));
+#endif
 	}
 
 	return hr;

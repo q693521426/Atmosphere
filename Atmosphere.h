@@ -9,6 +9,8 @@
 #include <string>
 #include <vector>
 
+#define CREATE_TEXTURE_DDS_TEST 1
+
 struct DensityProfileLayer
 {
 	float exp_term;

@@ -9,6 +9,7 @@
 *.userosscache
 *.sln.docstates
 *.sdf
+Texture/
 
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
@@ -321,5 +322,3 @@ ASALocalRun/
 
 # MSBuild Binary and Structured Log
 *.binlog
-
-Texture/
