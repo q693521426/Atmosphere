@@ -619,7 +619,8 @@ float3 ComputeMultiScatteringTexture(QuadVertexOut In):SV_Target
         
         float weight = (i == 0 || i == SAMPLE_COUNT - 1) ? 0.5 : 1.0;
 
-        float3 res = weight * scatter_density * scatter_density;
+        float3 res = weight * transmittance * scatter_density;
+
         rayleigh_mie += res;
     }
     rayleigh_mie *= dx;

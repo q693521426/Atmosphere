@@ -221,7 +221,8 @@ void Atmosphere::Render(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, ID
 		{
 			PreComputeInDirectIrradianceTex2D(pDevice, pContext, scatter_order - 1);
 			PreComputeMultiSctrTex3D_Test(pDevice, pContext, scatter_order);
-			PreComputeMultiSctrTex3D(pDevice, pContext, scatter_order);
+			if(scatter_order!=scatter_order_num)
+				PreComputeMultiSctrTex3D(pDevice, pContext, scatter_order);
 		}
 		IsPreComputed = true;
 	}
@@ -359,10 +360,8 @@ HRESULT Atmosphere::PreComputeSingleSctrTex3D(ID3D11Device* pDevice, ID3D11Devic
 		pContext->OMSetRenderTargets(size, pRTVs, nullptr);
 
 		RenderQuad(pContext, activeTech, SCATTERING_TEXTURE_WIDTH, SCATTERING_TEXTURE_HEIGHT);
-		//pContext->OMSetRenderTargets(0, nullptr, nullptr);
-
-		V_RETURN(D3DX11SaveTextureToFile(pContext, pSingleScatterTex3D, D3DX11_IFF_DDS, L"Texture/SingleScatter3D.dds"));
 	}
+	V_RETURN(D3DX11SaveTextureToFile(pContext, pSingleScatterTex3D, D3DX11_IFF_DDS, L"Texture/SingleScatter3D.dds"));
 
 	return hr;
 }
@@ -421,10 +420,10 @@ HRESULT Atmosphere::PreComputeMultiSctrTex3D(ID3D11Device* pDevice, ID3D11Device
 	}
 	ShaderResourceVarMap["g_tex2DTransmittanceLUT"]->SetResource(pTransmittanceSRV);
 
-	pMultiScatterTex3D.Release();
-	pMultiScatterSRV.Release();
+	CComPtr<ID3D11Texture3D> pTex3D;
+	CComPtr<ID3D11ShaderResourceView> pSRV;
 	V_RETURN(CreateTexture3D(pDevice, pContext, SCATTERING_TEXTURE_WIDTH, SCATTERING_TEXTURE_HEIGHT, SCATTERING_TEXTURE_DEPTH,
-							format,{ &pMultiScatterTex3D.p},{ &pMultiScatterSRV}));
+							format,{ &pTex3D.p },{ &pSRV.p }));
 
 	std::vector<CComPtr<ID3D11RenderTargetView>> pMultiScaterRTVs(SCATTERING_TEXTURE_DEPTH);
 	for (UINT depthSlice = 0; depthSlice<SCATTERING_TEXTURE_DEPTH; ++depthSlice)
@@ -436,7 +435,7 @@ HRESULT Atmosphere::PreComputeMultiSctrTex3D(ID3D11Device* pDevice, ID3D11Device
 		CurrSliceRTVDesc.Texture3D.FirstWSlice = depthSlice;
 		CurrSliceRTVDesc.Texture3D.WSize = 1;
 
-		V_RETURN(pDevice->CreateRenderTargetView(pMultiScatterTex3D, &CurrSliceRTVDesc, &pMultiScaterRTVs[depthSlice]));
+		V_RETURN(pDevice->CreateRenderTargetView(pTex3D, &CurrSliceRTVDesc, &pMultiScaterRTVs[depthSlice]));
 		
 		ID3DX11EffectTechnique* activeTech = AtmosphereTechMap["ComputeMultiScatterTex3DTech"];
 
@@ -471,7 +470,13 @@ HRESULT Atmosphere::PreComputeMultiSctrTex3D(ID3D11Device* pDevice, ID3D11Device
 
 	std::wstringstream ss;
 	ss << "Texture/MultiScatter/MultiScatter_" << scatter_order << ".dds";
-	V_RETURN(D3DX11SaveTextureToFile(pContext, pMultiScatterTex3D, D3DX11_IFF_DDS, ss.str().c_str()));
+	V_RETURN(D3DX11SaveTextureToFile(pContext, pTex3D, D3DX11_IFF_DDS, ss.str().c_str()));
+
+	pMultiScatterTex3D.Release();
+	pMultiScatterSRV.Release();
+
+	pMultiScatterTex3D = pTex3D;
+	pMultiScatterSRV = pSRV;
 
 	return hr;
 }
