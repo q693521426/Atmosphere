@@ -111,8 +111,8 @@ private:
 	CComPtr<ID3D11Texture3D>							pSingleScatterTex3D;
 	CComPtr<ID3D11ShaderResourceView>					pSingleScatterSRV;
 
-	CComPtr<ID3D11Texture3D>							pSingleScatterRayleighTex3D;
-	CComPtr<ID3D11ShaderResourceView>					pSingleScatterRayleighSRV;
+	CComPtr<ID3D11Texture3D>							pSingleScatterCombinedTex3D;
+	CComPtr<ID3D11ShaderResourceView>					pSingleScatterCombinedSRV;
 	
 	CComPtr<ID3D11Texture3D>							pSingleScatterMieTex3D;
 	CComPtr<ID3D11ShaderResourceView>					pSingleScatterMieSRV;

@@ -110,11 +110,20 @@ struct MiscDynamicParams
 {
     float2 f2WQ;
     int scatter_order;
+
+    float3 f3CameraPos;
+    float3 f3EarthCenter;
+    float3 f3SunDir;
 };
 
 cbuffer cbMiscDynamicParams
 {
     MiscDynamicParams misc;
+};
+
+cbuffer cbMatrix
+{
+    float4x4 InvViewProj;
 };
 
 struct VertexIn
@@ -143,6 +152,8 @@ Texture2D<float3> g_tex2DTransmittanceLUT;
 Texture2D<float3> g_tex2DIrradianceLUT;
 Texture3D<float3> g_tex3DSingleScatteringLUT;
 Texture3D<float3> g_tex3DMultiScatteringLUT;
+
+Texture2D<float4> g_tex2DEarthGround;
 
 QuadVertexOut GenerateScreenSizeQuadVS(in uint VertexId : SV_VertexID,
                                                  in uint InstID : SV_InstanceID)
@@ -437,9 +448,9 @@ float4 GetUVWQFromrRMuMuSNu(in float r,in float mu,
 
 struct SingleScatterOutput
 {
-    float3 rayleigh : SV_Target0;
-    float3 mie : SV_Target1;
-    float3 single_scatter : SV_Target2;
+    float3 single_scatter : SV_Target0;
+    float4 scatter_combined : SV_Target1;
+    float3 scatter_mie : SV_Target2;
 };
 
 SingleScatterOutput ComputeSingleScatteringTexture(QuadVertexOut In) : SV_Target
@@ -474,12 +485,12 @@ SingleScatterOutput ComputeSingleScatteringTexture(QuadVertexOut In) : SV_Target
         rayleigh += weight * transmittance * GetLayerDesity(atmosphere.rayleigh_density, altitude_d);
         mie += weight * transmittance * GetLayerDesity(atmosphere.mie_density, altitude_d);
     }
-    rayleigh *= dx * atmosphere.solar_irradiance * atmosphere.rayleigh_scattering;
-    mie *= dx * atmosphere.solar_irradiance * atmosphere.mie_scattering;
+    rayleigh *= dx * atmosphere.solar_irradiance * atmosphere.rayleigh_scattering ;
+    mie *= dx * atmosphere.solar_irradiance * atmosphere.mie_scattering ;
     
-    res.rayleigh = rayleigh;
-    res.mie = mie;
-    res.single_scatter = rayleigh + mie;
+    res.scatter_combined = float4(rayleigh, mie.r);
+    res.scatter_mie = mie;
+    res.single_scatter = rayleigh * RayleighPhaseFunction(nu) + mie * MiePhaseFunction(nu,atmosphere.mie_g);
     return res;
 }
 
@@ -743,3 +754,67 @@ float3 GetIrradiance(float r, float mu_s)
     return g_tex2DIrradianceLUT.Sample(samLinearClamp, uv);
 }
 
+float3 SunColor(float r,float mu_s,float3 normal)
+{
+
+}
+
+float3 GroundColor(float3 p,float r,)
+{
+
+}
+
+float3 SkyScatter()
+{
+
+}
+
+struct QuadViewRayOut
+{
+    float4 m_f4Pos : SV_Position;
+    float2 m_f2PosPS : PosPS; // Position in projection space [-1,1]x[-1,1]
+    float m_fInstID : InstanceID;
+    float3 m_f4Ray : ViewRay;
+};
+
+QuadViewRayOut GenerateViewRayVS(in uint VertexId : SV_VertexID,
+                                                 in uint InstID : SV_InstanceID)
+{
+    float4 MinMaxUV = float4(-1, -1, 1, 1);
+    
+    QuadViewRayOut ViewRayOut[4] =
+    {
+        { float4(MinMaxUV.xy, 1.0, 1.0), MinMaxUV.xy, InstID, 0.f },
+        { float4(MinMaxUV.xw, 1.0, 1.0), MinMaxUV.xw, InstID, 0.f },
+        { float4(MinMaxUV.zy, 1.0, 1.0), MinMaxUV.zy, InstID, 0.f },
+        { float4(MinMaxUV.zw, 1.0, 1.0), MinMaxUV.zw, InstID, 0.f }
+    };
+    ViewRayOut[VertexId].m_f4Ray = mul(ViewRayOut[VertexId].m_f4Pos, InvViewProj).xyz;
+    return ViewRayOut[VertexId];
+
+}
+
+float4 DrawGroundAndSky(QuadViewRayOut In) : SV_Target
+{
+    float v_length = length(In.m_f4Ray);
+    float3 v = In.m_f4Ray / v_length;
+    
+    float fragment_angular_size =
+      length(ddx(In.m_f4Ray) + ddy(In.m_f4Ray)) / length(In.m_f4Ray);
+
+
+}
+
+technique11 DrawGroundAndSkyTech
+{
+    pass P0
+    {
+        SetBlendState(NoBlending, float4(0.0f, 0.0f, 0.0f, 0.0f), 0xFFFFFFFF);
+        SetRasterizerState(RS_SolidFill_NoCull);
+        SetDepthStencilState(DSS_NoDepthTest, 0);
+
+        SetVertexShader(CompileShader(vs_5_0, GenerateViewRayVS()));
+        SetGeometryShader(NULL);
+        SetPixelShader(CompileShader(ps_5_0, DrawGroundAndSky()));
+    }
+}
