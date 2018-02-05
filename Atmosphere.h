@@ -49,6 +49,11 @@ struct MiscDynamicParams
 {
 	D3DXVECTOR2 f2WQ;
 	int scatter_order;
+	float exposure;
+
+	D3DXVECTOR3 f3CameraPos;
+	D3DXVECTOR3 f3EarthCenter;
+	D3DXVECTOR3 f3SunDir;
 };
 
 class Atmosphere
@@ -67,6 +72,15 @@ private:
 	int scatter_order_num;
 
 	bool IsPreComputed = false;
+
+	float view_distance_meters = 9000.f;
+	float view_zenith_angle_radians = 1.47f;
+	float view_azimuth_angle_radians = -0.1f;
+	float sun_zenith_angle_radians = 1.3f;
+	float sun_azimuth_angle_radians = 2.9f;
+	float exposure = 10.f;
+
+
 	AtmosphereParameters atmosphereParams;
 
 	HRESULT PreComputeTransmittanceTex2D(ID3D11Device*, ID3D11DeviceContext*);
@@ -126,6 +140,9 @@ private:
 	CComPtr<ID3D11Texture3D>							pMultiScatterTex3D;
 	CComPtr<ID3D11ShaderResourceView>					pMultiScatterSRV;
 
+	CComPtr<ID3D11Texture3D>							pMultiScatterCombinedTex3D;
+	CComPtr<ID3D11ShaderResourceView>					pMultiScatterCombinedSRV;
+
 	std::vector<std::string> TechStr
 	{
 		"ComputeTransmittanceTex2DTech",
@@ -174,9 +191,16 @@ private:
 	std::vector<std::string> ShaderResourceVarStr
 	{
 		"g_tex2DTransmittanceLUT",
-		"g_tex2DIrradianceLUT",
+		"g_tex2DDirectIrradianceLUT",
 		"g_tex3DSingleScatteringLUT",
-		"g_tex3DMultiScatteringLUT"
+		"g_tex2DDirectIrradianceLUT",
+		"g_tex3DMultiScatteringLUT",
+
+		"g_tex3DSingleMieScatteringLUT",
+		"g_tex3DSingleScatteringCombinedLUT",
+		"g_tex3DMultiScatteringCombinedLUT",
+
+		"g_tex2DEarthGround"
 	};
 };
 

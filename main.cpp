@@ -17,8 +17,18 @@
 #define new new( _NORMAL_BLOCK , __FILE__ , __LINE__ )
 #endif  // _DEBUG
 
-CFirstPersonCamera m_FirstPersonCamera;
-Atmosphere* m_pAtmosphere;
+CFirstPersonCamera					m_FirstPersonCamera;
+Atmosphere*							m_pAtmosphere;
+int									screen_width = 1280;
+int									screen_height = 720;
+D3D11_VIEWPORT						g_viewport;
+D3DXMATRIX							g_World;
+D3DXMATRIX							g_View;
+D3DXMATRIX							g_Projection;
+ID3D11Device*						g_pd3dDevice = nullptr;
+ID3D11DeviceContext*				g_pd3dImmediateContext = nullptr;
+ID3D11RenderTargetView*				g_pRenderTargetView = nullptr;
+ID3D11DepthStencilView*				g_pDepthStencilView = nullptr;
 //--------------------------------------------------------------------------------------
 // Reject any D3D11 devices that aren't acceptable by returning false
 //--------------------------------------------------------------------------------------
@@ -63,6 +73,17 @@ HRESULT CALLBACK OnD3D11CreateDevice( ID3D11Device* pd3dDevice, const DXGI_SURFA
 HRESULT CALLBACK OnD3D11ResizedSwapChain( ID3D11Device* pd3dDevice, IDXGISwapChain* pSwapChain,
                                           const DXGI_SURFACE_DESC* pBackBufferSurfaceDesc, void* pUserContext )
 {
+	HRESULT hr;
+	screen_width = pBackBufferSurfaceDesc->Width;
+	screen_height = pBackBufferSurfaceDesc->Height;
+	g_viewport.Width = static_cast<float>(screen_width);
+	g_viewport.Height = static_cast<float>(screen_height);
+	float fAspect = g_viewport.Width / g_viewport.Height;
+	m_FirstPersonCamera.SetProjParams(D3DX_PI * 0.25f, fAspect, 0.1f, 100.f);
+	g_Projection = *(m_FirstPersonCamera.GetProjMatrix());
+
+	g_pRenderTargetView = DXUTGetD3D11RenderTargetView();
+	g_pDepthStencilView = DXUTGetD3D11DepthStencilView();
     return S_OK;
 }
 
