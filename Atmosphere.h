@@ -9,7 +9,7 @@
 #include <string>
 #include <vector>
 
-#define CREATE_TEXTURE_DDS_TEST 1
+#define CREATE_TEXTURE_DDS_TEST 0
 
 struct DensityProfileLayer
 {
@@ -52,8 +52,11 @@ struct MiscDynamicParams
 	float exposure;
 
 	D3DXVECTOR3 f3CameraPos;
+	float padding1;
 	D3DXVECTOR3 f3EarthCenter;
+	float padding2;
 	D3DXVECTOR3 f3SunDir;
+	float padding3;
 };
 
 class Atmosphere
@@ -65,9 +68,18 @@ public:
 	void Initialize();
 	void Release();
 
+	void SetView(float, float, float, float, float, float);
+
+	void Resize(int screen_width, int screen_height, FLOAT fFOV, FLOAT fAspect);
+
 	HRESULT OnD3D11CreateDevice(ID3D11Device*, ID3D11DeviceContext*);
 
+	HRESULT PreCompute(ID3D11Device*, ID3D11DeviceContext*, ID3D11RenderTargetView*);
 	void Render(ID3D11Device*, ID3D11DeviceContext*, ID3D11RenderTargetView*);
+
+	void Test(ID3D11Device*, ID3D11DeviceContext*, ID3D11RenderTargetView*);
+
+	void MsgProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 private:
 	int scatter_order_num;
 
@@ -80,6 +92,8 @@ private:
 	float sun_azimuth_angle_radians = 2.9f;
 	float exposure = 10.f;
 
+	D3DXMATRIX InvView, InvProj;
+	int screen_width, screen_height;
 
 	AtmosphereParameters atmosphereParams;
 
@@ -143,20 +157,22 @@ private:
 	CComPtr<ID3D11Texture3D>							pMultiScatterCombinedTex3D;
 	CComPtr<ID3D11ShaderResourceView>					pMultiScatterCombinedSRV;
 
+	CComPtr<ID3D11ShaderResourceView>					pEarthGroundSRV;
+
 	std::vector<std::string> TechStr
 	{
 		"ComputeTransmittanceTex2DTech",
 		"ComputeDirectIrradiance2DTech",
 		"ComputeSingleScatterTex3DTech",
 		"ComputeIndirectIrradiance2DTech",
-		"ComputeMultiScatterTex3DTech"
+		"ComputeMultiScatterTex3DTech",
+		"DrawGroundAndSkyTech",
+		"TestTextureTech"
 	};
 
 	std::vector<std::string> MatrixVarStr
 	{
-		"World",
-		"WorldViewProj",
-		"WorldInvTranspose"
+		"InvViewProj"
 	};
 
 	std::vector<std::string> VectorVarStr

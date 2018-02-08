@@ -84,6 +84,8 @@ HRESULT CALLBACK OnD3D11ResizedSwapChain( ID3D11Device* pd3dDevice, IDXGISwapCha
 
 	g_pRenderTargetView = DXUTGetD3D11RenderTargetView();
 	g_pDepthStencilView = DXUTGetD3D11DepthStencilView();
+
+	m_pAtmosphere->Resize(screen_width, screen_height, D3DX_PI * 25.0f/180.0f, fAspect);
     return S_OK;
 }
 
@@ -110,8 +112,9 @@ void CALLBACK OnD3D11FrameRender( ID3D11Device* pd3dDevice, ID3D11DeviceContext*
 	pd3dImmediateContext->ClearRenderTargetView(pRTV, ClearColor);
 	pd3dImmediateContext->ClearDepthStencilView(pDSV, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0, 0);
 
-	m_pAtmosphere->Render(pd3dDevice, pd3dImmediateContext,pRTV);
-
+	m_pAtmosphere->PreCompute(pd3dDevice, pd3dImmediateContext,pRTV);
+	m_pAtmosphere->Render(pd3dDevice, pd3dImmediateContext, pRTV);
+	//m_pAtmosphere->Test(pd3dDevice, pd3dImmediateContext, pRTV);
 }
 
 
@@ -144,6 +147,7 @@ LRESULT CALLBACK MsgProc( HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam,
                           bool* pbNoFurtherProcessing, void* pUserContext )
 {
 	m_FirstPersonCamera.HandleMessages(hWnd, uMsg, wParam, lParam);
+	m_pAtmosphere->MsgProc(hWnd, uMsg, wParam, lParam);
     return 0;
 }
 
@@ -191,7 +195,7 @@ int WINAPI wWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdL
     DXUTCreateWindow( L"Atmosphere" );
 
     // Only require 10-level hardware
-    DXUTCreateDevice( D3D_FEATURE_LEVEL_10_0, true, 640, 480 );
+    DXUTCreateDevice( D3D_FEATURE_LEVEL_10_0, true, screen_width, screen_height );
     DXUTMainLoop(); // Enter into the DXUT ren  der loop
 
     // Perform any application-level cleanup here

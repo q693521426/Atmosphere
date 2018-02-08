@@ -47,6 +47,7 @@ void Atmosphere::Initialize()
 		6.566e-26, 5.105e-26, 4.15e-26, 4.228e-26, 3.237e-26, 2.451e-26, 2.801e-26,
 		2.534e-26, 1.624e-26, 1.465e-26, 2.078e-26, 1.383e-26, 7.105e-27
 	};
+
 	// From https://en.wikipedia.org/wiki/Dobson_unit, in molecules.m^-2.
 	constexpr double kDobsonUnit = 2.687e20;
 	// Maximum number density of ozone molecules, in m^-3 (computed so at to get
@@ -218,32 +219,119 @@ HRESULT Atmosphere::OnD3D11CreateDevice(ID3D11Device* pDevice, ID3D11DeviceConte
 		CComPtr<ID3DX11EffectShaderResourceVariable> pShaderResourceVar = pAtmosphereEffect->GetVariableByName(ShaderResourceVarStr[i].c_str())->AsShaderResource();
 		ShaderResourceVarMap.emplace(ShaderResourceVarStr[i], pShaderResourceVar);
 	}
+
+	V_RETURN(D3DX11CreateShaderResourceViewFromFile(pDevice, L"Texture/earth.tiff", nullptr, nullptr, &pEarthGroundSRV.p, nullptr));
 	return hr;
 }
 
-
-void Atmosphere::Render(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, ID3D11RenderTargetView* pRTV)
+HRESULT Atmosphere::PreCompute(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, ID3D11RenderTargetView* pRTV)
 {
+	HRESULT hr = S_OK;
+	//V_RETURN(D3DX11CreateShaderResourceViewFromFile(pDevice, L"Texture/Transmittance.dds", nullptr, nullptr, &pTransmittanceSRV.p, nullptr));
+	//V_RETURN(D3DX11CreateShaderResourceViewFromFile(pDevice, L"Texture/", nullptr, nullptr, &pSingleScatterCombinedSRV.p, nullptr));
+	//V_RETURN(D3DX11CreateShaderResourceViewFromFile(pDevice, L"", nullptr, nullptr, &pSingleScatterMieSRV.p, nullptr));
+	//V_RETURN(D3DX11CreateShaderResourceViewFromFile(pDevice, L"", nullptr, nullptr, &pDirectIrradianceSRV.p, nullptr));
+	//V_RETURN(D3DX11CreateShaderResourceViewFromFile(pDevice, L"", nullptr, nullptr, &pMultiScatterCombinedSRV.p, nullptr));
+
 	if(!IsPreComputed)
 	{
-		PreComputeTransmittanceTex2D(pDevice, pContext);
+		V_RETURN(PreComputeTransmittanceTex2D(pDevice, pContext));
 
-		PreComputeDirectIrradianceTex2D(pDevice, pContext);
+		V_RETURN(PreComputeDirectIrradianceTex2D(pDevice, pContext));
 #ifdef CREATE_TEXTURE_DDS_TEST
-		//PreComputeSingleSctrTex3D_Test(pDevice, pContext);
+		V_RETURN(PreComputeSingleSctrTex3D_Test(pDevice, pContext));
 #endif
-		PreComputeSingleSctrTex3D(pDevice, pContext);
+		V_RETURN(PreComputeSingleSctrTex3D(pDevice, pContext));
 
 		for (int scatter_order = 2; scatter_order <= 2; ++scatter_order)
 		{
-			PreComputeInDirectIrradianceTex2D(pDevice, pContext, scatter_order - 1);
+			V_RETURN(PreComputeInDirectIrradianceTex2D(pDevice, pContext, scatter_order - 1));
 #ifdef CREATE_TEXTURE_DDS_TEST
-			PreComputeMultiSctrTex3D_Test(pDevice, pContext, scatter_order);
+			V_RETURN(PreComputeMultiSctrTex3D_Test(pDevice, pContext, scatter_order));
 #endif
-			PreComputeMultiSctrTex3D(pDevice, pContext, scatter_order);
+			V_RETURN(PreComputeMultiSctrTex3D(pDevice, pContext, scatter_order));
 		}
 		IsPreComputed = true;
 	}
+	return hr;
+}
+
+void Atmosphere::Render(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, ID3D11RenderTargetView* pRTV)
+{
+	//SetView(2.7e6, 0.81, 0.0, 1.57, 2.0, 10.0);
+	ID3DX11EffectTechnique* activeTech = AtmosphereTechMap["DrawGroundAndSkyTech"];
+	MiscDynamicParams misc;
+	misc.exposure = exposure;
+	misc.f3EarthCenter = D3DXVECTOR3(0.f,-6360.f, 0.f);
+
+	float cos_z = cos(view_zenith_angle_radians);
+	float sin_z = sin(view_zenith_angle_radians);
+	float cos_a = cos(view_azimuth_angle_radians);
+	float sin_a = sin(view_azimuth_angle_radians);
+
+	D3DXVECTOR3 Look = -D3DXVECTOR3(sin_z*cos_a, cos_z, sin_z*sin_a);
+	D3DXVECTOR3 Up = D3DXVECTOR3(0,1,0);
+	D3DXVECTOR3 Right;
+	D3DXVec3Cross(&Right, &Up, &Look);
+	D3DXVec3Normalize(&Right, &Right);
+	D3DXVec3Cross(&Up, &Look, &Right);
+
+	misc.f3CameraPos = -Look*view_distance_meters / 1000.f;
+
+	InvView = D3DXMATRIX(
+		Right.x, Right.y, Right.z, 0.f,
+		Up.x, Up.y, Up.z, 0.f,
+		Look.x, Look.y, Look.z,0.f,
+		misc.f3CameraPos.x, misc.f3CameraPos.y, misc.f3CameraPos.z,1.0f);
+	D3DXMATRIX InvViewProj;
+	D3DXMatrixMultiplyTranspose(&InvViewProj, &InvProj, &InvView);
+
+	MatrixVarMap["InvViewProj"]->SetMatrix(InvViewProj);
+	
+	float cos_sun_z = cos(sun_zenith_angle_radians);
+	float sin_sun_z = sin(sun_zenith_angle_radians);
+	float cos_sun_a = cos(sun_azimuth_angle_radians);
+	float sin_sun_a = sin(sun_azimuth_angle_radians);
+	misc.f3SunDir = D3DXVECTOR3(sin_sun_z*cos_sun_a, cos_sun_z, sin_sun_z*sin_sun_a);
+
+	VarMap["misc"]->SetRawValue(&misc, 0, sizeof(MiscDynamicParams));
+	ShaderResourceVarMap["g_tex2DTransmittanceLUT"]->SetResource(pTransmittanceSRV);
+	ShaderResourceVarMap["g_tex3DSingleScatteringCombinedLUT"]->SetResource(pSingleScatterCombinedSRV);
+	ShaderResourceVarMap["g_tex3DSingleMieScatteringLUT"]->SetResource(pSingleScatterMieSRV);
+	ShaderResourceVarMap["g_tex2DDirectIrradianceLUT"]->SetResource(pDirectIrradianceSRV);
+	ShaderResourceVarMap["g_tex3DMultiScatteringCombinedLUT"]->SetResource(pMultiScatterCombinedSRV);
+	ShaderResourceVarMap["g_tex2DEarthGround"]->SetResource(pEarthGroundSRV);
+
+	pContext->OMSetRenderTargets(1, &pRTV, nullptr);
+	RenderQuad(pContext, activeTech, screen_width, screen_height);
+}
+
+void Atmosphere::Test(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, ID3D11RenderTargetView* pRTV)
+{
+	if (!IsPreComputed)
+	{
+		PreComputeTransmittanceTex2D(pDevice, pContext);
+		IsPreComputed = true;
+	}
+	ID3DX11EffectTechnique* activeTech = AtmosphereTechMap["TestTextureTech"];
+	VarMap["atmosphere"]->SetRawValue(&atmosphereParams, 0, sizeof(AtmosphereParameters));
+	ShaderResourceVarMap["g_tex2DTransmittanceLUT"]->SetResource(pTransmittanceSRV);
+	ShaderResourceVarMap["g_tex2DEarthGround"]->SetResource(pEarthGroundSRV);
+	//ShaderResourceVarMap["g_tex3DSingleMieScatteringLUT"]->SetResource(pSingleScatterMieSRV);
+	//ShaderResourceVarMap["g_tex3DSingleScatteringCombinedLUT"]->SetResource(pSingleScatterCombinedSRV);
+	pContext->OMSetRenderTargets(1, &pRTV, nullptr);
+	RenderQuad(pContext, activeTech, screen_width, screen_height);
+}
+
+void Atmosphere::Resize(int screen_width, int screen_height, FLOAT fFOV, FLOAT fAspect)
+{
+	this->screen_width = screen_width;
+	this->screen_height = screen_height;
+
+	InvProj = D3DXMATRIX(fFOV * fAspect, 0.0, 0.0, 0.0,
+						0.0, fFOV, 0.0, 0.0,
+						0.0, 0.0, 0.0, -1,
+						0.0, 0.0, 1.0, 1);
 }
 
 HRESULT Atmosphere::PreComputeTransmittanceTex2D(ID3D11Device* pDevice, ID3D11DeviceContext* pContext)
@@ -688,4 +776,64 @@ HRESULT Atmosphere::PreComputeMultiSctrTex3D_Test(ID3D11Device* pDevice, ID3D11D
 	}
 
 	return hr;
+}
+
+void Atmosphere::SetView(float view_distance_meters, float view_zenith_angle_radians, float view_azimuth_angle_radians,
+							float sun_zenith_angle_radians, float sun_azimuth_angle_radians,float exposure)
+{
+	this->view_distance_meters = view_distance_meters;
+	this->view_zenith_angle_radians = view_zenith_angle_radians;
+	this->view_azimuth_angle_radians = view_azimuth_angle_radians;
+	this->sun_zenith_angle_radians = sun_zenith_angle_radians;
+	this->sun_azimuth_angle_radians = sun_azimuth_angle_radians;
+	this->exposure = exposure;
+}
+
+void Atmosphere::MsgProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+{
+	switch (uMsg)
+	{
+		case WM_KEYDOWN:
+		{
+			switch(wParam)
+			{
+				case 0x31:
+				{
+					SetView(9000.0, 1.47, -0.1, 1.3, 2.9, 10.0);
+				}break;
+				case 0x32:
+				{
+					SetView(9000.0, 1.47, 0.0, 1.564, -3.0, 10.0);
+				}break;
+				case 0x33:
+				{
+					SetView(7000.0, 1.57, 0.0, 1.54, -2.96, 10.0);
+				}break;
+				case 0x34:
+				{
+					SetView(7000.0, 1.57, 0.0, 1.328, -3.044, 10.0);
+				}break;
+				case 0x35:
+				{
+					SetView(9000.0, 1.39, 0.0, 1.2, 0.7, 10.0);
+				}break;
+				case 0x36:
+				{
+					SetView(9000.0, 1.5, 0.0, 1.628, 1.05, 200.0);
+				}break;
+				case 0x37:
+				{
+					SetView(7000.0, 1.43, 0.0, 1.57, 1.34, 40.0);
+				}break;
+				case 0x38:
+				{
+					SetView(2.7e6, 0.81, 0.0, 1.57, 2.0, 10.0);
+				}break;
+				case 0x39:
+				{
+					SetView(1.2e7, 0.0, 0.0, 0.93, -2.0, 10.0);
+				}break;
+			}
+		}
+	}
 }
