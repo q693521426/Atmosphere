@@ -8,6 +8,7 @@
 #include <unordered_map>
 #include <string>
 #include <vector>
+#include "DXUTcamera.h"
 
 #define CREATE_TEXTURE_DDS_TEST 0
 
@@ -80,7 +81,11 @@ public:
 	void Test(ID3D11Device*, ID3D11DeviceContext*, ID3D11RenderTargetView*);
 
 	void MsgProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+
+	void OnFrameMove(double fTime, float fElapsedTime);
 private:
+	CFirstPersonCamera					m_FirstPersonCamera;
+
 	int scatter_order_num;
 
 	bool IsPreComputed = false;

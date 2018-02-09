@@ -585,6 +585,22 @@ float4 GetScatteringCombined(float r, float mu, float mu_s, float nu, int scatte
     return f4Inscattering;
 }
 
+float3 GetScatteringMie(float r, float mu, float mu_s, float nu)
+{
+    float3 f3UVW0, f3UVW1;
+    float fQWeight;
+    GetScatteringUVW(r, mu, mu_s, nu, f3UVW0, f3UVW1, fQWeight);
+    
+    float3 f3Insctr0, f3Insctr1;
+
+    f3Insctr0 = g_tex3DSingleMieScatteringLUT.SampleLevel(samLinearClamp, f3UVW0, 0);
+    f3Insctr1 = g_tex3DSingleMieScatteringLUT.SampleLevel(samLinearClamp, f3UVW1, 0);
+    
+    float3 f4Inscattering = lerp(f3Insctr0, f3Insctr1, fQWeight);
+
+    return f4Inscattering;
+}
+
 float2 GetIrradianceUVFromRMuS(float r, float mu_s)
 {
     float u_x = (1.0 + mu_s) / 2.0;
@@ -698,7 +714,7 @@ MultiScatterOutput ComputeMultiScatteringTexture(QuadVertexOut In) : SV_Target
     }
     rayleigh_mie *= dx;
     multi_scatter.multi_scatter = rayleigh_mie;
-    multi_scatter.scatter_combined = float4(rayleigh_mie / RayleighPhaseFunction(nu), 0.f) +
+    multi_scatter.scatter_combined = float4(rayleigh_mie / RayleighPhaseFunction(nu), 0.f) + 
                                      GetScatteringCombined(r, mu, mu_s, nu, 1);
     return multi_scatter;
 }
@@ -860,12 +876,13 @@ float3 GetIrradianceDirectFromSun(float r, float mu_s, float nu)
 
 float3 GetSkyMultiScatter(float r, float mu, float mu_s, float nu)
 {
-    float4 scatter_combined = GetScatteringCombined(r, mu, mu_s, nu, 2);
+    float4 scatter_combined = GetScatteringCombined(r, mu, mu_s, nu, 1);
 
     float3 mie_scatter = scatter_combined.rgb * scatter_combined.a / scatter_combined.r *
 	    (atmosphere.rayleigh_scattering.r / atmosphere.mie_scattering.r) *
 	    (atmosphere.mie_scattering / atmosphere.rayleigh_scattering);
-
+    //float3 mie_scatter = GetScatteringMie(r, mu, mu_s, nu);
+    
     return (mie_scatter * MiePhaseFunction(atmosphere.mie_g, nu) + scatter_combined.rgb * RayleighPhaseFunction(nu));
 }
 
@@ -947,7 +964,7 @@ float4 DrawGroundAndSky(QuadViewRayOut In) : SV_Target
     {
         return float4(HDR(irradiance_from_sun), 1.0f);
     }
-    return float4(HDR(irradiance_from_sun), 1.0f);
+    //return float4(HDR(irradiance_from_sun), 1.0f);
 
     float distance_to_atmosphere_near = -r * mu - sqrt(intersect_atmosphere_discriminant);
     if (distance_to_atmosphere_near > 0.f)
@@ -989,6 +1006,7 @@ float4 DrawGroundAndSky(QuadViewRayOut In) : SV_Target
     }
     else
     {
+        //return float4(1.0, 1.0, 1.0, 1.0);
         float distance_to_atmosphere = -r * mu + sqrt(intersect_atmosphere_discriminant);
         float3 pos_d = camera_pos + distance_to_atmosphere * v;
         float r_d = length(pos_d);

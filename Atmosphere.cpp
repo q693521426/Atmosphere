@@ -139,6 +139,7 @@ void Atmosphere::Initialize()
 		CreateDirectory(ss.str().c_str(), nullptr);
 	}
 #endif
+	SetView(9000.0, 1.47, -0.1, 1.3, 2.9, 10.0);
 }	
 
 
@@ -264,25 +265,35 @@ void Atmosphere::Render(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, ID
 	misc.exposure = exposure;
 	misc.f3EarthCenter = D3DXVECTOR3(0.f,-6360.f, 0.f);
 
-	float cos_z = cos(view_zenith_angle_radians);
-	float sin_z = sin(view_zenith_angle_radians);
-	float cos_a = cos(view_azimuth_angle_radians);
-	float sin_a = sin(view_azimuth_angle_radians);
+	//float cos_z = cos(view_zenith_angle_radians);
+	//float sin_z = sin(view_zenith_angle_radians);
+	//float cos_a = cos(view_azimuth_angle_radians);
+	//float sin_a = sin(view_azimuth_angle_radians);
 
-	D3DXVECTOR3 Look = -D3DXVECTOR3(sin_z*cos_a, cos_z, sin_z*sin_a);
-	D3DXVECTOR3 Up = D3DXVECTOR3(0,1,0);
-	D3DXVECTOR3 Right;
-	D3DXVec3Cross(&Right, &Up, &Look);
-	D3DXVec3Normalize(&Right, &Right);
-	D3DXVec3Cross(&Up, &Look, &Right);
+	D3DXVECTOR3 EyePos = *m_FirstPersonCamera.GetEyePt();
+	D3DXVECTOR3 LookAt = *m_FirstPersonCamera.GetLookAtPt();
 
-	misc.f3CameraPos = -Look*view_distance_meters / 1000.f;
+	//D3DXVECTOR3 Look = -D3DXVECTOR3(sin_z*cos_a, cos_z, sin_z*sin_a);
+	//D3DXVECTOR3 Look = LookAt - EyePos;
+	//D3DXVECTOR3 Up = D3DXVECTOR3(0,1,0);
+	//D3DXVECTOR3 Right;
+	//D3DXVec3Cross(&Right, &Up, &Look);
+	//D3DXVec3Normalize(&Right, &Right);
+	//D3DXVec3Cross(&Up, &Look, &Right);
 
-	InvView = D3DXMATRIX(
-		Right.x, Right.y, Right.z, 0.f,
-		Up.x, Up.y, Up.z, 0.f,
-		Look.x, Look.y, Look.z,0.f,
-		misc.f3CameraPos.x, misc.f3CameraPos.y, misc.f3CameraPos.z,1.0f);
+	//misc.f3CameraPos = -Look*view_distance_meters / 1000.f;
+
+	//InvView = D3DXMATRIX(
+	//	Right.x, Right.y, Right.z, 0.f,
+	//	Up.x, Up.y, Up.z, 0.f,
+	//	Look.x, Look.y, Look.z,0.f,
+	//	misc.f3CameraPos.x, misc.f3CameraPos.y, misc.f3CameraPos.z,1.0f);
+	misc.f3CameraPos = *m_FirstPersonCamera.GetEyePt();
+	D3DXMATRIX View = *m_FirstPersonCamera.GetViewMatrix();
+	float det = D3DXMatrixDeterminant(&View);
+	D3DXMATRIX InvView;
+	D3DXMatrixInverse(&InvView, &det,&View);
+
 	D3DXMATRIX InvViewProj;
 	D3DXMatrixMultiplyTranspose(&InvViewProj, &InvProj, &InvView);
 
@@ -321,17 +332,6 @@ void Atmosphere::Test(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, ID3D
 	//ShaderResourceVarMap["g_tex3DSingleScatteringCombinedLUT"]->SetResource(pSingleScatterCombinedSRV);
 	pContext->OMSetRenderTargets(1, &pRTV, nullptr);
 	RenderQuad(pContext, activeTech, screen_width, screen_height);
-}
-
-void Atmosphere::Resize(int screen_width, int screen_height, FLOAT fFOV, FLOAT fAspect)
-{
-	this->screen_width = screen_width;
-	this->screen_height = screen_height;
-
-	InvProj = D3DXMATRIX(fFOV * fAspect, 0.0, 0.0, 0.0,
-						0.0, fFOV, 0.0, 0.0,
-						0.0, 0.0, 0.0, -1,
-						0.0, 0.0, 1.0, 1);
 }
 
 HRESULT Atmosphere::PreComputeTransmittanceTex2D(ID3D11Device* pDevice, ID3D11DeviceContext* pContext)
@@ -787,10 +787,21 @@ void Atmosphere::SetView(float view_distance_meters, float view_zenith_angle_rad
 	this->sun_zenith_angle_radians = sun_zenith_angle_radians;
 	this->sun_azimuth_angle_radians = sun_azimuth_angle_radians;
 	this->exposure = exposure;
+
+	float cos_z = cos(view_zenith_angle_radians);
+	float sin_z = sin(view_zenith_angle_radians);
+	float cos_a = cos(view_azimuth_angle_radians);
+	float sin_a = sin(view_azimuth_angle_radians);
+
+	D3DXVECTOR3 EyePos = D3DXVECTOR3(sin_z*cos_a, cos_z, sin_z*sin_a) * view_distance_meters / 1000;
+	D3DXVECTOR3 LookAt = D3DXVECTOR3(0.0f, 0.0f, 0.0f);
+	m_FirstPersonCamera.SetViewParams(&EyePos, &LookAt);
+
 }
 
 void Atmosphere::MsgProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
+	m_FirstPersonCamera.HandleMessages(hWnd, uMsg, wParam, lParam);
 	switch (uMsg)
 	{
 		case WM_KEYDOWN:
@@ -836,4 +847,24 @@ void Atmosphere::MsgProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			}
 		}
 	}
+}
+
+void Atmosphere::OnFrameMove(double fTime, float fElapsedTime)
+{
+	m_FirstPersonCamera.FrameMove(fElapsedTime);
+}
+
+void Atmosphere::Resize(int screen_width, int screen_height, FLOAT fFOV, FLOAT fAspect)
+{
+	this->screen_width = screen_width;
+	this->screen_height = screen_height;
+
+	//m_FirstPersonCamera.SetProjParams(fFOV, fAspect, 1, 1e20);
+	//D3DXMATRIX Proj = *m_FirstPersonCamera.GetProjMatrix();
+	//float det = D3DXMatrixDeterminant(&Proj);
+	//D3DXMatrixInverse(&InvProj, &det, &Proj);
+	InvProj = D3DXMATRIX(fFOV * fAspect, 0.0, 0.0, 0.0,
+		0.0, fFOV, 0.0, 0.0,
+		0.0, 0.0, 0.0, -1,
+		0.0, 0.0, 1.0, 1);
 }

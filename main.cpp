@@ -6,7 +6,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 //--------------------------------------------------------------------------------------
 #include "DXUT.h"
-#include "DXUTcamera.h"
 #include "Atmosphere.h"
 
 #ifdef _DEBUG 
@@ -17,7 +16,6 @@
 #define new new( _NORMAL_BLOCK , __FILE__ , __LINE__ )
 #endif  // _DEBUG
 
-CFirstPersonCamera					m_FirstPersonCamera;
 Atmosphere*							m_pAtmosphere;
 int									screen_width = 1280;
 int									screen_height = 720;
@@ -79,8 +77,6 @@ HRESULT CALLBACK OnD3D11ResizedSwapChain( ID3D11Device* pd3dDevice, IDXGISwapCha
 	g_viewport.Width = static_cast<float>(screen_width);
 	g_viewport.Height = static_cast<float>(screen_height);
 	float fAspect = g_viewport.Width / g_viewport.Height;
-	m_FirstPersonCamera.SetProjParams(D3DX_PI * 0.25f, fAspect, 0.1f, 100.f);
-	g_Projection = *(m_FirstPersonCamera.GetProjMatrix());
 
 	g_pRenderTargetView = DXUTGetD3D11RenderTargetView();
 	g_pDepthStencilView = DXUTGetD3D11DepthStencilView();
@@ -95,7 +91,7 @@ HRESULT CALLBACK OnD3D11ResizedSwapChain( ID3D11Device* pd3dDevice, IDXGISwapCha
 //--------------------------------------------------------------------------------------
 void CALLBACK OnFrameMove( double fTime, float fElapsedTime, void* pUserContext )
 {
-	m_FirstPersonCamera.FrameMove(fElapsedTime);
+	m_pAtmosphere->OnFrameMove(fTime,fElapsedTime);
 }
 
 
@@ -146,8 +142,8 @@ void CALLBACK OnD3D11DestroyDevice(void* pUserContext)
 LRESULT CALLBACK MsgProc( HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam,
                           bool* pbNoFurtherProcessing, void* pUserContext )
 {
-	m_FirstPersonCamera.HandleMessages(hWnd, uMsg, wParam, lParam);
-	m_pAtmosphere->MsgProc(hWnd, uMsg, wParam, lParam);
+	if(m_pAtmosphere)
+		m_pAtmosphere->MsgProc(hWnd, uMsg, wParam, lParam);
     return 0;
 }
 
