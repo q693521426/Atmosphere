@@ -118,6 +118,8 @@ struct MiscDynamicParams
     float padding2;
     float3 f3SunDir;
     float padding3;
+    float3 f3CameraDir;
+    float padding4;
 };
 
 cbuffer cbMiscDynamicParams
@@ -820,35 +822,35 @@ technique11 ComputeIndirectIrradiance2DTech
     }
 }
 
-struct QuadViewRayOut
-{
-    float4 m_f4Pos : SV_Position;
-    float2 m_f2PosPS : PosPS; // Position in projection space [-1,1]x[-1,1]
-    float m_fInstID : InstanceID;
-    float3 m_f4Ray : ViewRay;
-};
+//struct QuadViewRayOut
+//{
+//    float4 m_f4Pos : SV_Position;
+//    float2 m_f2PosPS : PosPS; // Position in projection space [-1,1]x[-1,1]
+//    float m_fInstID : InstanceID;
+//    float3 m_f4Ray : ViewRay;
+//};
 
-QuadViewRayOut GenerateViewRayVS(in uint VertexId : SV_VertexID,
-                                                 in uint InstID : SV_InstanceID)
-{
-    float4 MinMaxUV = float4(-1, -1, 1, 1);
+//QuadViewRayOut GenerateViewRayVS(in uint VertexId : SV_VertexID,
+//                                                 in uint InstID : SV_InstanceID)
+//{
+//    float4 MinMaxUV = float4(-1, -1, 1, 1);
     
-    QuadViewRayOut ViewRayOut[4] =
-    {
-        { float4(MinMaxUV.xy, 1.0, 1.0), MinMaxUV.xy, InstID, float3(0.f, 0.f, 0.f) },
-        { float4(MinMaxUV.xw, 1.0, 1.0), MinMaxUV.xw, InstID, float3(0.f, 0.f, 0.f) },
-        { float4(MinMaxUV.zy, 1.0, 1.0), MinMaxUV.zy, InstID, float3(0.f, 0.f, 0.f) },
-        { float4(MinMaxUV.zw, 1.0, 1.0), MinMaxUV.zw, InstID, float3(0.f, 0.f, 0.f) }
-    };
-    ViewRayOut[VertexId].m_f4Ray = mul(ViewRayOut[VertexId].m_f4Pos, InvViewProj).xyz;
-    return ViewRayOut[VertexId];
+//    QuadViewRayOut ViewRayOut[4] =
+//    {
+//        { float4(MinMaxUV.xy, 1.0, 1.0), MinMaxUV.xy, InstID, float3(0.f, 0.f, 0.f) },
+//        { float4(MinMaxUV.xw, 1.0, 1.0), MinMaxUV.xw, InstID, float3(0.f, 0.f, 0.f) },
+//        { float4(MinMaxUV.zy, 1.0, 1.0), MinMaxUV.zy, InstID, float3(0.f, 0.f, 0.f) },
+//        { float4(MinMaxUV.zw, 1.0, 1.0), MinMaxUV.zw, InstID, float3(0.f, 0.f, 0.f) }
+//    };
+//    ViewRayOut[VertexId].m_f4Ray = mul(ViewRayOut[VertexId].m_f4Pos, InvViewProj).xyz;
+//    return ViewRayOut[VertexId];
 
-}
+//}
 
 float3 GetIrradianceDirectFromSun(float r, float mu_s, float nu)
 {
     float3 irradiance_from_sun = 0.f;
-    float transmmitance_to_sun;
+    float3 transmmitance_to_sun;
     if (r > atmosphere.top_radius)
     {
         transmmitance_to_sun = 1.f;
@@ -858,15 +860,15 @@ float3 GetIrradianceDirectFromSun(float r, float mu_s, float nu)
     {
         float2 irradiance_uv = GetIrradianceUVFromRMuS(r, mu_s);
         transmmitance_to_sun = GetTransmittanceToTopAtmosphereBoundary(r, mu_s);
-        //float alpha_s = atmosphere.sun_angular_radius;
-        ////Approximate average of the cosine factor mu_s over the visible fraction of
-        ////the Sun disc.
-        //float average_cosine_factor =
-        //        mu_s < -alpha_s ? 0.0 : (mu_s > alpha_s ? mu_s :
-        //            (mu_s + alpha_s) * (mu_s + alpha_s) / (4.0 * alpha_s));
-        //irradiance_from_sun = atmosphere.solar_irradiance *
-        //        GetTransmittanceToTopAtmosphereBoundary(r, mu_s) * average_cosine_factor * max(nu, 0.f);
-        irradiance_from_sun = g_tex2DDirectIrradianceLUT.Sample(samLinearClamp, irradiance_uv) * max(nu, 0.f);
+        float alpha_s = atmosphere.sun_angular_radius;
+        //Approximate average of the cosine factor mu_s over the visible fraction of
+        //the Sun disc.
+        float average_cosine_factor =
+                mu_s < -alpha_s ? 0.0 : (mu_s > alpha_s ? mu_s :
+                    (mu_s + alpha_s) * (mu_s + alpha_s) / (4.0 * alpha_s));
+        irradiance_from_sun = atmosphere.solar_irradiance *
+                GetTransmittanceToTopAtmosphereBoundary(r, mu_s) * average_cosine_factor * max(nu, 0.f);
+    //    irradiance_from_sun = g_tex2DDirectIrradianceLUT.Sample(samLinearClamp, irradiance_uv) * max(nu, 0.f);
     }
     if (nu > cos(atmosphere.sun_angular_radius))
         irradiance_from_sun += transmmitance_to_sun * atmosphere.solar_irradiance /
@@ -940,18 +942,20 @@ float3 HDR(float3 L)
     return L;
 }
 
-float4 DrawGroundAndSky(QuadViewRayOut In) : SV_Target
+float4 DrawGroundAndSky(QuadVertexOut In) : SV_Target
 {
-    float v_length = length(In.m_f4Ray);
-    float3 v = In.m_f4Ray / v_length;
+    float3 v = mul(float4(In.m_f2PosPS, 1.0f, 1.0f), InvViewProj).xyz;
+    float v_length = length(v);
+    v = v / v_length;
     
-    float fragment_angular_size =
-      length(ddx(In.m_f4Ray) + ddy(In.m_f4Ray)) / length(In.m_f4Ray);
+    //float fragment_angular_size =
+    //  length(ddx(In.m_f4Ray) + ddy(In.m_f4Ray)) / length(In.m_f4Ray);
     
     float3 camera_pos = misc.f3CameraPos - misc.f3EarthCenter;
     float3 sun_dir = misc.f3SunDir;
     float r = length(camera_pos);
     float mu = dot(camera_pos, v) / r;
+
     float nu = dot(v, sun_dir);
     float mu_s = dot(camera_pos, sun_dir) / r;
 
@@ -964,7 +968,6 @@ float4 DrawGroundAndSky(QuadViewRayOut In) : SV_Target
     {
         return float4(HDR(irradiance_from_sun), 1.0f);
     }
-    //return float4(HDR(irradiance_from_sun), 1.0f);
 
     float distance_to_atmosphere_near = -r * mu - sqrt(intersect_atmosphere_discriminant);
     if (distance_to_atmosphere_near > 0.f)
@@ -1003,6 +1006,9 @@ float4 DrawGroundAndSky(QuadViewRayOut In) : SV_Target
         sky_radiance = scatter;
 
         ground_radiance = reflectance.rgb * atmosphere.ground_albedo * (1.0 / Pi) * (sunColor + skyColor) * transmittance;
+
+        return reflectance;
+
     }
     else
     {
@@ -1019,6 +1025,9 @@ float4 DrawGroundAndSky(QuadViewRayOut In) : SV_Target
         float3 scatter = GetSkyMultiScatterToAtmosphere(r, mu, mu_s, nu, 0, distance_to_atmosphere);
         
         sky_radiance = scatter;
+
+        return float4(sky_radiance, 1.0);
+
     }
 
     return float4(HDR(irradiance_from_sun + ground_radiance + sky_radiance), 1.0f);
@@ -1033,7 +1042,7 @@ technique11 DrawGroundAndSkyTech
         SetRasterizerState(RS_SolidFill_NoCull);
         SetDepthStencilState(DSS_NoDepthTest, 0);
 
-        SetVertexShader(CompileShader(vs_5_0, GenerateViewRayVS()));
+        SetVertexShader(CompileShader(vs_5_0, GenerateScreenSizeQuadVS()));
         SetGeometryShader(NULL);
         SetPixelShader(CompileShader(ps_5_0, DrawGroundAndSky()));
     }

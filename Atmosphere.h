@@ -58,6 +58,8 @@ struct MiscDynamicParams
 	float padding2;
 	D3DXVECTOR3 f3SunDir;
 	float padding3;
+	D3DXVECTOR3 f3CameraDir;
+	float padding4;
 };
 
 class Atmosphere

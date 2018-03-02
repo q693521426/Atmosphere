@@ -9,7 +9,7 @@
 *.userosscache
 *.sln.docstates
 *.sdf
-Texture/
+Texture/*/
 
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs

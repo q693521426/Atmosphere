@@ -265,29 +265,9 @@ void Atmosphere::Render(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, ID
 	misc.exposure = exposure;
 	misc.f3EarthCenter = D3DXVECTOR3(0.f,-6360.f, 0.f);
 
-	//float cos_z = cos(view_zenith_angle_radians);
-	//float sin_z = sin(view_zenith_angle_radians);
-	//float cos_a = cos(view_azimuth_angle_radians);
-	//float sin_a = sin(view_azimuth_angle_radians);
-
 	D3DXVECTOR3 EyePos = *m_FirstPersonCamera.GetEyePt();
 	D3DXVECTOR3 LookAt = *m_FirstPersonCamera.GetLookAtPt();
 
-	//D3DXVECTOR3 Look = -D3DXVECTOR3(sin_z*cos_a, cos_z, sin_z*sin_a);
-	//D3DXVECTOR3 Look = LookAt - EyePos;
-	//D3DXVECTOR3 Up = D3DXVECTOR3(0,1,0);
-	//D3DXVECTOR3 Right;
-	//D3DXVec3Cross(&Right, &Up, &Look);
-	//D3DXVec3Normalize(&Right, &Right);
-	//D3DXVec3Cross(&Up, &Look, &Right);
-
-	//misc.f3CameraPos = -Look*view_distance_meters / 1000.f;
-
-	//InvView = D3DXMATRIX(
-	//	Right.x, Right.y, Right.z, 0.f,
-	//	Up.x, Up.y, Up.z, 0.f,
-	//	Look.x, Look.y, Look.z,0.f,
-	//	misc.f3CameraPos.x, misc.f3CameraPos.y, misc.f3CameraPos.z,1.0f);
 	misc.f3CameraPos = *m_FirstPersonCamera.GetEyePt();
 	D3DXMATRIX View = *m_FirstPersonCamera.GetViewMatrix();
 	float det = D3DXMatrixDeterminant(&View);
@@ -295,7 +275,7 @@ void Atmosphere::Render(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, ID
 	D3DXMatrixInverse(&InvView, &det,&View);
 
 	D3DXMATRIX InvViewProj;
-	D3DXMatrixMultiplyTranspose(&InvViewProj, &InvProj, &InvView);
+	InvViewProj = InvProj * InvView;
 
 	MatrixVarMap["InvViewProj"]->SetMatrix(InvViewProj);
 	
@@ -304,6 +284,9 @@ void Atmosphere::Render(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, ID
 	float cos_sun_a = cos(sun_azimuth_angle_radians);
 	float sin_sun_a = sin(sun_azimuth_angle_radians);
 	misc.f3SunDir = D3DXVECTOR3(sin_sun_z*cos_sun_a, cos_sun_z, sin_sun_z*sin_sun_a);
+	
+	misc.f3CameraDir = LookAt - EyePos;
+	D3DXVec3Normalize(&misc.f3CameraDir, &misc.f3CameraDir);
 
 	VarMap["misc"]->SetRawValue(&misc, 0, sizeof(MiscDynamicParams));
 	ShaderResourceVarMap["g_tex2DTransmittanceLUT"]->SetResource(pTransmittanceSRV);
