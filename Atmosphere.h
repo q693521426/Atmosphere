@@ -215,8 +215,8 @@ private:
 	{
 		"g_tex2DTransmittanceLUT",
 		"g_tex2DDirectIrradianceLUT",
+		"g_tex2DIndirectIrradianceLUT",
 		"g_tex3DSingleScatteringLUT",
-		"g_tex2DDirectIrradianceLUT",
 		"g_tex3DMultiScatteringLUT",
 
 		"g_tex3DSingleMieScatteringLUT",

@@ -155,8 +155,8 @@ struct QuadVertexOut
 };
 
 Texture2D<float3> g_tex2DTransmittanceLUT;
-Texture2D<float3> g_tex2DIndirectIrradianceLUT;
 Texture2D<float3> g_tex2DDirectIrradianceLUT;
+Texture2D<float3> g_tex2DIndirectIrradianceLUT;
 Texture3D<float3> g_tex3DSingleScatteringLUT;
 Texture3D<float3> g_tex3DMultiScatteringLUT;
 
@@ -344,7 +344,7 @@ float3 GetTransmittance(float r, float mu, float r_d, float mu_d, bool ray_r_mu_
     if (ray_r_mu_intersects_ground)
     {
         return min(GetTransmittanceToTopAtmosphereBoundary(r_d, -mu_d) /
-                GetTransmittanceToTopAtmosphereBoundary(r, mu),
+                GetTransmittanceToTopAtmosphereBoundary(r, -mu),
                 float3(1.f, 1.f, 1.f));
     }
     else
@@ -888,7 +888,8 @@ float3 GetSkyMultiScatter(float r, float mu, float mu_s, float nu)
     return (mie_scatter * MiePhaseFunction(atmosphere.mie_g, nu) + scatter_combined.rgb * RayleighPhaseFunction(nu));
 }
 
-float3 GetSkyMultiScatterToGround(float r, float mu, float mu_s, float nu, float shadow_length, float d, float transmittance)
+float3 GetSkyMultiScatterToGround(float r, float mu, float mu_s,float r_d, float mu_d, float mu_s_d, 
+                                    float nu, float shadow_length, float d, float transmittance)
 {
     // S[L]x - T(x,xs)S[L]xs=x0-lv
     float3 scatter = GetSkyMultiScatter(r, mu, mu_s, nu);
@@ -897,7 +898,7 @@ float3 GetSkyMultiScatterToGround(float r, float mu, float mu_s, float nu, float
     float shadow_transmittance;
     if (0.f == shadow_length)
     {
-        scatter_d = GetSkyMultiScatter(r, mu, mu_s, nu);
+        scatter_d = GetSkyMultiScatter(r_d, mu_d, mu_s_d, nu);
         shadow_transmittance = transmittance;
     }
     else
@@ -958,6 +959,21 @@ float4 DrawGroundAndSky(QuadVertexOut In) : SV_Target
 
     float nu = dot(v, sun_dir);
     float mu_s = dot(camera_pos, sun_dir) / r;
+    
+    ////float4 scatter_combined = GetScatteringCombined(r, mu, mu_s, nu, 1);
+    //float3 irradiance_from_sun = GetIrradianceDirectFromSun(r, mu_s, nu); //L0
+
+    //float4 scatter_combined = 0;
+    ////float3 mie_scatter = scatter_combined.rgb * scatter_combined.a / scatter_combined.r *
+	   //// (atmosphere.rayleigh_scattering.r / atmosphere.mie_scattering.r) *
+	   //// (atmosphere.mie_scattering / atmosphere.rayleigh_scattering);
+    //float3 mie_scatter = GetScatteringMie(r, mu, mu_s, nu);
+    //float3 single_scatter = GetScattering(r, mu, mu_s, nu, 1);
+    //float3 multi_scatter = GetScattering(r, mu, mu_s, nu, 2);
+
+    //return float4(HDR(single_scatter), 1.0);
+    //return float4(HDR(multi_scatter), 1.0);
+    //return float4((mie_scatter * MiePhaseFunction(atmosphere.mie_g, nu) + scatter_combined.rgb * RayleighPhaseFunction(nu)), 1);
 
     float3 irradiance_from_sun = GetIrradianceDirectFromSun(r, mu_s, nu); //L0
     float3 ground_radiance = 0.f;
@@ -989,7 +1005,7 @@ float4 DrawGroundAndSky(QuadVertexOut In) : SV_Target
         float mu_d = CosClamp((distance_to_ground + r * mu) / r_d);
         float mu_s_d = CosClamp((distance_to_ground * nu + r * mu_s) / r_d);
         
-        float2 coords = float2(atan(normal_d.z / normal_d.x), acos(normal_d.y)) * float2(0.5, 1.0) / Pi + float2(0.5, 0.0);
+        float2 coords = float2(normal_d.x == 0 ? 0 : atan(normal_d.z / normal_d.x), acos(normal_d.y)) * float2(0.5, 1.0) / Pi + float2(0.5, 0.0);
         float4 reflectance = g_tex2DEarthGround.Sample(samLinearClamp, coords); //* float4(0.2, 0.2, 0.2, 1.0);
         
         float transmittance = GetTransmittance(r, mu, r_d, mu_d, true);
@@ -1001,18 +1017,36 @@ float4 DrawGroundAndSky(QuadVertexOut In) : SV_Target
         //float3 skyColor = g_tex2DIndirectIrradianceLUT.Sample(samLinearClamp, irradiance_uv) * (1.0 + dot(normal, pos) / r) * 0.5;
         float3 skyColor = g_tex2DIndirectIrradianceLUT.Sample(samLinearClamp, irradiance_uv);
         
+        float shadow_length = 0;
         // S[L]x - T(x,xs)S[L]xs=x0-lv
-        float3 scatter = GetSkyMultiScatterToGround(r, mu, mu_s, nu, 0.f, distance_to_ground, transmittance);
-        sky_radiance = scatter;
+        //float3 scatter = GetSkyMultiScatter(r, mu, mu_s, nu);
+        float3 scatter = GetScattering(r, mu, mu_s, nu, 1);
+        float3 scatter_d;
+
+        float shadow_transmittance;
+        if (0.f == shadow_length)
+        {
+            //scatter_d = GetSkyMultiScatter(r_d, mu_d, mu_s_d, nu);
+            scatter_d = GetScattering(r_d, mu_d, mu_s_d, nu, 1);
+            shadow_transmittance = transmittance;
+        }
+        else
+        {
+            float d = max(d - shadow_length, 0.f);
+            float r_d = sqrt(r * r + d * d + 2 * r * d * mu);
+            float mu_d = (r * mu + d) / r_d;
+            float mu_s_d = (r * mu_s + d * nu) / r_d;
+            scatter_d = GetSkyMultiScatter(r_d, mu_d, mu_s_d, nu);
+            shadow_transmittance = GetTransmittance(r, mu, r_d, mu_d, true);
+        }
+        sky_radiance = scatter - shadow_length * scatter_d;
 
         ground_radiance = reflectance.rgb * atmosphere.ground_albedo * (1.0 / Pi) * (sunColor + skyColor) * transmittance;
-
-        return reflectance;
-
+        
+        return float4(HDR(ground_radiance + sky_radiance + irradiance_from_sun), 1.0);
     }
     else
     {
-        //return float4(1.0, 1.0, 1.0, 1.0);
         float distance_to_atmosphere = -r * mu + sqrt(intersect_atmosphere_discriminant);
         float3 pos_d = camera_pos + distance_to_atmosphere * v;
         float r_d = length(pos_d);
@@ -1022,16 +1056,14 @@ float4 DrawGroundAndSky(QuadVertexOut In) : SV_Target
         float transmittance = GetTransmittance(r, mu, r_d, mu_d, false);
         
         // T(x,xs)S[L]xs=x+lv
-        float3 scatter = GetSkyMultiScatterToAtmosphere(r, mu, mu_s, nu, 0, distance_to_atmosphere);
+        //float3 scatter = GetSkyMultiScatterToAtmosphere(r, mu, mu_s, nu, 0, distance_to_atmosphere);
+        //sky_radiance = scatter;
+
+        sky_radiance = GetScattering(r, mu, mu_s, nu, 1);
         
-        sky_radiance = scatter;
-
-        return float4(sky_radiance, 1.0);
-
+        return float4(HDR(irradiance_from_sun + sky_radiance), 1);
     }
-
-    return float4(HDR(irradiance_from_sun + ground_radiance + sky_radiance), 1.0f);
-    //return float4(HDR(sky_radiance), 1.0f);
+    //return float4(HDR(irradiance_from_sun + ground_radiance + sky_radiance), 1.0f);
 }
 
 technique11 DrawGroundAndSkyTech
@@ -1050,29 +1082,24 @@ technique11 DrawGroundAndSkyTech
 
 float4 TestTexture(QuadVertexOut In) : SV_Target
 {
-    //float2 f2UV = ProjToUV(In.m_f2PosPS);
-    //float2 rmu = GetRMuFromTransmittanceUV(f2UV);
-    //float2 uv = GetTransmittanceUVFromRMu(rmu.x, rmu.y);
-    //return float4(g_tex2DTransmittanceLUT.Sample(samLinearClamp, uv), 1.0f);
+    float3 v = mul(float4(In.m_f2PosPS, 1.0f, 1.0f), InvViewProj).xyz;
+    float v_length = length(v);
+    v = v / v_length;
+    
+    //float fragment_angular_size =
+    //  length(ddx(In.m_f4Ray) + ddy(In.m_f4Ray)) / length(In.m_f4Ray);
+    
+    float3 camera_pos = misc.f3CameraPos - misc.f3EarthCenter;
+    float3 sun_dir = misc.f3SunDir;
+    float r = length(camera_pos);
+    float mu = dot(camera_pos, v) / r;
 
-    float2 f2UV = ProjToUV(In.m_f2PosPS);
-    return g_tex2DEarthGround.Sample(samLinearClamp, f2UV);
+    float nu = dot(v, sun_dir);
+    float mu_s = dot(camera_pos, sun_dir) / r;
 
-    //float2 f2UV[3] =
-    //{
-    //    float2(0.3, 0.2),
-    //    float2(0.4, 0.6),
-    //    float2(0.1, 0.9)
-    //};
-    //float2 rmu;
-    //float2 uv;
-    //for (int i = 0; i < 3;++i)
-    //{
-    //    rmu = GetRMuFromTransmittanceUV(f2UV[i]);
-    //    uv = GetTransmittanceUVFromRMu(rmu.x, rmu.y);
-    //}
-        
-    //return float4(uv.x, uv.y,1.0f, 1.0f);
+    float3 scatter = GetSkyMultiScatter(r, mu, mu_s, nu);
+
+    return float4(scatter, 1.0);
 }
 
 technique11 TestTextureTech
