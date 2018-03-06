@@ -875,6 +875,8 @@ float3 GetIrradianceDirectFromSun(float r, float mu_s, float nu)
     if (nu > cos(atmosphere.sun_angular_radius))
         irradiance_from_sun += transmmitance_to_sun * atmosphere.solar_irradiance /
                                 (Pi * atmosphere.sun_angular_radius * atmosphere.sun_angular_radius);
+    else 
+        irradiance_from_sun = float3(0, 0, 0);
     return irradiance_from_sun;
 }
 
@@ -992,6 +994,8 @@ float4 DrawGroundAndSky(QuadVertexOut In) : SV_Target
         float3 normal_d = pos_d / r_d;
         float mu_d = CosClamp((distance_to_ground + r * mu) / r_d);
         float mu_s_d = CosClamp((distance_to_ground * nu + r * mu_s) / r_d);
+        //if (mu_s_d <= dot(pos_d, sun_dir) / r_d + 0.01 && mu_s_d >= dot(pos_d, sun_dir) / r_d - 0.01)
+        //    return float4(1, 1, 1, 1);
         
         float2 coords = float2(normal_d.x == 0 ? 0 : atan2(normal_d.z,normal_d.x),acos(normal_d.y)) * float2(0.5, 1.0) / Pi + float2(0.5, 0.0);
         float4 reflectance = g_tex2DEarthGround.SampleLevel(samLinearClamp, coords,0); //* float4(0.2, 0.2, 0.2, 1.0);
@@ -1001,9 +1005,9 @@ float4 DrawGroundAndSky(QuadVertexOut In) : SV_Target
         float2 irradiance_uv = GetIrradianceUVFromRMuS(r_d, mu_s_d);
 
         // R[L0] + R[L*]
-        float3 sunColor = g_tex2DDirectIrradianceLUT.Sample(samLinearClamp, irradiance_uv) * max(mu_s_d, 0.f);
-        //float3 skyColor = g_tex2DIndirectIrradianceLUT.Sample(samLinearClamp, irradiance_uv) * (1.0 + dot(normal, pos) / r) * 0.5;
-        float3 skyColor = g_tex2DIndirectIrradianceLUT.Sample(samLinearClamp, irradiance_uv);
+        float3 sunColor = g_tex2DDirectIrradianceLUT.Sample(samLinearClamp, irradiance_uv) * max(mu_s_d, 0);
+        float3 skyColor = g_tex2DIndirectIrradianceLUT.Sample(samLinearClamp, irradiance_uv) * (1.0 + dot(normal_d, camera_pos) / r) * 0.5;
+        //float3 skyColor = g_tex2DIndirectIrradianceLUT.Sample(samLinearClamp, irradiance_uv);
         
         float shadow_length = 0;
         // S[L]x - T(x,xs)S[L]xs=x0-lv

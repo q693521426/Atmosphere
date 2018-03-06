@@ -792,6 +792,7 @@ void Atmosphere::SetView(float view_distance_meters, float view_zenith_angle_rad
 void Atmosphere::MsgProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
 	m_FirstPersonCamera.HandleMessages(hWnd, uMsg, wParam, lParam);
+
 	switch (uMsg)
 	{
 		case WM_KEYDOWN:
@@ -842,6 +843,22 @@ void Atmosphere::MsgProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 void Atmosphere::OnFrameMove(double fTime, float fElapsedTime)
 {
 	m_FirstPersonCamera.FrameMove(fElapsedTime);
+	if(GetAsyncKeyState('I') & 0x8000)
+	{
+		sun_zenith_angle_radians -= fElapsedTime / 10;
+	}
+	if (GetAsyncKeyState('K') & 0x8000)
+	{
+		sun_zenith_angle_radians += fElapsedTime / 10;
+	}
+	if (GetAsyncKeyState('J') & 0x8000)
+	{
+		sun_azimuth_angle_radians += fElapsedTime / 10;
+	}
+	if (GetAsyncKeyState('L') & 0x8000)
+	{
+		sun_azimuth_angle_radians -= fElapsedTime / 10;
+	}
 }
 
 void Atmosphere::Resize(int screen_width, int screen_height, FLOAT fFOV, FLOAT fAspect)
