@@ -157,6 +157,7 @@ struct QuadVertexOut
 Texture2D<float3> g_tex2DTransmittanceLUT;
 Texture2D<float3> g_tex2DDirectIrradianceLUT;
 Texture2D<float3> g_tex2DIndirectIrradianceLUT;
+
 Texture3D<float3> g_tex3DSingleScatteringLUT;
 Texture3D<float3> g_tex3DMultiScatteringLUT;
 
@@ -344,13 +345,13 @@ float3 GetTransmittance(float r, float mu, float r_d, float mu_d, bool ray_r_mu_
     if (ray_r_mu_intersects_ground)
     {
         return min(GetTransmittanceToTopAtmosphereBoundary(r_d, -mu_d) /
-                GetTransmittanceToTopAtmosphereBoundary(r, -mu),
+                max(GetTransmittanceToTopAtmosphereBoundary(r, -mu), 1e-20),
                 float3(1.f, 1.f, 1.f));
     }
     else
     {
         return min(GetTransmittanceToTopAtmosphereBoundary(r, mu) /
-                GetTransmittanceToTopAtmosphereBoundary(r_d, mu_d),
+                max(GetTransmittanceToTopAtmosphereBoundary(r_d, mu_d), 1e-20),
                 float3(1.f, 1.f, 1.f));
     }
 }
@@ -467,8 +468,8 @@ float4 GetUVWQFromrRMuMuSNu(in float r, in float mu,
 
 struct SingleScatterOutput
 {
-    float4 scatter_combined : SV_Target0;
-    float4 single_scatter : SV_Target1;
+    float4 single_scatter : SV_Target0;
+    float4 scatter_combined : SV_Target1;
     float4 scatter_mie : SV_Target2;
 };
 
@@ -504,12 +505,12 @@ SingleScatterOutput ComputeSingleScatteringTexture(QuadVertexOut In) : SV_Target
         rayleigh += weight * transmittance * GetLayerDesity(atmosphere.rayleigh_density, altitude_d);
         mie += weight * transmittance * GetLayerDesity(atmosphere.mie_density, altitude_d);
     }
-    rayleigh *= dx * atmosphere.solar_irradiance * atmosphere.rayleigh_scattering;
-    mie *= dx * atmosphere.solar_irradiance * atmosphere.mie_scattering;
-    
+    rayleigh *= (dx * atmosphere.solar_irradiance * atmosphere.rayleigh_scattering);
+    mie *= (dx * atmosphere.solar_irradiance * atmosphere.mie_scattering);
+
+    res.single_scatter = float4(rayleigh * RayleighPhaseFunction(nu) + mie * MiePhaseFunction(nu, atmosphere.mie_g), 1);
     res.scatter_combined = float4(rayleigh, mie.r);
     res.scatter_mie = float4(mie, 1);
-    res.single_scatter = float4(rayleigh * RayleighPhaseFunction(nu) + mie * MiePhaseFunction(nu, atmosphere.mie_g), 1);
     return res;
 }
 
@@ -715,8 +716,9 @@ MultiScatterOutput ComputeMultiScatteringTexture(QuadVertexOut In) : SV_Target
         rayleigh_mie += res;
     }
     rayleigh_mie *= dx;
+    float w = RayleighPhaseFunction(nu);
     multi_scatter.multi_scatter = float4(rayleigh_mie, 1);
-    multi_scatter.scatter_combined = float4(rayleigh_mie / RayleighPhaseFunction(nu), 0.f) + 
+    multi_scatter.scatter_combined = float4(w == 0 ?  float3(0,0,0): rayleigh_mie / w,0) +
                                      GetScatteringCombined(r, mu, mu_s, nu, 1);
     return multi_scatter;
 }
@@ -878,14 +880,12 @@ float3 GetIrradianceDirectFromSun(float r, float mu_s, float nu)
 
 float3 GetSkyMultiScatter(float r, float mu, float mu_s, float nu)
 {
-    //return GetScattering(r,mu,mu_s,nu,1);
-
     float4 scatter_combined = GetScatteringCombined(r, mu, mu_s, nu, misc.IsMultiScatter);
-
-    float3 mie_scatter = scatter_combined.rgb * scatter_combined.a / scatter_combined.r *
+    
+    float3 mie_scatter = scatter_combined.r == 0 ? float3(0,0,0):
+        scatter_combined.rgb * scatter_combined.a / scatter_combined.r *
 	    (atmosphere.rayleigh_scattering.r / atmosphere.mie_scattering.r) *
 	    (atmosphere.mie_scattering / atmosphere.rayleigh_scattering);
-    //float3 mie_scatter = GetScatteringMie(r, mu, mu_s, nu);
     
     return (mie_scatter * MiePhaseFunction(atmosphere.mie_g, nu) + scatter_combined.rgb * RayleighPhaseFunction(nu));
 }
@@ -961,7 +961,7 @@ float4 DrawGroundAndSky(QuadVertexOut In) : SV_Target
 
     float nu = dot(v, sun_dir);
     float mu_s = dot(camera_pos, sun_dir) / r;
-    
+
     float3 ground_radiance = 0.f;
     float3 sky_radiance = 0.f;
     float3 irradiance_from_sun = GetIrradianceDirectFromSun(r, mu_s, nu); //L0
@@ -994,7 +994,7 @@ float4 DrawGroundAndSky(QuadVertexOut In) : SV_Target
         float mu_s_d = CosClamp((distance_to_ground * nu + r * mu_s) / r_d);
         
         float2 coords = float2(normal_d.x == 0 ? 0 : atan2(normal_d.z,normal_d.x),acos(normal_d.y)) * float2(0.5, 1.0) / Pi + float2(0.5, 0.0);
-        float4 reflectance = g_tex2DEarthGround.Sample(samLinearClamp, coords); //* float4(0.2, 0.2, 0.2, 1.0);
+        float4 reflectance = g_tex2DEarthGround.SampleLevel(samLinearClamp, coords,0); //* float4(0.2, 0.2, 0.2, 1.0);
        
         float transmittance = GetTransmittance(r, mu, r_d, mu_d, true);
         
@@ -1028,7 +1028,7 @@ float4 DrawGroundAndSky(QuadVertexOut In) : SV_Target
         float3 scatter = GetSkyMultiScatterToAtmosphere(r, mu, mu_s, nu, 0, distance_to_atmosphere);
         sky_radiance = scatter;
         
-        return float4(HDR(sky_radiance + irradiance_from_sun ), 1);
+        return float4(HDR(sky_radiance + irradiance_from_sun), 1);
     }
     return float4(HDR(irradiance_from_sun + ground_radiance + sky_radiance), 1.0f);
 }
