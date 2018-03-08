@@ -53,7 +53,7 @@ struct MiscDynamicParams
 	float exposure;
 
 	D3DXVECTOR3 f3CameraPos;
-	int IsMultiScatter;
+	float padding;
 	D3DXVECTOR3 f3EarthCenter;
 	float padding2;
 	D3DXVECTOR3 f3SunDir;

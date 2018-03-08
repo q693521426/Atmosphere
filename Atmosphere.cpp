@@ -88,12 +88,12 @@ void Atmosphere::Initialize()
 		double s = (l - static_cast<double>(lambda_x)) / 10;
 		
 		double mie = lerp(kMieAngstromBeta / kMieScaleHeight * pow(lambda_x_um, -kMieAngstromAlpha),
-					kMieAngstromBeta / kMieScaleHeight * pow(lambda_y_um, -kMieAngstromAlpha), s)*1000;
+			kMieAngstromBeta / kMieScaleHeight * pow(lambda_y_um, -kMieAngstromAlpha), s) * 1000;
 
 		atmosphereParams.solar_irradiance[i]=
-			lerp(kSolarIrradiance[index], kSolarIrradiance[index + 1], s);
+			lerp(kSolarIrradiance[index], kSolarIrradiance[index + 1], s) ;
 		atmosphereParams.rayleigh_scattering[i] =
-			lerp(kRayleigh * pow(lambda_x_um, -4), kRayleigh *pow(lambda_y_um, -4), s)*1000;
+			lerp(kRayleigh * pow(lambda_x_um, -4), kRayleigh *pow(lambda_y_um, -4), s) * 1000;
 		atmosphereParams.mie_scattering[i] = mie;
 		atmosphereParams.mie_extinction[i] = mie*kMieSingleScatteringAlbedo;
 		atmosphereParams.absorption_extinction[i] =
@@ -244,7 +244,7 @@ HRESULT Atmosphere::PreCompute(ID3D11Device* pDevice, ID3D11DeviceContext* pCont
 #endif
 		V_RETURN(PreComputeSingleSctrTex3D(pDevice, pContext));
 
-		for (int scatter_order = 2; scatter_order <= 2; ++scatter_order)
+		for (int scatter_order = 2; scatter_order <= scatter_order_num; ++scatter_order)
 		{
 			V_RETURN(PreComputeInDirectIrradianceTex2D(pDevice, pContext, scatter_order - 1));
 //#if CREATE_TEXTURE_DDS_TEST
@@ -288,8 +288,9 @@ void Atmosphere::Render(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, ID
 	misc.f3CameraDir = LookAt - EyePos;
 	D3DXVec3Normalize(&misc.f3CameraDir, &misc.f3CameraDir);
 
-	misc.IsMultiScatter = 2;
+	misc.scatter_order = 2;
 
+	VarMap["atmosphere"]->SetRawValue(&atmosphereParams, 0, sizeof(AtmosphereParameters));
 	VarMap["misc"]->SetRawValue(&misc, 0, sizeof(MiscDynamicParams));
 	ShaderResourceVarMap["g_tex2DTransmittanceLUT"]->SetResource(pTransmittanceSRV);
 	ShaderResourceVarMap["g_tex2DDirectIrradianceLUT"]->SetResource(pDirectIrradianceSRV);
@@ -667,8 +668,8 @@ HRESULT Atmosphere::PreComputeSingleSctrTex3D_Test(ID3D11Device* pDevice, ID3D11
 		//pContext->OMSetRenderTargets(0, nullptr, nullptr);
 #if CREATE_TEXTURE_DDS_TEST
 		std::wstringstream ss;
-		ss << L"Texture/SingleScatter/SingleScatter_Combined_" << depthSlice<<".dds";
-		V_RETURN(D3DX11SaveTextureToFile(pContext, pSingleScatterCombinedTex2D, D3DX11_IFF_DDS, ss.str().c_str()));
+		ss << L"Texture/SingleScatter/SingleScatter_" << depthSlice<<".dds";
+		V_RETURN(D3DX11SaveTextureToFile(pContext, pSingleScatterTex2D, D3DX11_IFF_DDS, ss.str().c_str()));
 #endif
 	}
 	return hr;
