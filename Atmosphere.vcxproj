@@ -425,6 +425,12 @@
     <ResourceCompile Include="Atmosphere.rc" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="Cloud.fx">
+      <FileType>Document</FileType>
+    </None>
+    <None Include="Common.fx">
+      <FileType>Document</FileType>
+    </None>
   </ItemGroup>
   <ItemGroup>
   </ItemGroup>

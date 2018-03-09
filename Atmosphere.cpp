@@ -197,17 +197,17 @@ HRESULT Atmosphere::OnD3D11CreateDevice(ID3D11Device* pDevice, ID3D11DeviceConte
 		MatrixVarMap.emplace(MatrixVarStr[i], pMatrixVar);
 	}
 
-	for (int i = 0; i < VectorVarStr.size(); i++)
-	{
-		CComPtr<ID3DX11EffectVectorVariable> pVectorVar = pAtmosphereEffect->GetVariableByName(VectorVarStr[i].c_str())->AsVector();
-		VectorVarMap.emplace(VectorVarStr[i], pVectorVar);
-	}
+	//for (int i = 0; i < VectorVarStr.size(); i++)
+	//{
+	//	CComPtr<ID3DX11EffectVectorVariable> pVectorVar = pAtmosphereEffect->GetVariableByName(VectorVarStr[i].c_str())->AsVector();
+	//	VectorVarMap.emplace(VectorVarStr[i], pVectorVar);
+	//}
 
-	for (int i = 0; i < ScalarVarStr.size(); i++)
-	{
-		CComPtr<ID3DX11EffectScalarVariable> pScalarVar = pAtmosphereEffect->GetVariableByName(ScalarVarStr[i].c_str())->AsScalar();
-		ScalarVarMap.emplace(ScalarVarStr[i], pScalarVar);
-	}
+	//for (int i = 0; i < ScalarVarStr.size(); i++)
+	//{
+	//	CComPtr<ID3DX11EffectScalarVariable> pScalarVar = pAtmosphereEffect->GetVariableByName(ScalarVarStr[i].c_str())->AsScalar();
+	//	ScalarVarMap.emplace(ScalarVarStr[i], pScalarVar);
+	//}
 
 	for (int i = 0; i < VarStr.size(); i++)
 	{
@@ -288,7 +288,7 @@ void Atmosphere::Render(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, ID
 	misc.f3CameraDir = LookAt - EyePos;
 	D3DXVec3Normalize(&misc.f3CameraDir, &misc.f3CameraDir);
 
-	misc.scatter_order = 2;
+	misc.scatter_order = 1;
 
 	VarMap["atmosphere"]->SetRawValue(&atmosphereParams, 0, sizeof(AtmosphereParameters));
 	VarMap["misc"]->SetRawValue(&misc, 0, sizeof(MiscDynamicParams));

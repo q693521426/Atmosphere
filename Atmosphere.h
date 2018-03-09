@@ -182,33 +182,33 @@ private:
 		"InvViewProj"
 	};
 
-	std::vector<std::string> VectorVarStr
-	{
-		"solar_irradiance",
-		"rayleigh_scattering",
-		"mie_scattering",
-		"mie_extinction",
-		"absorption_extinction",
-		"v3CameraPos",
-		"v3LightPos"
-	};
+	//std::vector<std::string> VectorVarStr
+	//{
+	//	"solar_irradiance",
+	//	"rayleigh_scattering",
+	//	"mie_scattering",
+	//	"mie_extinction",
+	//	"absorption_extinction",
+	//	"v3CameraPos",
+	//	"v3LightPos"
+	//};
 
-	std::vector<std::string> ScalarVarStr
-	{
-		"bottom_radius",
-		"top_radius",
-		"mie_g",
-		"ground_albedo",
-		"ozone_width"
-	};
+	//std::vector<std::string> ScalarVarStr
+	//{
+	//	"bottom_radius",
+	//	"top_radius",
+	//	"mie_g",
+	//	"ground_albedo",
+	//	"ozone_width"
+	//};
 
 	std::vector<std::string> VarStr
 	{
 		"atmosphere",
-		"rayleigh_density",
-		"mie_density",
-		"ozone_density",
 		"misc"
+		//"rayleigh_density",
+		//"mie_density",
+		//"ozone_density",
 	};
 
 	std::vector<std::string> ShaderResourceVarStr

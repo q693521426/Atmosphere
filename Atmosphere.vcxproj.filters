@@ -74,6 +74,8 @@
       <Filter>DXUT</Filter>
     </ClCompile>
     <None Include="Atmosphere.fx" />
+    <None Include="Common.fx" />
+    <None Include="Cloud.fx" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />
