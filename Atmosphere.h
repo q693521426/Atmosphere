@@ -10,7 +10,7 @@
 #include <vector>
 #include "DXUTcamera.h"
 
-#define CREATE_TEXTURE_DDS_TEST 1
+#define CREATE_TEXTURE_DDS_TEST 0
 
 struct DensityProfileLayer
 {
@@ -53,7 +53,7 @@ struct MiscDynamicParams
 	float exposure;
 
 	D3DXVECTOR3 f3CameraPos;
-	float padding;
+	float nu_power;
 	D3DXVECTOR3 f3EarthCenter;
 	float padding2;
 	D3DXVECTOR3 f3SunDir;

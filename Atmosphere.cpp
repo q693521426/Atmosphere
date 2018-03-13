@@ -262,6 +262,7 @@ void Atmosphere::Render(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, ID
 	//SetView(2.7e6, 0.81, 0.0, 1.57, 2.0, 10.0);
 	ID3DX11EffectTechnique* activeTech = AtmosphereTechMap["DrawGroundAndSkyTech"];
 	MiscDynamicParams misc;
+	misc.nu_power = 1.5;
 	misc.exposure = exposure;
 	misc.f3EarthCenter = D3DXVECTOR3(0.f,-6360.f, 0.f);
 
@@ -288,7 +289,7 @@ void Atmosphere::Render(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, ID
 	misc.f3CameraDir = LookAt - EyePos;
 	D3DXVec3Normalize(&misc.f3CameraDir, &misc.f3CameraDir);
 
-	misc.scatter_order = 1;
+	misc.scatter_order = 2;
 
 	VarMap["atmosphere"]->SetRawValue(&atmosphereParams, 0, sizeof(AtmosphereParameters));
 	VarMap["misc"]->SetRawValue(&misc, 0, sizeof(MiscDynamicParams));
@@ -403,7 +404,9 @@ HRESULT Atmosphere::PreComputeSingleSctrTex3D(ID3D11Device* pDevice, ID3D11Devic
 
 	std::vector<CComPtr<ID3D11RenderTargetView>> pSingleScaterRTVs(SCATTERING_TEXTURE_DEPTH);
 	std::vector<CComPtr<ID3D11RenderTargetView>> pSingleScaterCombinedRTVs(SCATTERING_TEXTURE_DEPTH);
-	std::vector<CComPtr<ID3D11RenderTargetView>> pSingleScaterMieRTVs(SCATTERING_TEXTURE_DEPTH);
+	std::vector<CComPtr<ID3D11RenderTargetView>> pSingleScaterMieRTVs(SCATTERING_TEXTURE_DEPTH);	
+	MiscDynamicParams misc;
+	misc.nu_power = 1.5;
 	for(UINT depthSlice = 0;depthSlice<SCATTERING_TEXTURE_DEPTH;++depthSlice)
 	{
 		D3D11_RENDER_TARGET_VIEW_DESC CurrSliceRTVDesc;
@@ -422,7 +425,7 @@ HRESULT Atmosphere::PreComputeSingleSctrTex3D(ID3D11Device* pDevice, ID3D11Devic
 
 		VarMap["atmosphere"]->SetRawValue(&atmosphereParams, 0, sizeof(AtmosphereParameters));
 
-		MiscDynamicParams misc;
+	
 		UINT uiW = depthSlice % SCATTERING_TEXTURE_MU_S_SIZE;
 		UINT uiQ = depthSlice / SCATTERING_TEXTURE_MU_S_SIZE;
 		misc.f2WQ.x = ((float)uiW + 0.5f) / SCATTERING_TEXTURE_MU_S_SIZE;
@@ -484,6 +487,7 @@ HRESULT Atmosphere::PreComputeInDirectIrradianceTex2D(ID3D11Device* pDevice, ID3
 		ShaderResourceVarMap["g_tex3DMultiScatteringLUT"]->SetResource(pMultiScatterSRV);
 	}
 	MiscDynamicParams misc;
+	misc.nu_power = 1.5;
 	misc.scatter_order = scatter_order;
 	VarMap["misc"]->SetRawValue(&misc, 0, sizeof(MiscDynamicParams));
 
@@ -521,6 +525,8 @@ HRESULT Atmosphere::PreComputeMultiSctrTex3D(ID3D11Device* pDevice, ID3D11Device
 
 	std::vector<CComPtr<ID3D11RenderTargetView>> pMultiScaterRTVs(SCATTERING_TEXTURE_DEPTH);
 	std::vector<CComPtr<ID3D11RenderTargetView>> pMultiScaterCombinedRTVs(SCATTERING_TEXTURE_DEPTH);
+	MiscDynamicParams misc;
+	misc.nu_power = 1.5;
 	for (UINT depthSlice = 0; depthSlice<SCATTERING_TEXTURE_DEPTH; ++depthSlice)
 	{
 		D3D11_RENDER_TARGET_VIEW_DESC CurrSliceRTVDesc;
@@ -537,7 +543,6 @@ HRESULT Atmosphere::PreComputeMultiSctrTex3D(ID3D11Device* pDevice, ID3D11Device
 
 		VarMap["atmosphere"]->SetRawValue(&atmosphereParams, 0, sizeof(AtmosphereParameters));
 
-		MiscDynamicParams misc;
 		misc.scatter_order = scatter_order;
 		UINT uiW = depthSlice % SCATTERING_TEXTURE_MU_S_SIZE;
 		UINT uiQ = depthSlice / SCATTERING_TEXTURE_MU_S_SIZE;
@@ -630,6 +635,9 @@ HRESULT Atmosphere::PreComputeSingleSctrTex3D_Test(ID3D11Device* pDevice, ID3D11
 	std::vector<CComPtr<ID3D11RenderTargetView>> pSingleScatterRTVs(SCATTERING_TEXTURE_DEPTH);
 	std::vector<CComPtr<ID3D11RenderTargetView>> pSingleScatterCombinedRTVs(SCATTERING_TEXTURE_DEPTH);
 	std::vector<CComPtr<ID3D11RenderTargetView>> pSingleScatterMieRTVs(SCATTERING_TEXTURE_DEPTH);
+
+	MiscDynamicParams misc;
+	misc.nu_power = 1.5;
 	for (UINT depthSlice = 0; depthSlice < SCATTERING_TEXTURE_DEPTH; ++depthSlice)
 	{
 		V_RETURN(pDevice->CreateRenderTargetView(pSingleScatterTex2D, nullptr, &pSingleScatterRTVs[depthSlice]));
@@ -640,7 +648,7 @@ HRESULT Atmosphere::PreComputeSingleSctrTex3D_Test(ID3D11Device* pDevice, ID3D11
 
 		VarMap["atmosphere"]->SetRawValue(&atmosphereParams, 0, sizeof(AtmosphereParameters));
 
-		MiscDynamicParams misc;
+		
 		UINT uiW = depthSlice % SCATTERING_TEXTURE_MU_S_SIZE;
 		UINT uiQ = depthSlice / SCATTERING_TEXTURE_MU_S_SIZE;
 		misc.f2WQ.x = ((float)uiW + 0.5f) / SCATTERING_TEXTURE_MU_S_SIZE;
@@ -717,6 +725,8 @@ HRESULT Atmosphere::PreComputeMultiSctrTex3D_Test(ID3D11Device* pDevice, ID3D11D
 	std::vector<CComPtr<ID3D11ShaderResourceView>> pMultiScatterSRVs(SCATTERING_TEXTURE_DEPTH);
 	std::vector<CComPtr<ID3D11RenderTargetView>> pMultiScatterCombinedRTVs(SCATTERING_TEXTURE_DEPTH);
 	std::vector<CComPtr<ID3D11ShaderResourceView>> pMultiScatterCombinedSRVs(SCATTERING_TEXTURE_DEPTH);
+	MiscDynamicParams misc;
+	misc.nu_power = 1.5;
 	for (UINT depthSlice = 0; depthSlice<SCATTERING_TEXTURE_DEPTH; ++depthSlice)
 	{
 		V_RETURN(pDevice->CreateShaderResourceView(pMultiScatterTex2D, nullptr, &pMultiScatterSRVs[depthSlice]));
@@ -729,7 +739,6 @@ HRESULT Atmosphere::PreComputeMultiSctrTex3D_Test(ID3D11Device* pDevice, ID3D11D
 
 		VarMap["atmosphere"]->SetRawValue(&atmosphereParams, 0, sizeof(AtmosphereParameters));
 
-		MiscDynamicParams misc;
 		misc.scatter_order = scatter_order;
 		UINT uiW = depthSlice % SCATTERING_TEXTURE_MU_S_SIZE;
 		UINT uiQ = depthSlice / SCATTERING_TEXTURE_MU_S_SIZE;
