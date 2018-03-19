@@ -19,6 +19,7 @@ static const int IRRADIANCE_TEXTURE_HEIGHT = 16;
 static const float MAX_LUMINOUS_EFFICACY = 683.0;
 
 #define USE_LUT_PARAMETERIZATION 1
+#define USE_INTEGRAL_OPTIMIZATION 1
 
 SamplerState samLinearClamp
 {

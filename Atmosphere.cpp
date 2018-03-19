@@ -1,8 +1,8 @@
 #include "DXUT.h"
 #include "Atmosphere.h"
-#include "Common.h"
 #include <minwinbase.h>
 #include <sstream>
+#include <fstream>
 
 Atmosphere::Atmosphere()
 {
@@ -126,8 +126,17 @@ void Atmosphere::Initialize()
 	};
 	
 	scatter_order_num = 4;
+	
+	m_pCloud = new Cloud();
 
 #if CREATE_TEXTURE_DDS_TEST
+
+	//V_RETURN(D3DX11CreateShaderResourceViewFromFile(pDevice, L"Texture/Transmittance.dds", nullptr, nullptr, &pTransmittanceSRV.p, nullptr));
+	//V_RETURN(D3DX11CreateShaderResourceViewFromFile(pDevice, L"Texture/", nullptr, nullptr, &pSingleScatterCombinedSRV.p, nullptr));
+	//V_RETURN(D3DX11CreateShaderResourceViewFromFile(pDevice, L"", nullptr, nullptr, &pSingleScatterMieSRV.p, nullptr));
+	//V_RETURN(D3DX11CreateShaderResourceViewFromFile(pDevice, L"", nullptr, nullptr, &pDirectIrradianceSRV.p, nullptr));
+	//V_RETURN(D3DX11CreateShaderResourceViewFromFile(pDevice, L"", nullptr, nullptr, &pMultiScatterCombinedSRV.p, nullptr));
+
 	CreateDirectory(L"Texture", nullptr);
 	CreateDirectory(L"Texture/SingleScatter", nullptr);
 	CreateDirectory(L"Texture/MultiScatter", nullptr);
@@ -145,14 +154,6 @@ void Atmosphere::Initialize()
 
 void Atmosphere::Release()
 {
-	MapRelease(AtmosphereTechMap);
-	MapRelease(MatrixVarMap);
-	MapRelease(VectorVarMap);
-	MapRelease(ScalarVarMap);
-	MapRelease(VarMap);
-	MapRelease(ShaderResourceVarMap);
-	pAtmosphereEffect.Release();
-
 	pTransmittanceTex2D.Release();
 	pTransmittanceSRV.Release();
 
@@ -176,6 +177,13 @@ void Atmosphere::Release()
 
 	pMultiScatterCombinedTex3D.Release();
 	pMultiScatterCombinedSRV.Release();
+	if(m_pCloud)
+	{
+		m_pCloud->Release();
+		delete m_pCloud;
+		m_pCloud = nullptr;
+	}
+	GameObject::Release();
 }
 
 
@@ -183,65 +191,27 @@ HRESULT Atmosphere::OnD3D11CreateDevice(ID3D11Device* pDevice, ID3D11DeviceConte
 {
 	HRESULT hr = S_OK;
 
-	V_RETURN(CompileEffectFromFile(pDevice, &pAtmosphereEffect, L"Atmosphere.fx"));
-
-	for (int i = 0; i < TechStr.size(); i++)
-	{
-		CComPtr<ID3DX11EffectTechnique> pTech = pAtmosphereEffect->GetTechniqueByName(TechStr[i].c_str());
-		AtmosphereTechMap.emplace(TechStr[i], pTech);
-	}
-
-	for (int i = 0; i < MatrixVarStr.size(); i++)
-	{
-		CComPtr<ID3DX11EffectMatrixVariable> pMatrixVar = pAtmosphereEffect->GetVariableByName(MatrixVarStr[i].c_str())->AsMatrix();
-		MatrixVarMap.emplace(MatrixVarStr[i], pMatrixVar);
-	}
-
-	//for (int i = 0; i < VectorVarStr.size(); i++)
-	//{
-	//	CComPtr<ID3DX11EffectVectorVariable> pVectorVar = pAtmosphereEffect->GetVariableByName(VectorVarStr[i].c_str())->AsVector();
-	//	VectorVarMap.emplace(VectorVarStr[i], pVectorVar);
-	//}
-
-	//for (int i = 0; i < ScalarVarStr.size(); i++)
-	//{
-	//	CComPtr<ID3DX11EffectScalarVariable> pScalarVar = pAtmosphereEffect->GetVariableByName(ScalarVarStr[i].c_str())->AsScalar();
-	//	ScalarVarMap.emplace(ScalarVarStr[i], pScalarVar);
-	//}
-
-	for (int i = 0; i < VarStr.size(); i++)
-	{
-		CComPtr<ID3DX11EffectVariable> pVar = pAtmosphereEffect->GetVariableByName(VarStr[i].c_str());
-		VarMap.emplace(VarStr[i], pVar);
-	}
-
-	for (int i = 0; i < ShaderResourceVarStr.size(); i++)
-	{
-		CComPtr<ID3DX11EffectShaderResourceVariable> pShaderResourceVar = pAtmosphereEffect->GetVariableByName(ShaderResourceVarStr[i].c_str())->AsShaderResource();
-		ShaderResourceVarMap.emplace(ShaderResourceVarStr[i], pShaderResourceVar);
-	}
-
+	V_RETURN(GameObject::OnD3D11CreateDevice(pDevice, pContext, L"Atmosphere.fx", TechStr, MatrixVarStr, VarStr, ShaderResourceVarStr));
 	V_RETURN(D3DX11CreateShaderResourceViewFromFile(pDevice, L"Texture/earth.tiff", nullptr, nullptr, &pEarthGroundSRV.p, nullptr));
+
+	m_pCloud->OnD3D11CreateDevice(pDevice, pContext);
+
 	return hr;
 }
+
 
 HRESULT Atmosphere::PreCompute(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, ID3D11RenderTargetView* pRTV)
 {
 	HRESULT hr = S_OK;
-	//V_RETURN(D3DX11CreateShaderResourceViewFromFile(pDevice, L"Texture/Transmittance.dds", nullptr, nullptr, &pTransmittanceSRV.p, nullptr));
-	//V_RETURN(D3DX11CreateShaderResourceViewFromFile(pDevice, L"Texture/", nullptr, nullptr, &pSingleScatterCombinedSRV.p, nullptr));
-	//V_RETURN(D3DX11CreateShaderResourceViewFromFile(pDevice, L"", nullptr, nullptr, &pSingleScatterMieSRV.p, nullptr));
-	//V_RETURN(D3DX11CreateShaderResourceViewFromFile(pDevice, L"", nullptr, nullptr, &pDirectIrradianceSRV.p, nullptr));
-	//V_RETURN(D3DX11CreateShaderResourceViewFromFile(pDevice, L"", nullptr, nullptr, &pMultiScatterCombinedSRV.p, nullptr));
 
 	if(!IsPreComputed)
 	{
 		V_RETURN(PreComputeTransmittanceTex2D(pDevice, pContext));
 
 		V_RETURN(PreComputeDirectIrradianceTex2D(pDevice, pContext));
-#if CREATE_TEXTURE_DDS_TEST
-		V_RETURN(PreComputeSingleSctrTex3D_Test(pDevice, pContext));
-#endif
+//#if CREATE_TEXTURE_DDS_TEST
+//		V_RETURN(PreComputeSingleSctrTex3D_Test(pDevice, pContext));
+//#endif
 		V_RETURN(PreComputeSingleSctrTex3D(pDevice, pContext));
 
 		for (int scatter_order = 2; scatter_order <= scatter_order_num; ++scatter_order)
@@ -252,15 +222,19 @@ HRESULT Atmosphere::PreCompute(ID3D11Device* pDevice, ID3D11DeviceContext* pCont
 //#endif
 			V_RETURN(PreComputeMultiSctrTex3D(pDevice, pContext, scatter_order));
 		}
+
+		m_pCloud->PreCompute(pDevice, pContext, pRTV);
+		
 		IsPreComputed = true;
 	}
 	return hr;
 }
 
+
 void Atmosphere::Render(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, ID3D11RenderTargetView* pRTV)
 {
 	//SetView(2.7e6, 0.81, 0.0, 1.57, 2.0, 10.0);
-	ID3DX11EffectTechnique* activeTech = AtmosphereTechMap["DrawGroundAndSkyTech"];
+	ID3DX11EffectTechnique* activeTech = TechMap["DrawGroundAndSkyTech"];
 	MiscDynamicParams misc;
 	misc.nu_power = 1.5;
 	misc.exposure = exposure;
@@ -307,22 +281,6 @@ void Atmosphere::Render(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, ID
 	RenderQuad(pContext, activeTech, screen_width, screen_height);
 }
 
-void Atmosphere::Test(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, ID3D11RenderTargetView* pRTV)
-{
-	if (!IsPreComputed)
-	{
-		PreComputeTransmittanceTex2D(pDevice, pContext);
-		IsPreComputed = true;
-	}
-	ID3DX11EffectTechnique* activeTech = AtmosphereTechMap["TestTextureTech"];
-	VarMap["atmosphere"]->SetRawValue(&atmosphereParams, 0, sizeof(AtmosphereParameters));
-	ShaderResourceVarMap["g_tex2DTransmittanceLUT"]->SetResource(pTransmittanceSRV);
-	ShaderResourceVarMap["g_tex2DEarthGround"]->SetResource(pEarthGroundSRV);
-	//ShaderResourceVarMap["g_tex3DSingleMieScatteringLUT"]->SetResource(pSingleScatterMieSRV);
-	//ShaderResourceVarMap["g_tex3DSingleScatteringCombinedLUT"]->SetResource(pSingleScatterCombinedSRV);
-	pContext->OMSetRenderTargets(1, &pRTV, nullptr);
-	RenderQuad(pContext, activeTech, screen_width, screen_height);
-}
 
 HRESULT Atmosphere::PreComputeTransmittanceTex2D(ID3D11Device* pDevice, ID3D11DeviceContext* pContext)
 {
@@ -336,7 +294,7 @@ HRESULT Atmosphere::PreComputeTransmittanceTex2D(ID3D11Device* pDevice, ID3D11De
 	V_RETURN(CreateTexture2D(pDevice, pContext, TRANSMITTANCE_TEXTURE_WIDTH, TRANSMITTANCE_TEXTURE_HEIGHT, format,
 							&pTransmittanceTex2D.p, &pTransmittanceSRV.p, &pTransmittanceRTV.p));
 
-	ID3DX11EffectTechnique* activeTech = AtmosphereTechMap["ComputeTransmittanceTex2DTech"];
+	ID3DX11EffectTechnique* activeTech = TechMap["ComputeTransmittanceTex2DTech"];
 
 	VarMap["atmosphere"]->SetRawValue(&atmosphereParams, 0, sizeof(AtmosphereParameters));
 
@@ -354,6 +312,7 @@ HRESULT Atmosphere::PreComputeTransmittanceTex2D(ID3D11Device* pDevice, ID3D11De
 	return hr;
 }
 
+
 HRESULT Atmosphere::PreComputeDirectIrradianceTex2D(ID3D11Device* pDevice, ID3D11DeviceContext* pContext)
 {
 	HRESULT hr = S_OK;
@@ -366,7 +325,7 @@ HRESULT Atmosphere::PreComputeDirectIrradianceTex2D(ID3D11Device* pDevice, ID3D1
 	V_RETURN(CreateTexture2D(pDevice, pContext, IRRADIANCE_TEXTURE_WIDTH, IRRADIANCE_TEXTURE_HEIGHT, format,
 							&pDirectIrradianceTex2D.p, &pDirectIrradianceSRV.p, &pDirectIrradianceRTV.p));
 
-	ID3DX11EffectTechnique* activeTech = AtmosphereTechMap["ComputeDirectIrradiance2DTech"];
+	ID3DX11EffectTechnique* activeTech = TechMap["ComputeDirectIrradiance2DTech"];
 
 	ID3D11RenderTargetView* pRTVs[] =
 	{
@@ -382,6 +341,7 @@ HRESULT Atmosphere::PreComputeDirectIrradianceTex2D(ID3D11Device* pDevice, ID3D1
 #endif
 	return hr;
 }
+
 
 HRESULT Atmosphere::PreComputeSingleSctrTex3D(ID3D11Device* pDevice, ID3D11DeviceContext* pContext)
 {
@@ -421,7 +381,7 @@ HRESULT Atmosphere::PreComputeSingleSctrTex3D(ID3D11Device* pDevice, ID3D11Devic
 
 		V_RETURN(pDevice->CreateRenderTargetView(pSingleScatterMieTex3D, &CurrSliceRTVDesc, &pSingleScaterMieRTVs[depthSlice]));
 
-		ID3DX11EffectTechnique* activeTech = AtmosphereTechMap["ComputeSingleScatterTex3DTech"];
+		ID3DX11EffectTechnique* activeTech = TechMap["ComputeSingleScatterTex3DTech"];
 
 		VarMap["atmosphere"]->SetRawValue(&atmosphereParams, 0, sizeof(AtmosphereParameters));
 
@@ -452,11 +412,12 @@ HRESULT Atmosphere::PreComputeSingleSctrTex3D(ID3D11Device* pDevice, ID3D11Devic
 		RenderQuad(pContext, activeTech, SCATTERING_TEXTURE_WIDTH, SCATTERING_TEXTURE_HEIGHT);
 	}
 #if CREATE_TEXTURE_DDS_TEST
-	//V_RETURN(D3DX11SaveTextureToFile(pContext, pSingleScatterTex3D, D3DX11_IFF_DDS, L"Texture/SingleScatter3D.dds"));
-	//V_RETURN(D3DX11SaveTextureToFile(pContext, pSingleScatterCombinedTex3D, D3DX11_IFF_DDS, L"Texture/SingleScatterCombined3D.dds"));
+	V_RETURN(D3DX11SaveTextureToFile(pContext, pSingleScatterTex3D, D3DX11_IFF_DDS, L"Texture/SingleScatter/SingleScatter3D.dds"));
+	V_RETURN(D3DX11SaveTextureToFile(pContext, pSingleScatterCombinedTex3D, D3DX11_IFF_DDS, L"Texture/SingleScatter/SingleScatterCombined3D.dds"));
 #endif
 	return hr;
 }
+
 
 HRESULT Atmosphere::PreComputeInDirectIrradianceTex2D(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, int scatter_order)
 {
@@ -470,7 +431,7 @@ HRESULT Atmosphere::PreComputeInDirectIrradianceTex2D(ID3D11Device* pDevice, ID3
 	V_RETURN(CreateTexture2D(pDevice, pContext, IRRADIANCE_TEXTURE_WIDTH, IRRADIANCE_TEXTURE_HEIGHT,
 		format,&pIndirectIrradianceTex2D.p, &pIndirectIrradianceSRV.p, &pIndirectIrradianceRTV.p));
 
-	ID3DX11EffectTechnique* activeTech = AtmosphereTechMap["ComputeIndirectIrradiance2DTech"];
+	ID3DX11EffectTechnique* activeTech = TechMap["ComputeIndirectIrradiance2DTech"];
 
 	ID3D11RenderTargetView* pRTVs[] =
 	{
@@ -499,6 +460,7 @@ HRESULT Atmosphere::PreComputeInDirectIrradianceTex2D(ID3D11Device* pDevice, ID3
 #endif
 	return hr;
 }
+
 
 HRESULT Atmosphere::PreComputeMultiSctrTex3D(ID3D11Device* pDevice, ID3D11DeviceContext* pContext,int scatter_order)
 {
@@ -539,7 +501,7 @@ HRESULT Atmosphere::PreComputeMultiSctrTex3D(ID3D11Device* pDevice, ID3D11Device
 		V_RETURN(pDevice->CreateRenderTargetView(pTex3D[0], &CurrSliceRTVDesc, &pMultiScaterRTVs[depthSlice]));
 		V_RETURN(pDevice->CreateRenderTargetView(pTex3D[1], &CurrSliceRTVDesc, &pMultiScaterCombinedRTVs[depthSlice]));
 		
-		ID3DX11EffectTechnique* activeTech = AtmosphereTechMap["ComputeMultiScatterTex3DTech"];
+		ID3DX11EffectTechnique* activeTech = TechMap["ComputeMultiScatterTex3DTech"];
 
 		VarMap["atmosphere"]->SetRawValue(&atmosphereParams, 0, sizeof(AtmosphereParameters));
 
@@ -593,6 +555,7 @@ HRESULT Atmosphere::PreComputeMultiSctrTex3D(ID3D11Device* pDevice, ID3D11Device
 	return hr;
 }
 
+
 HRESULT Atmosphere::PreComputeSingleSctrTex3D_Test(ID3D11Device* pDevice, ID3D11DeviceContext* pContext)
 {
 	HRESULT hr = S_OK;
@@ -644,7 +607,7 @@ HRESULT Atmosphere::PreComputeSingleSctrTex3D_Test(ID3D11Device* pDevice, ID3D11
 		V_RETURN(pDevice->CreateRenderTargetView(pSingleScatterCombinedTex2D, nullptr, &pSingleScatterCombinedRTVs[depthSlice]));
 		V_RETURN(pDevice->CreateRenderTargetView(pSingleScatterMieTex2D, nullptr, &pSingleScatterMieRTVs[depthSlice]));
 
-		ID3DX11EffectTechnique* activeTech = AtmosphereTechMap["ComputeSingleScatterTex3DTech"];
+		ID3DX11EffectTechnique* activeTech = TechMap["ComputeSingleScatterTex3DTech"];
 
 		VarMap["atmosphere"]->SetRawValue(&atmosphereParams, 0, sizeof(AtmosphereParameters));
 
@@ -682,6 +645,7 @@ HRESULT Atmosphere::PreComputeSingleSctrTex3D_Test(ID3D11Device* pDevice, ID3D11
 	}
 	return hr;
 }
+
 
 HRESULT Atmosphere::PreComputeMultiSctrTex3D_Test(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, int scatter_order)
 {
@@ -735,7 +699,7 @@ HRESULT Atmosphere::PreComputeMultiSctrTex3D_Test(ID3D11Device* pDevice, ID3D11D
 		V_RETURN(pDevice->CreateShaderResourceView(pMultiScatterCombinedTex2D, nullptr, &pMultiScatterCombinedSRVs[depthSlice]));
 		V_RETURN(pDevice->CreateRenderTargetView(pMultiScatterCombinedTex2D, nullptr, &pMultiScatterCombinedRTVs[depthSlice]));
 
-		ID3DX11EffectTechnique* activeTech = AtmosphereTechMap["ComputeMultiScatterTex3DTech"];
+		ID3DX11EffectTechnique* activeTech = TechMap["ComputeMultiScatterTex3DTech"];
 
 		VarMap["atmosphere"]->SetRawValue(&atmosphereParams, 0, sizeof(AtmosphereParameters));
 
@@ -778,6 +742,7 @@ HRESULT Atmosphere::PreComputeMultiSctrTex3D_Test(ID3D11Device* pDevice, ID3D11D
 	return hr;
 }
 
+
 void Atmosphere::SetView(float view_distance_meters, float view_zenith_angle_radians, float view_azimuth_angle_radians,
 							float sun_zenith_angle_radians, float sun_azimuth_angle_radians,float exposure)
 {
@@ -798,6 +763,7 @@ void Atmosphere::SetView(float view_distance_meters, float view_zenith_angle_rad
 	m_FirstPersonCamera.SetViewParams(&EyePos, &LookAt);
 
 }
+
 
 void Atmosphere::MsgProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
@@ -850,6 +816,7 @@ void Atmosphere::MsgProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 	}
 }
 
+
 void Atmosphere::OnFrameMove(double fTime, float fElapsedTime)
 {
 	m_FirstPersonCamera.FrameMove(fElapsedTime);
@@ -870,6 +837,7 @@ void Atmosphere::OnFrameMove(double fTime, float fElapsedTime)
 		sun_azimuth_angle_radians -= fElapsedTime / 10;
 	}
 }
+
 
 void Atmosphere::Resize(int screen_width, int screen_height, FLOAT fFOV, FLOAT fAspect)
 {

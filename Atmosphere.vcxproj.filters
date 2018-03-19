@@ -80,6 +80,8 @@
   <ItemGroup>
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Atmosphere.cpp" />
+    <ClCompile Include="Cloud.cpp" />
+    <ClCompile Include="Common.cpp" />
   </ItemGroup>
   <ItemGroup>
     <CLInclude Include="resource.h">
@@ -90,5 +92,6 @@
     </ResourceCompile>
     <ClInclude Include="Atmosphere.h" />
     <ClInclude Include="Common.h" />
+    <ClInclude Include="Cloud.h" />
   </ItemGroup>
 </Project>

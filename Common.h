@@ -6,8 +6,53 @@
 #include "DXUT.h"
 #include "SDKmisc.h"
 #include <algorithm>
+#include <string>
+#include <vector>
+#include <atlcomcli.h>
+#include <unordered_map>
 
 #define D3D_COMPILE_STANDARD_FILE_INCLUDE ((ID3DInclude*)(UINT_PTR)1)
+
+struct MiscDynamicParams
+{
+	D3DXVECTOR2 f2WQ;
+	int scatter_order;
+	float exposure;
+
+	D3DXVECTOR3 f3CameraPos;
+	float nu_power;
+	D3DXVECTOR3 f3EarthCenter;
+	float padding2;
+	D3DXVECTOR3 f3SunDir;
+	float padding3;
+	D3DXVECTOR3 f3CameraDir;
+	float padding4;
+};
+
+class GameObject
+{
+public:
+	GameObject(){}
+	~GameObject(){}
+	HRESULT OnD3D11CreateDevice(ID3D11Device*, ID3D11DeviceContext*, 
+				std::wstring EffectStr, const std::vector<std::string>& TechStr,
+				const std::vector<std::string>& MatrixVarStr, const std::vector<std::string>& VarStr,
+				const std::vector<std::string>& ShaderResourceVarStr);
+	void Release();
+protected:
+	CComPtr<ID3DX11Effect>		pEffect;
+
+	std::unordered_map<std::string, CComPtr<ID3DX11EffectTechnique>>				TechMap;
+	std::unordered_map<std::string, CComPtr<ID3DX11EffectMatrixVariable>>			MatrixVarMap;
+	std::unordered_map<std::string, CComPtr<ID3DX11EffectVectorVariable>>			VectorVarMap;
+	std::unordered_map<std::string, CComPtr<ID3DX11EffectScalarVariable>>			ScalarVarMap;
+	std::unordered_map<std::string, CComPtr<ID3DX11EffectVariable>>					VarMap;
+	std::unordered_map<std::string, CComPtr<ID3DX11EffectShaderResourceVariable>>	ShaderResourceVarMap;
+
+	MiscDynamicParams misc;
+private:
+
+};
 
 struct Vertex
 {

@@ -4,11 +4,9 @@
 #define ATMOSPHERE_H
 
 #include "DXUT.h"
-#include <atlcomcli.h>
-#include <unordered_map>
-#include <string>
-#include <vector>
 #include "DXUTcamera.h"
+#include "Common.h"
+#include "Cloud.h"
 
 #define CREATE_TEXTURE_DDS_TEST 0
 
@@ -46,23 +44,7 @@ struct AtmosphereParameters
 	DensityProfileLayer ozone_density[2];
 };
 
-struct MiscDynamicParams
-{
-	D3DXVECTOR2 f2WQ;
-	int scatter_order;
-	float exposure;
-
-	D3DXVECTOR3 f3CameraPos;
-	float nu_power;
-	D3DXVECTOR3 f3EarthCenter;
-	float padding2;
-	D3DXVECTOR3 f3SunDir;
-	float padding3;
-	D3DXVECTOR3 f3CameraDir;
-	float padding4;
-};
-
-class Atmosphere
+class Atmosphere : public GameObject
 {
 public:
 	Atmosphere();
@@ -80,13 +62,12 @@ public:
 	HRESULT PreCompute(ID3D11Device*, ID3D11DeviceContext*, ID3D11RenderTargetView*);
 	void Render(ID3D11Device*, ID3D11DeviceContext*, ID3D11RenderTargetView*);
 
-	void Test(ID3D11Device*, ID3D11DeviceContext*, ID3D11RenderTargetView*);
-
 	void MsgProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
 	void OnFrameMove(double fTime, float fElapsedTime);
 private:
 	CFirstPersonCamera					m_FirstPersonCamera;
+	Cloud*								m_pCloud;
 
 	int scatter_order_num;
 
@@ -131,15 +112,6 @@ private:
 	// The conversion factor between watts and lumens.
 	const double MAX_LUMINOUS_EFFICACY = 683.0;
 
-	CComPtr<ID3DX11Effect>		pAtmosphereEffect;
-
-	std::unordered_map<std::string, CComPtr<ID3DX11EffectTechnique>>				AtmosphereTechMap;
-	std::unordered_map<std::string, CComPtr<ID3DX11EffectMatrixVariable>>			MatrixVarMap;
-	std::unordered_map<std::string, CComPtr<ID3DX11EffectVectorVariable>>			VectorVarMap;
-	std::unordered_map<std::string, CComPtr<ID3DX11EffectScalarVariable>>			ScalarVarMap;
-	std::unordered_map<std::string, CComPtr<ID3DX11EffectVariable>>					VarMap;
-	std::unordered_map<std::string, CComPtr<ID3DX11EffectShaderResourceVariable>>	ShaderResourceVarMap;
-
 	CComPtr<ID3D11Texture2D>							pTransmittanceTex2D;
 	CComPtr<ID3D11ShaderResourceView>					pTransmittanceSRV;
 	
@@ -173,8 +145,7 @@ private:
 		"ComputeSingleScatterTex3DTech",
 		"ComputeIndirectIrradiance2DTech",
 		"ComputeMultiScatterTex3DTech",
-		"DrawGroundAndSkyTech",
-		"TestTextureTech"
+		"DrawGroundAndSkyTech"
 	};
 
 	std::vector<std::string> MatrixVarStr
@@ -206,9 +177,6 @@ private:
 	{
 		"atmosphere",
 		"misc"
-		//"rayleigh_density",
-		//"mie_density",
-		//"ozone_density",
 	};
 
 	std::vector<std::string> ShaderResourceVarStr

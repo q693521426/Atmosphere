@@ -387,12 +387,15 @@
   <ItemGroup>
     <None Include="DXUT\Optional\directx.ico" />
     <ClInclude Include="Atmosphere.h" />
+    <ClInclude Include="Cloud.h" />
     <ClInclude Include="Common.h" />
     <ClInclude Include="DXUT\Core\DXUT.h" />
     <ClInclude Include="DXUT\Core\DXUTDevice11.h" />
     <ClInclude Include="DXUT\Core\DXUTDevice9.h" />
     <ClInclude Include="DXUT\Core\DXUTmisc.h" />
     <ClCompile Include="Atmosphere.cpp" />
+    <ClCompile Include="Cloud.cpp" />
+    <ClCompile Include="Common.cpp" />
     <ClCompile Include="DXUT\Core\DXUT.cpp">
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>

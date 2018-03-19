@@ -110,7 +110,6 @@ void CALLBACK OnD3D11FrameRender( ID3D11Device* pd3dDevice, ID3D11DeviceContext*
 
 	m_pAtmosphere->PreCompute(pd3dDevice, pd3dImmediateContext,pRTV);
 	m_pAtmosphere->Render(pd3dDevice, pd3dImmediateContext, pRTV);
-	//m_pAtmosphere->Test(pd3dDevice, pd3dImmediateContext, pRTV);
 }
 
 
@@ -165,6 +164,7 @@ int WINAPI wWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdL
     // Enable run-time memory check for debug builds.
 #if defined(DEBUG) | defined(_DEBUG)
     _CrtSetDbgFlag( _CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF );
+	//_CrtSetBreakAlloc(463);
 #endif
 
     // DXUT will create and use the best device (either D3D9 or D3D11) 
