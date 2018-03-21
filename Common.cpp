@@ -1,8 +1,8 @@
 #include "DXUT.h"
 #include "Common.h"
 
-HRESULT GameObject::OnD3D11CreateDevice(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, std::wstring EffectStr, 
-				const std::vector<std::string>& TechStr, const std::vector<std::string>& MatrixVarStr,
+HRESULT GameObject::OnD3D11CreateDevice(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, 
+				std::wstring EffectStr, const std::vector<std::string>& TechStr, 
 				const std::vector<std::string>& VarStr, const std::vector<std::string>& ShaderResourceVarStr)
 {
 	HRESULT hr = S_OK;
@@ -15,11 +15,11 @@ HRESULT GameObject::OnD3D11CreateDevice(ID3D11Device* pDevice, ID3D11DeviceConte
 		TechMap.emplace(TechStr[i], pTech);
 	}
 
-	for (int i = 0; i < MatrixVarStr.size(); i++)
-	{
-		CComPtr<ID3DX11EffectMatrixVariable> pMatrixVar = pEffect->GetVariableByName(MatrixVarStr[i].c_str())->AsMatrix();
-		MatrixVarMap.emplace(MatrixVarStr[i], pMatrixVar);
-	}
+	//for (int i = 0; i < MatrixVarStr.size(); i++)
+	//{
+	//	CComPtr<ID3DX11EffectMatrixVariable> pMatrixVar = pEffect->GetVariableByName(MatrixVarStr[i].c_str())->AsMatrix();
+	//	MatrixVarMap.emplace(MatrixVarStr[i], pMatrixVar);
+	//}
 
 	//for (int i = 0; i < VectorVarStr.size(); i++)
 	//{

@@ -108,13 +108,15 @@ void Atmosphere::Initialize()
 	atmosphereParams.mie_g = 0.8f;
 	atmosphereParams.ground_albedo = 0.1f;
 	atmosphereParams.ozone_width = 25.0f;
+	atmosphereParams.nu_power = 1.5;
+	atmosphereParams.exposure = exposure;
 	atmosphereParams.rayleigh_density = DensityProfileLayer
 	{
-		1.f, -1.0 / kMieScaleHeight * 1000.0, 0.f, 0.f
+		1.f, -1.0 / kRayleighScaleHeight * 1000.0, 0.f, 0.f
 	};
 	atmosphereParams.mie_density = DensityProfileLayer
 	{
-		1.f, -1.0 / kRayleighScaleHeight * 1000.0, 0.f, 0.f
+		1.f, -1.0 / kMieScaleHeight * 1000.0, 0.f, 0.f
 	};
 	atmosphereParams.ozone_density[0] = DensityProfileLayer
 	{
@@ -191,7 +193,7 @@ HRESULT Atmosphere::OnD3D11CreateDevice(ID3D11Device* pDevice, ID3D11DeviceConte
 {
 	HRESULT hr = S_OK;
 
-	V_RETURN(GameObject::OnD3D11CreateDevice(pDevice, pContext, L"Atmosphere.fx", TechStr, MatrixVarStr, VarStr, ShaderResourceVarStr));
+	V_RETURN(GameObject::OnD3D11CreateDevice(pDevice, pContext, L"Atmosphere.fx", TechStr, VarStr, ShaderResourceVarStr));
 	V_RETURN(D3DX11CreateShaderResourceViewFromFile(pDevice, L"Texture/earth.tiff", nullptr, nullptr, &pEarthGroundSRV.p, nullptr));
 
 	m_pCloud->OnD3D11CreateDevice(pDevice, pContext);
@@ -236,14 +238,11 @@ void Atmosphere::Render(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, ID
 	//SetView(2.7e6, 0.81, 0.0, 1.57, 2.0, 10.0);
 	ID3DX11EffectTechnique* activeTech = TechMap["DrawGroundAndSkyTech"];
 	MiscDynamicParams misc;
-	misc.nu_power = 1.5;
-	misc.exposure = exposure;
-	misc.f3EarthCenter = D3DXVECTOR3(0.f,-6360.f, 0.f);
 
 	D3DXVECTOR3 EyePos = *m_FirstPersonCamera.GetEyePt();
 	D3DXVECTOR3 LookAt = *m_FirstPersonCamera.GetLookAtPt();
 
-	misc.f3CameraPos = *m_FirstPersonCamera.GetEyePt();
+	cameraParams.f3CameraPos = *m_FirstPersonCamera.GetEyePt();
 	D3DXMATRIX View = *m_FirstPersonCamera.GetViewMatrix();
 	float det = D3DXMatrixDeterminant(&View);
 	D3DXMATRIX InvView;
@@ -251,22 +250,24 @@ void Atmosphere::Render(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, ID
 
 	D3DXMATRIX InvViewProj;
 	InvViewProj = InvProj * InvView;
-
-	MatrixVarMap["InvViewProj"]->SetMatrix(InvViewProj);
+	D3DXMatrixTranspose(&InvViewProj, &InvViewProj);
+	cameraParams.InvViewProj = InvViewProj;
 	
 	float cos_sun_z = cos(sun_zenith_angle_radians);
 	float sin_sun_z = sin(sun_zenith_angle_radians);
 	float cos_sun_a = cos(sun_azimuth_angle_radians);
 	float sin_sun_a = sin(sun_azimuth_angle_radians);
-	misc.f3SunDir = D3DXVECTOR3(sin_sun_z*cos_sun_a, cos_sun_z, sin_sun_z*sin_sun_a);
+	lightParams.f3LightDir = D3DXVECTOR3(sin_sun_z*cos_sun_a, cos_sun_z, sin_sun_z*sin_sun_a);
 	
-	misc.f3CameraDir = LookAt - EyePos;
-	D3DXVec3Normalize(&misc.f3CameraDir, &misc.f3CameraDir);
+	cameraParams.f3CameraDir = LookAt - EyePos;
+	D3DXVec3Normalize(&cameraParams.f3CameraDir, &cameraParams.f3CameraDir);
 
 	misc.scatter_order = 2;
 
 	VarMap["atmosphere"]->SetRawValue(&atmosphereParams, 0, sizeof(AtmosphereParameters));
 	VarMap["misc"]->SetRawValue(&misc, 0, sizeof(MiscDynamicParams));
+	VarMap["camera"]->SetRawValue(&cameraParams, 0, sizeof(CameraParams));
+	VarMap["light"]->SetRawValue(&lightParams, 0, sizeof(LightParams));
 	ShaderResourceVarMap["g_tex2DTransmittanceLUT"]->SetResource(pTransmittanceSRV);
 	ShaderResourceVarMap["g_tex2DDirectIrradianceLUT"]->SetResource(pDirectIrradianceSRV);
 	ShaderResourceVarMap["g_tex2DIndirectIrradianceLUT"]->SetResource(pIndirectIrradianceSRV);
@@ -366,7 +367,6 @@ HRESULT Atmosphere::PreComputeSingleSctrTex3D(ID3D11Device* pDevice, ID3D11Devic
 	std::vector<CComPtr<ID3D11RenderTargetView>> pSingleScaterCombinedRTVs(SCATTERING_TEXTURE_DEPTH);
 	std::vector<CComPtr<ID3D11RenderTargetView>> pSingleScaterMieRTVs(SCATTERING_TEXTURE_DEPTH);	
 	MiscDynamicParams misc;
-	misc.nu_power = 1.5;
 	for(UINT depthSlice = 0;depthSlice<SCATTERING_TEXTURE_DEPTH;++depthSlice)
 	{
 		D3D11_RENDER_TARGET_VIEW_DESC CurrSliceRTVDesc;
@@ -448,7 +448,6 @@ HRESULT Atmosphere::PreComputeInDirectIrradianceTex2D(ID3D11Device* pDevice, ID3
 		ShaderResourceVarMap["g_tex3DMultiScatteringLUT"]->SetResource(pMultiScatterSRV);
 	}
 	MiscDynamicParams misc;
-	misc.nu_power = 1.5;
 	misc.scatter_order = scatter_order;
 	VarMap["misc"]->SetRawValue(&misc, 0, sizeof(MiscDynamicParams));
 
@@ -488,7 +487,6 @@ HRESULT Atmosphere::PreComputeMultiSctrTex3D(ID3D11Device* pDevice, ID3D11Device
 	std::vector<CComPtr<ID3D11RenderTargetView>> pMultiScaterRTVs(SCATTERING_TEXTURE_DEPTH);
 	std::vector<CComPtr<ID3D11RenderTargetView>> pMultiScaterCombinedRTVs(SCATTERING_TEXTURE_DEPTH);
 	MiscDynamicParams misc;
-	misc.nu_power = 1.5;
 	for (UINT depthSlice = 0; depthSlice<SCATTERING_TEXTURE_DEPTH; ++depthSlice)
 	{
 		D3D11_RENDER_TARGET_VIEW_DESC CurrSliceRTVDesc;
@@ -600,7 +598,6 @@ HRESULT Atmosphere::PreComputeSingleSctrTex3D_Test(ID3D11Device* pDevice, ID3D11
 	std::vector<CComPtr<ID3D11RenderTargetView>> pSingleScatterMieRTVs(SCATTERING_TEXTURE_DEPTH);
 
 	MiscDynamicParams misc;
-	misc.nu_power = 1.5;
 	for (UINT depthSlice = 0; depthSlice < SCATTERING_TEXTURE_DEPTH; ++depthSlice)
 	{
 		V_RETURN(pDevice->CreateRenderTargetView(pSingleScatterTex2D, nullptr, &pSingleScatterRTVs[depthSlice]));
@@ -690,7 +687,6 @@ HRESULT Atmosphere::PreComputeMultiSctrTex3D_Test(ID3D11Device* pDevice, ID3D11D
 	std::vector<CComPtr<ID3D11RenderTargetView>> pMultiScatterCombinedRTVs(SCATTERING_TEXTURE_DEPTH);
 	std::vector<CComPtr<ID3D11ShaderResourceView>> pMultiScatterCombinedSRVs(SCATTERING_TEXTURE_DEPTH);
 	MiscDynamicParams misc;
-	misc.nu_power = 1.5;
 	for (UINT depthSlice = 0; depthSlice<SCATTERING_TEXTURE_DEPTH; ++depthSlice)
 	{
 		V_RETURN(pDevice->CreateShaderResourceView(pMultiScatterTex2D, nullptr, &pMultiScatterSRVs[depthSlice]));

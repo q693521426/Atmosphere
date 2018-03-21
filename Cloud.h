@@ -44,11 +44,6 @@ private:
 		"ComputeWorleyNoiseTex3DTech"
 	};
 
-	std::vector<std::string> MatrixVarStr
-	{
-		"InvViewProj"
-	};
-
 	std::vector<std::string> VarStr
 	{
 		"misc"

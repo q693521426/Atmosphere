@@ -16,17 +16,31 @@
 struct MiscDynamicParams
 {
 	D3DXVECTOR2 f2WQ;
-	int scatter_order;
-	float exposure;
+	float scatter_order;
+	float padding;
+};
 
+struct CameraParams
+{
 	D3DXVECTOR3 f3CameraPos;
-	float nu_power;
-	D3DXVECTOR3 f3EarthCenter;
-	float padding2;
-	D3DXVECTOR3 f3SunDir;
-	float padding3;
+	float fNearZ;
+
 	D3DXVECTOR3 f3CameraDir;
-	float padding4;
+	float fFarZ;
+
+	D3DXMATRIX View;
+	D3DXMATRIX Proj;
+	D3DXMATRIX ViewProj;
+	D3DXMATRIX InvViewProj;
+};
+
+struct LightParams
+{
+	D3DXVECTOR3 f3LightDir;
+	float padding;
+
+	D3DXVECTOR2 f2LightScreenPos;
+	float padding2[2];
 };
 
 class GameObject
@@ -36,7 +50,7 @@ public:
 	~GameObject(){}
 	HRESULT OnD3D11CreateDevice(ID3D11Device*, ID3D11DeviceContext*, 
 				std::wstring EffectStr, const std::vector<std::string>& TechStr,
-				const std::vector<std::string>& MatrixVarStr, const std::vector<std::string>& VarStr,
+				const std::vector<std::string>& VarStr,
 				const std::vector<std::string>& ShaderResourceVarStr);
 	void Release();
 protected:

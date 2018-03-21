@@ -19,7 +19,9 @@ static const int IRRADIANCE_TEXTURE_HEIGHT = 16;
 static const float MAX_LUMINOUS_EFFICACY = 683.0;
 
 #define USE_LUT_PARAMETERIZATION 1
-#define USE_INTEGRAL_OPTIMIZATION 1
+#define USE_TRANSMITTANCE_ANALYTIC 0
+#define USE_OZONE_DENSITY 1
+#define USE_SCATTER_COMBINED    1
 
 SamplerState samLinearClamp
 {
@@ -76,7 +78,8 @@ struct AtmosphereParams
 
     float sun_angular_radius;
     float mu_s_min;
-    float padding[2];
+    float nu_power;
+    float exposure;
 
     DensityProfileLayer rayleigh_density;
     DensityProfileLayer mie_density;
@@ -91,17 +94,8 @@ cbuffer cbAtmosphereParams
 struct MiscDynamicParams
 {
     float2 f2WQ;
-    int scatter_order;
-    float exposure;
-
-    float3 f3CameraPos;
-    float nu_power;
-    float3 f3EarthCenter;
-    float padding2;
-    float3 f3SunDir;
-    float padding3;
-    float3 f3CameraDir;
-    float padding4;
+    float scatter_order;
+    float padding;
 };
 
 cbuffer cbMiscDynamicParams
@@ -109,9 +103,38 @@ cbuffer cbMiscDynamicParams
     MiscDynamicParams misc;
 };
 
-cbuffer cbMatrix
+struct CameraParams
 {
+    float3 f3CameraPos;
+    float fNearZ;
+
+    float3 f3CameraDir;
+    float fFarZ;
+
+    float4x4 View;
+    float4x4 Proj;
+    float4x4 ViewProj;
     float4x4 InvViewProj;
+};
+
+cbuffer cbCameraParams
+{
+    CameraParams camera;
+};
+
+struct LightParams
+{
+    float3 f3LightDir;
+    float padding;
+
+    float2 f2LightScreenPos;
+    float2 padding2;
+
+};
+
+cbuffer cbLightParams
+{
+    LightParams light;
 };
 
 struct VertexIn

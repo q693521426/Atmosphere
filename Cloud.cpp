@@ -35,7 +35,7 @@ HRESULT Cloud::OnD3D11CreateDevice(ID3D11Device* pDevice, ID3D11DeviceContext* p
 {
 	HRESULT hr = S_OK;
 
-	V_RETURN(GameObject::OnD3D11CreateDevice(pDevice, pContext, L"Cloud.fx", TechStr, MatrixVarStr, VarStr, ShaderResourceVarStr));
+	V_RETURN(GameObject::OnD3D11CreateDevice(pDevice, pContext, L"Cloud.fx", TechStr, VarStr, ShaderResourceVarStr));
 
 	return hr;
 }

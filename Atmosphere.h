@@ -37,7 +37,8 @@ struct AtmosphereParameters
 
 	float sun_angular_radius;
 	float mu_s_min;
-	float padding[2];
+	float nu_power;
+	float exposure;
 
 	DensityProfileLayer rayleigh_density;
 	DensityProfileLayer mie_density;
@@ -84,6 +85,8 @@ private:
 	int screen_width, screen_height;
 
 	AtmosphereParameters atmosphereParams;
+	CameraParams cameraParams;
+	LightParams lightParams;
 
 	HRESULT PreComputeTransmittanceTex2D(ID3D11Device*, ID3D11DeviceContext*);
 	HRESULT PreComputeDirectIrradianceTex2D(ID3D11Device*, ID3D11DeviceContext*);
@@ -148,10 +151,10 @@ private:
 		"DrawGroundAndSkyTech"
 	};
 
-	std::vector<std::string> MatrixVarStr
-	{
-		"InvViewProj"
-	};
+	//std::vector<std::string> MatrixVarStr
+	//{
+	//	"InvViewProj"
+	//};
 
 	//std::vector<std::string> VectorVarStr
 	//{
@@ -176,7 +179,9 @@ private:
 	std::vector<std::string> VarStr
 	{
 		"atmosphere",
-		"misc"
+		"misc",
+		"camera",
+		"light"
 	};
 
 	std::vector<std::string> ShaderResourceVarStr
