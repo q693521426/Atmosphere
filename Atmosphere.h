@@ -56,12 +56,13 @@ public:
 
 	void SetView(float, float, float, float, float, float);
 
-	void Resize(int screen_width, int screen_height, FLOAT fFOV, FLOAT fAspect);
+	void Resize(int, int, float, float, float, float);
 
 	HRESULT OnD3D11CreateDevice(ID3D11Device*, ID3D11DeviceContext*);
+	void SetTextureSize();
 
 	HRESULT PreCompute(ID3D11Device*, ID3D11DeviceContext*, ID3D11RenderTargetView*);
-	void Render(ID3D11Device*, ID3D11DeviceContext*, ID3D11RenderTargetView*);
+	void Render(ID3D11Device*, ID3D11DeviceContext*, ID3D11RenderTargetView*, ID3D11ShaderResourceView* depthSRV=nullptr);
 
 	void MsgProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
@@ -89,34 +90,38 @@ private:
 	LightParams lightParams;
 
 	HRESULT PreComputeTransmittanceTex2D(ID3D11Device*, ID3D11DeviceContext*);
+	HRESULT PreComputeOpticalLengthTex2D(ID3D11Device*, ID3D11DeviceContext*);
 	HRESULT PreComputeDirectIrradianceTex2D(ID3D11Device*, ID3D11DeviceContext*);
 	HRESULT PreComputeSingleSctrTex3D(ID3D11Device*, ID3D11DeviceContext*);
 	HRESULT PreComputeInDirectIrradianceTex2D(ID3D11Device*, ID3D11DeviceContext*,int);
 	HRESULT PreComputeMultiSctrTex3D(ID3D11Device*, ID3D11DeviceContext*,int);
 
-	HRESULT PreComputeSingleSctrTex3D_Test(ID3D11Device*, ID3D11DeviceContext*);
-	HRESULT PreComputeMultiSctrTex3D_Test(ID3D11Device*, ID3D11DeviceContext*, int);
+	int TRANSMITTANCE_TEXTURE_WIDTH = 256;    //mu
+	int TRANSMITTANCE_TEXTURE_HEIGHT = 64;    //r
 
-	const int TRANSMITTANCE_TEXTURE_WIDTH = 256;    //mu
-	const int TRANSMITTANCE_TEXTURE_HEIGHT = 64;    //r
+	int SCATTERING_TEXTURE_R_SIZE = 32;
+	int SCATTERING_TEXTURE_MU_SIZE = 128;
+	int SCATTERING_TEXTURE_MU_S_SIZE = 32;
+	int SCATTERING_TEXTURE_NU_SIZE = 8;
 
-	const int SCATTERING_TEXTURE_R_SIZE = 32;
-	const int SCATTERING_TEXTURE_MU_SIZE = 128;
-	const int SCATTERING_TEXTURE_MU_S_SIZE = 32;
-	const int SCATTERING_TEXTURE_NU_SIZE = 8;
+	int SCATTERING_TEXTURE_WIDTH = SCATTERING_TEXTURE_R_SIZE;
+	int SCATTERING_TEXTURE_HEIGHT = SCATTERING_TEXTURE_MU_SIZE;
+	int SCATTERING_TEXTURE_DEPTH = SCATTERING_TEXTURE_MU_S_SIZE*SCATTERING_TEXTURE_NU_SIZE;
 
-	const int SCATTERING_TEXTURE_WIDTH = SCATTERING_TEXTURE_R_SIZE;
-	const int SCATTERING_TEXTURE_HEIGHT = SCATTERING_TEXTURE_MU_SIZE;
-	const int SCATTERING_TEXTURE_DEPTH = SCATTERING_TEXTURE_MU_S_SIZE*SCATTERING_TEXTURE_NU_SIZE;
-
-	const int IRRADIANCE_TEXTURE_WIDTH = 64;
-	const int IRRADIANCE_TEXTURE_HEIGHT = 16;
+	int IRRADIANCE_TEXTURE_WIDTH = 64;
+	int IRRADIANCE_TEXTURE_HEIGHT = 16;
 
 	// The conversion factor between watts and lumens.
-	const double MAX_LUMINOUS_EFFICACY = 683.0;
+	double MAX_LUMINOUS_EFFICACY = 683.0;
+
+	int EPIPOLAR_SLICE_NUM = 512;
+	int EPIPOLAR_SAMPLE_NUM = 256;
 
 	CComPtr<ID3D11Texture2D>							pTransmittanceTex2D;
 	CComPtr<ID3D11ShaderResourceView>					pTransmittanceSRV;
+
+	CComPtr<ID3D11Texture2D>							pOpticalLengthTex2D;
+	CComPtr<ID3D11ShaderResourceView>					pOpticalLengthSRV;
 	
 	CComPtr<ID3D11Texture3D>							pSingleScatterTex3D;
 	CComPtr<ID3D11ShaderResourceView>					pSingleScatterSRV;
@@ -141,52 +146,85 @@ private:
 
 	CComPtr<ID3D11ShaderResourceView>					pEarthGroundSRV;
 
+	CComPtr<ID3D11Texture2D>							pSpaceLinearDepthTex2D;
+	CComPtr<ID3D11ShaderResourceView>					pSpaceLinearDepthSRV;
+	
+	CComPtr<ID3D11Texture2D>							pSliceEndTex2D;
+	CComPtr<ID3D11ShaderResourceView>					pSliceEndSRV;
+	
+	CComPtr<ID3D11Texture2D>							pEpipolarSampleTex2D;
+	CComPtr<ID3D11ShaderResourceView>					pEpipolarSampleSRV;
+
+	CComPtr<ID3D11Texture2D>							pEpipolarSampleDepthTex2D;
+	CComPtr<ID3D11ShaderResourceView>					pEpipolarSampleDepthSRV;
+
+	CComPtr<ID3D11Texture2D>							pInterpolationSampleTex2D;
+	CComPtr<ID3D11ShaderResourceView>					pInterpolationSampleSRV;
+
+	CComPtr<ID3D11Texture2D>							pSliceUVOrigDirTex2D;
+	CComPtr<ID3D11ShaderResourceView>					pSliceUVOrigDirSRV;
+
+	CComPtr<ID3D11Texture2D>							pScatterTex2D;
+	CComPtr<ID3D11ShaderResourceView>					pScatterSRV;
+
+	CComPtr<ID3D11Texture2D>							pInterpolatedScatterTex2D;
+	CComPtr<ID3D11ShaderResourceView>					pInterpolatedScatterSRV;
+
 	std::vector<std::string> TechStr
 	{
 		"ComputeTransmittanceTex2DTech",
+		"ComputeOpticalLengthTex2DTech",
 		"ComputeDirectIrradiance2DTech",
 		"ComputeSingleScatterTex3DTech",
 		"ComputeIndirectIrradiance2DTech",
 		"ComputeMultiScatterTex3DTech",
-		"DrawGroundAndSkyTech"
+		"DrawGroundAndSkyTech",
+
+		"ComputeSpaceLinearDepthTex2DTech",
+		"ComputeSliceEndTex2DTech",
+		"ComputeEpipolarCoordTex2DTech",
+		"RefineSampleLocalTech",
+
+		"Build1DMinMaxMipMapTech",
+		"MarkRayMarchSampleTech",
+		"DoRayMarchTech",
+		"InterpolateScatterTech",
+		"ApplyInterpolateScatterTech"
 	};
-
-	//std::vector<std::string> MatrixVarStr
-	//{
-	//	"InvViewProj"
-	//};
-
-	//std::vector<std::string> VectorVarStr
-	//{
-	//	"solar_irradiance",
-	//	"rayleigh_scattering",
-	//	"mie_scattering",
-	//	"mie_extinction",
-	//	"absorption_extinction",
-	//	"v3CameraPos",
-	//	"v3LightPos"
-	//};
-
-	//std::vector<std::string> ScalarVarStr
-	//{
-	//	"bottom_radius",
-	//	"top_radius",
-	//	"mie_g",
-	//	"ground_albedo",
-	//	"ozone_width"
-	//};
 
 	std::vector<std::string> VarStr
 	{
 		"atmosphere",
 		"misc",
 		"camera",
-		"light"
+		"light",
+
+		"SCREEN_WIDTH",
+		"SCREEN_HEIGHT",
+
+		"TRANSMITTANCE_TEXTURE_WIDTH",
+		"TRANSMITTANCE_TEXTURE_HEIGHT",
+
+		"SCATTERING_TEXTURE_R_SIZE",
+		"SCATTERING_TEXTURE_MU_SIZE",
+		"SCATTERING_TEXTURE_MU_S_SIZE",
+		"SCATTERING_TEXTURE_NU_SIZE",
+
+		"SCATTERING_TEXTURE_WIDTH",
+		"SCATTERING_TEXTURE_HEIGHT",
+		"SCATTERING_TEXTURE_DEPTH",
+
+		"IRRADIANCE_TEXTURE_WIDTH",
+		"IRRADIANCE_TEXTURE_HEIGHT",
+
+		"EPIPOLAR_SLICE_NUM",
+		"EPIPOLAR_SAMPLE_NUM"
 	};
 
 	std::vector<std::string> ShaderResourceVarStr
 	{
 		"g_tex2DTransmittanceLUT",
+		"g_tex2DOpticalLengthLUT",
 		"g_tex2DDirectIrradianceLUT",
 		"g_tex2DIndirectIrradianceLUT",
 		"g_tex3DSingleScatteringLUT",

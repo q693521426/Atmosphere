@@ -17,8 +17,8 @@
 #endif  // _DEBUG
 
 Atmosphere*							m_pAtmosphere;
-int									screen_width = 1280;
-int									screen_height = 720;
+int									screen_width = 1920;
+int									screen_height = 1080;
 D3D11_VIEWPORT						g_viewport;
 D3DXMATRIX							g_World;
 D3DXMATRIX							g_View;
@@ -77,11 +77,12 @@ HRESULT CALLBACK OnD3D11ResizedSwapChain( ID3D11Device* pd3dDevice, IDXGISwapCha
 	g_viewport.Width = static_cast<float>(screen_width);
 	g_viewport.Height = static_cast<float>(screen_height);
 	float fAspect = g_viewport.Width / g_viewport.Height;
+	float fNear = 1, fFar = 1000;
 
 	g_pRenderTargetView = DXUTGetD3D11RenderTargetView();
 	g_pDepthStencilView = DXUTGetD3D11DepthStencilView();
 
-	m_pAtmosphere->Resize(screen_width, screen_height, D3DX_PI * 25.0f/180.0f, fAspect);
+	m_pAtmosphere->Resize(screen_width, screen_height, D3DX_PI * 25.0f/180.0f, fAspect,fNear,fFar);
     return S_OK;
 }
 

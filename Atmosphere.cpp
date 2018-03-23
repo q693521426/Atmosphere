@@ -63,12 +63,6 @@ void Atmosphere::Initialize()
 	constexpr double kMieSingleScatteringAlbedo = 0.9;
 	constexpr double kGroundAlbedo = 0.1;
 
-	//std::vector<float> solar_irradiance;
-	//std::vector<float> rayleigh_scatter;
-	//std::vector<float> mie_scatter;
-	//std::vector<float> mie_extinction;
-	//std::vector<float> absorption_extinction;	//ozone
-
 	auto lerp = [](double x,double y,double s)
 	{
 		return static_cast<float>(x*(1 - s) + y*s);
@@ -196,9 +190,33 @@ HRESULT Atmosphere::OnD3D11CreateDevice(ID3D11Device* pDevice, ID3D11DeviceConte
 	V_RETURN(GameObject::OnD3D11CreateDevice(pDevice, pContext, L"Atmosphere.fx", TechStr, VarStr, ShaderResourceVarStr));
 	V_RETURN(D3DX11CreateShaderResourceViewFromFile(pDevice, L"Texture/earth.tiff", nullptr, nullptr, &pEarthGroundSRV.p, nullptr));
 
+	SetTextureSize();
+
 	m_pCloud->OnD3D11CreateDevice(pDevice, pContext);
 
 	return hr;
+}
+
+
+void Atmosphere::SetTextureSize()
+{
+	VarMap["SCREEN_WIDTH"]->SetRawValue(&screen_width, 0, sizeof(int));
+	VarMap["SCREEN_HEIGHT"]->SetRawValue(&screen_height, 0, sizeof(int));
+
+	VarMap["TRANSMITTANCE_TEXTURE_WIDTH"]->SetRawValue(&TRANSMITTANCE_TEXTURE_WIDTH, 0, sizeof(int));
+	VarMap["TRANSMITTANCE_TEXTURE_HEIGHT"]->SetRawValue(&TRANSMITTANCE_TEXTURE_WIDTH, 0, sizeof(int));
+
+	VarMap["SCATTERING_TEXTURE_R_SIZE"]->SetRawValue(&SCATTERING_TEXTURE_R_SIZE, 0, sizeof(int));
+	VarMap["SCATTERING_TEXTURE_MU_SIZE"]->SetRawValue(&SCATTERING_TEXTURE_MU_SIZE, 0, sizeof(int));
+	VarMap["SCATTERING_TEXTURE_MU_S_SIZE"]->SetRawValue(&SCATTERING_TEXTURE_MU_S_SIZE, 0, sizeof(int));
+	VarMap["SCATTERING_TEXTURE_NU_SIZE"]->SetRawValue(&SCATTERING_TEXTURE_NU_SIZE, 0, sizeof(int));
+
+	VarMap["SCATTERING_TEXTURE_WIDTH"]->SetRawValue(&SCATTERING_TEXTURE_WIDTH, 0, sizeof(int));
+	VarMap["SCATTERING_TEXTURE_HEIGHT"]->SetRawValue(&SCATTERING_TEXTURE_HEIGHT, 0, sizeof(int));
+	VarMap["SCATTERING_TEXTURE_DEPTH"]->SetRawValue(&SCATTERING_TEXTURE_DEPTH, 0, sizeof(int));
+
+	VarMap["IRRADIANCE_TEXTURE_WIDTH"]->SetRawValue(&IRRADIANCE_TEXTURE_WIDTH, 0, sizeof(int));
+	VarMap["IRRADIANCE_TEXTURE_HEIGHT"]->SetRawValue(&IRRADIANCE_TEXTURE_HEIGHT, 0, sizeof(int));
 }
 
 
@@ -209,21 +227,15 @@ HRESULT Atmosphere::PreCompute(ID3D11Device* pDevice, ID3D11DeviceContext* pCont
 	if(!IsPreComputed)
 	{
 		V_RETURN(PreComputeTransmittanceTex2D(pDevice, pContext));
-
 		V_RETURN(PreComputeDirectIrradianceTex2D(pDevice, pContext));
-//#if CREATE_TEXTURE_DDS_TEST
-//		V_RETURN(PreComputeSingleSctrTex3D_Test(pDevice, pContext));
-//#endif
 		V_RETURN(PreComputeSingleSctrTex3D(pDevice, pContext));
 
 		for (int scatter_order = 2; scatter_order <= scatter_order_num; ++scatter_order)
 		{
 			V_RETURN(PreComputeInDirectIrradianceTex2D(pDevice, pContext, scatter_order - 1));
-//#if CREATE_TEXTURE_DDS_TEST
-//			V_RETURN(PreComputeMultiSctrTex3D_Test(pDevice, pContext, scatter_order));
-//#endif
 			V_RETURN(PreComputeMultiSctrTex3D(pDevice, pContext, scatter_order));
 		}
+		pContext->CopyResource(pMultiScatterTex3D, pSingleScatterTex3D);
 
 		m_pCloud->PreCompute(pDevice, pContext, pRTV);
 		
@@ -233,7 +245,7 @@ HRESULT Atmosphere::PreCompute(ID3D11Device* pDevice, ID3D11DeviceContext* pCont
 }
 
 
-void Atmosphere::Render(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, ID3D11RenderTargetView* pRTV)
+void Atmosphere::Render(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, ID3D11RenderTargetView* pRTV,ID3D11ShaderResourceView* depthSRV)
 {
 	//SetView(2.7e6, 0.81, 0.0, 1.57, 2.0, 10.0);
 	ID3DX11EffectTechnique* activeTech = TechMap["DrawGroundAndSkyTech"];
@@ -262,13 +274,14 @@ void Atmosphere::Render(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, ID
 	cameraParams.f3CameraDir = LookAt - EyePos;
 	D3DXVec3Normalize(&cameraParams.f3CameraDir, &cameraParams.f3CameraDir);
 
-	misc.scatter_order = 2;
+	misc.scatter_order = 1;
 
 	VarMap["atmosphere"]->SetRawValue(&atmosphereParams, 0, sizeof(AtmosphereParameters));
 	VarMap["misc"]->SetRawValue(&misc, 0, sizeof(MiscDynamicParams));
 	VarMap["camera"]->SetRawValue(&cameraParams, 0, sizeof(CameraParams));
 	VarMap["light"]->SetRawValue(&lightParams, 0, sizeof(LightParams));
 	ShaderResourceVarMap["g_tex2DTransmittanceLUT"]->SetResource(pTransmittanceSRV);
+	ShaderResourceVarMap["g_tex2DOpticalLengthLUT"]->SetResource(pOpticalLengthSRV);
 	ShaderResourceVarMap["g_tex2DDirectIrradianceLUT"]->SetResource(pDirectIrradianceSRV);
 	ShaderResourceVarMap["g_tex2DIndirectIrradianceLUT"]->SetResource(pIndirectIrradianceSRV);
 	ShaderResourceVarMap["g_tex3DSingleScatteringLUT"]->SetResource(pSingleScatterSRV);
@@ -309,6 +322,37 @@ HRESULT Atmosphere::PreComputeTransmittanceTex2D(ID3D11Device* pDevice, ID3D11De
 	//pContext->OMSetRenderTargets(0, nullptr, nullptr);
 #if CREATE_TEXTURE_DDS_TEST
 	V_RETURN(D3DX11SaveTextureToFile(pContext, pTransmittanceTex2D, D3DX11_IFF_DDS, L"Texture/Transmittance.dds"));
+#endif
+	return hr;
+}
+
+
+HRESULT Atmosphere::PreComputeOpticalLengthTex2D(ID3D11Device* pDevice, ID3D11DeviceContext* pContext)
+{
+	HRESULT hr = S_OK;
+
+	DXGI_FORMAT format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+
+	pOpticalLengthTex2D.Release();
+	pOpticalLengthSRV.Release();
+	CComPtr<ID3D11RenderTargetView>	pOpticalLengthRTV;
+	V_RETURN(CreateTexture2D(pDevice, pContext, TRANSMITTANCE_TEXTURE_WIDTH, TRANSMITTANCE_TEXTURE_HEIGHT, format,
+		&pOpticalLengthTex2D.p, &pOpticalLengthSRV.p, &pOpticalLengthRTV.p));
+
+	ID3DX11EffectTechnique* activeTech = TechMap["ComputeOpticalLengthTex2DTech"];
+
+	VarMap["atmosphere"]->SetRawValue(&atmosphereParams, 0, sizeof(AtmosphereParameters));
+
+	ID3D11RenderTargetView* pRTVs[] =
+	{
+		pOpticalLengthRTV.p,
+	};
+	pContext->OMSetRenderTargets(ARRAYSIZE(pRTVs), pRTVs, nullptr);
+
+	RenderQuad(pContext, activeTech, TRANSMITTANCE_TEXTURE_WIDTH, TRANSMITTANCE_TEXTURE_HEIGHT);
+	//pContext->OMSetRenderTargets(0, nullptr, nullptr);
+#if CREATE_TEXTURE_DDS_TEST
+	V_RETURN(D3DX11SaveTextureToFile(pContext, pTransmittanceTex2D, D3DX11_IFF_DDS, L"Texture/OpticalLength.dds"));
 #endif
 	return hr;
 }
@@ -362,6 +406,7 @@ HRESULT Atmosphere::PreComputeSingleSctrTex3D(ID3D11Device* pDevice, ID3D11Devic
 							{ &pSingleScatterSRV.p,&pSingleScatterCombinedSRV.p,&pSingleScatterMieSRV.p }));
 	
 	ShaderResourceVarMap["g_tex2DTransmittanceLUT"]->SetResource(pTransmittanceSRV);
+	ShaderResourceVarMap["g_tex2DOpticalLengthLUT"]->SetResource(pOpticalLengthSRV);
 
 	std::vector<CComPtr<ID3D11RenderTargetView>> pSingleScaterRTVs(SCATTERING_TEXTURE_DEPTH);
 	std::vector<CComPtr<ID3D11RenderTargetView>> pSingleScaterCombinedRTVs(SCATTERING_TEXTURE_DEPTH);
@@ -476,6 +521,7 @@ HRESULT Atmosphere::PreComputeMultiSctrTex3D(ID3D11Device* pDevice, ID3D11Device
 		ShaderResourceVarMap["g_tex3DMultiScatteringLUT"]->SetResource(pMultiScatterSRV);
 	}
 	ShaderResourceVarMap["g_tex2DTransmittanceLUT"]->SetResource(pTransmittanceSRV);
+	ShaderResourceVarMap["g_tex2DOpticalLengthLUT"]->SetResource(pOpticalLengthSRV);
 	ShaderResourceVarMap["g_tex3DSingleMieScatteringLUT"]->SetResource(pSingleScatterMieSRV);
 	ShaderResourceVarMap["g_tex3DSingleScatteringCombinedLUT"]->SetResource(pSingleScatterCombinedSRV);
 
@@ -549,191 +595,6 @@ HRESULT Atmosphere::PreComputeMultiSctrTex3D(ID3D11Device* pDevice, ID3D11Device
 
 	pMultiScatterCombinedTex3D = pTex3D[1];
 	pMultiScatterCombinedSRV = pSRV[1];
-
-	return hr;
-}
-
-
-HRESULT Atmosphere::PreComputeSingleSctrTex3D_Test(ID3D11Device* pDevice, ID3D11DeviceContext* pContext)
-{
-	HRESULT hr = S_OK;
-	DXGI_FORMAT format = DXGI_FORMAT_R16G16B16A16_FLOAT;
-
-	//D3D11_TEXTURE3D_DESC PreCompute3DTexDesc;
-	D3D11_TEXTURE2D_DESC PreCompute2DTexDesc;
-	ZeroMemory(&PreCompute2DTexDesc, sizeof(PreCompute2DTexDesc));
-	PreCompute2DTexDesc.Width = SCATTERING_TEXTURE_WIDTH;
-	PreCompute2DTexDesc.Height = SCATTERING_TEXTURE_HEIGHT;
-	//PreCompute3DTexDesc.Depth = SCATTERING_TEXTURE_DEPTH;
-	PreCompute2DTexDesc.MipLevels = 1;
-	PreCompute2DTexDesc.ArraySize = 1;//DEBUG 2D
-	PreCompute2DTexDesc.SampleDesc.Count = 1;//DEBUG 2D
-	PreCompute2DTexDesc.SampleDesc.Quality = 0;//DEBUG 2D
-	PreCompute2DTexDesc.Format = format;
-	PreCompute2DTexDesc.Usage = D3D11_USAGE_DEFAULT;
-	PreCompute2DTexDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
-	PreCompute2DTexDesc.CPUAccessFlags = 0;
-	PreCompute2DTexDesc.MiscFlags = 0;
-
-	CComPtr<ID3D11Texture2D> pSingleScatterTex2D;
-	CComPtr<ID3D11Texture2D> pSingleScatterCombinedTex2D;
-	CComPtr<ID3D11Texture2D> pSingleScatterMieTex2D;
-
-	V_RETURN(pDevice->CreateTexture2D(&PreCompute2DTexDesc, nullptr, &pSingleScatterTex2D));
-	V_RETURN(pDevice->CreateTexture2D(&PreCompute2DTexDesc, nullptr, &pSingleScatterCombinedTex2D));
-	V_RETURN(pDevice->CreateTexture2D(&PreCompute2DTexDesc, nullptr, &pSingleScatterMieTex2D));
-
-	CComPtr<ID3D11ShaderResourceView> pSingleScatterTestSRV;
-	CComPtr<ID3D11ShaderResourceView> pSingleScatterCombinedTestSRV;
-	CComPtr<ID3D11ShaderResourceView> pSingleScatterMieTestTestSRV;
-
-	V_RETURN(pDevice->CreateShaderResourceView(pSingleScatterTex2D, nullptr, &pSingleScatterTestSRV));
-	V_RETURN(pDevice->CreateShaderResourceView(pSingleScatterTex2D, nullptr, &pSingleScatterCombinedTestSRV));
-	V_RETURN(pDevice->CreateShaderResourceView(pSingleScatterTex2D, nullptr, &pSingleScatterMieTestTestSRV));
-
-	ShaderResourceVarMap["g_tex2DTransmittanceLUT"]->SetResource(pTransmittanceSRV);
-
-	std::vector<CComPtr<ID3D11RenderTargetView>> pSingleScatterRTVs(SCATTERING_TEXTURE_DEPTH);
-	std::vector<CComPtr<ID3D11RenderTargetView>> pSingleScatterCombinedRTVs(SCATTERING_TEXTURE_DEPTH);
-	std::vector<CComPtr<ID3D11RenderTargetView>> pSingleScatterMieRTVs(SCATTERING_TEXTURE_DEPTH);
-
-	MiscDynamicParams misc;
-	for (UINT depthSlice = 0; depthSlice < SCATTERING_TEXTURE_DEPTH; ++depthSlice)
-	{
-		V_RETURN(pDevice->CreateRenderTargetView(pSingleScatterTex2D, nullptr, &pSingleScatterRTVs[depthSlice]));
-		V_RETURN(pDevice->CreateRenderTargetView(pSingleScatterCombinedTex2D, nullptr, &pSingleScatterCombinedRTVs[depthSlice]));
-		V_RETURN(pDevice->CreateRenderTargetView(pSingleScatterMieTex2D, nullptr, &pSingleScatterMieRTVs[depthSlice]));
-
-		ID3DX11EffectTechnique* activeTech = TechMap["ComputeSingleScatterTex3DTech"];
-
-		VarMap["atmosphere"]->SetRawValue(&atmosphereParams, 0, sizeof(AtmosphereParameters));
-
-		
-		UINT uiW = depthSlice % SCATTERING_TEXTURE_MU_S_SIZE;
-		UINT uiQ = depthSlice / SCATTERING_TEXTURE_MU_S_SIZE;
-		misc.f2WQ.x = ((float)uiW + 0.5f) / SCATTERING_TEXTURE_MU_S_SIZE;
-		assert(0 < misc.f2WQ.x && misc.f2WQ.x < 1);
-		misc.f2WQ.y = ((float)uiQ + 0.5f) / SCATTERING_TEXTURE_NU_SIZE;
-		assert(0 < misc.f2WQ.y && misc.f2WQ.y < 1);
-		VarMap["misc"]->SetRawValue(&misc, 0, sizeof(MiscDynamicParams));
-
-		ID3D11RenderTargetView* pRTVs[] =
-		{
-			pSingleScatterRTVs[depthSlice].p,
-			pSingleScatterCombinedRTVs[depthSlice].p,
-			pSingleScatterMieRTVs[depthSlice].p
-		};
-
-		UINT size = ARRAYSIZE(pRTVs);
-		for (UINT i = 0; i < size; ++i)
-		{
-			float zero[] = { 0.f, 0.f,0.f,0.f };
-			pContext->ClearRenderTargetView(pRTVs[i], zero);
-		}
-		pContext->OMSetRenderTargets(size, pRTVs, nullptr);
-
-		RenderQuad(pContext, activeTech, SCATTERING_TEXTURE_WIDTH, SCATTERING_TEXTURE_HEIGHT);
-		//pContext->OMSetRenderTargets(0, nullptr, nullptr);
-#if CREATE_TEXTURE_DDS_TEST
-		std::wstringstream ss;
-		ss << L"Texture/SingleScatter/SingleScatter_" << depthSlice<<".dds";
-		V_RETURN(D3DX11SaveTextureToFile(pContext, pSingleScatterTex2D, D3DX11_IFF_DDS, ss.str().c_str()));
-#endif
-	}
-	return hr;
-}
-
-
-HRESULT Atmosphere::PreComputeMultiSctrTex3D_Test(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, int scatter_order)
-{
-	HRESULT hr = S_OK;
-	DXGI_FORMAT format = DXGI_FORMAT_R16G16B16A16_FLOAT;
-
-	if (1 == scatter_order - 1)
-	{
-		ShaderResourceVarMap["g_tex3DSingleScatteringLUT"]->SetResource(pSingleScatterSRV);
-	}
-	else
-	{
-		ShaderResourceVarMap["g_tex3DMultiScatteringLUT"]->SetResource(pMultiScatterSRV);
-	}
-	ShaderResourceVarMap["g_tex2DTransmittanceLUT"]->SetResource(pTransmittanceSRV);
-	ShaderResourceVarMap["g_tex3DSingleMieScatteringLUT"]->SetResource(pSingleScatterMieSRV);
-	ShaderResourceVarMap["g_tex3DSingleScatteringCombinedLUT"]->SetResource(pSingleScatterCombinedSRV);
-
-	D3D11_TEXTURE2D_DESC PreCompute2DTexDesc;
-	ZeroMemory(&PreCompute2DTexDesc, sizeof(PreCompute2DTexDesc));
-	PreCompute2DTexDesc.Width = SCATTERING_TEXTURE_WIDTH;
-	PreCompute2DTexDesc.Height = SCATTERING_TEXTURE_HEIGHT;
-	//PreCompute3DTexDesc.Depth = SCATTERING_TEXTURE_DEPTH;
-	PreCompute2DTexDesc.MipLevels = 1;
-	PreCompute2DTexDesc.ArraySize = 1;//DEBUG 2D
-	PreCompute2DTexDesc.SampleDesc.Count = 1;//DEBUG 2D
-	PreCompute2DTexDesc.SampleDesc.Quality = 0;//DEBUG 2D
-	PreCompute2DTexDesc.Format = format;
-	PreCompute2DTexDesc.Usage = D3D11_USAGE_DEFAULT;
-	PreCompute2DTexDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
-	PreCompute2DTexDesc.CPUAccessFlags = 0;
-	PreCompute2DTexDesc.MiscFlags = 0;
-
-	CComPtr<ID3D11Texture2D> pMultiScatterTex2D;
-	CComPtr<ID3D11Texture2D> pMultiScatterCombinedTex2D;
-
-	V_RETURN(pDevice->CreateTexture2D(&PreCompute2DTexDesc, nullptr, &pMultiScatterTex2D));
-	V_RETURN(pDevice->CreateTexture2D(&PreCompute2DTexDesc, nullptr, &pMultiScatterCombinedTex2D));
-
-	std::vector<CComPtr<ID3D11RenderTargetView>> pMultiScatterRTVs(SCATTERING_TEXTURE_DEPTH);
-	std::vector<CComPtr<ID3D11ShaderResourceView>> pMultiScatterSRVs(SCATTERING_TEXTURE_DEPTH);
-	std::vector<CComPtr<ID3D11RenderTargetView>> pMultiScatterCombinedRTVs(SCATTERING_TEXTURE_DEPTH);
-	std::vector<CComPtr<ID3D11ShaderResourceView>> pMultiScatterCombinedSRVs(SCATTERING_TEXTURE_DEPTH);
-	MiscDynamicParams misc;
-	for (UINT depthSlice = 0; depthSlice<SCATTERING_TEXTURE_DEPTH; ++depthSlice)
-	{
-		V_RETURN(pDevice->CreateShaderResourceView(pMultiScatterTex2D, nullptr, &pMultiScatterSRVs[depthSlice]));
-		V_RETURN(pDevice->CreateRenderTargetView(pMultiScatterTex2D, nullptr, &pMultiScatterRTVs[depthSlice]));
-
-		V_RETURN(pDevice->CreateShaderResourceView(pMultiScatterCombinedTex2D, nullptr, &pMultiScatterCombinedSRVs[depthSlice]));
-		V_RETURN(pDevice->CreateRenderTargetView(pMultiScatterCombinedTex2D, nullptr, &pMultiScatterCombinedRTVs[depthSlice]));
-
-		ID3DX11EffectTechnique* activeTech = TechMap["ComputeMultiScatterTex3DTech"];
-
-		VarMap["atmosphere"]->SetRawValue(&atmosphereParams, 0, sizeof(AtmosphereParameters));
-
-		misc.scatter_order = scatter_order;
-		UINT uiW = depthSlice % SCATTERING_TEXTURE_MU_S_SIZE;
-		UINT uiQ = depthSlice / SCATTERING_TEXTURE_MU_S_SIZE;
-		misc.f2WQ.x = ((float)uiW + 0.5f) / SCATTERING_TEXTURE_MU_S_SIZE;
-		assert(0 < misc.f2WQ.x && misc.f2WQ.x < 1);
-		misc.f2WQ.y = ((float)uiQ + 0.5f) / SCATTERING_TEXTURE_NU_SIZE;
-		assert(0 < misc.f2WQ.y && misc.f2WQ.y < 1);
-		VarMap["misc"]->SetRawValue(&misc, 0, sizeof(MiscDynamicParams));
-
-		ID3D11RenderTargetView* pRTVs[] =
-		{
-			pMultiScatterRTVs[depthSlice].p,
-			pMultiScatterCombinedRTVs[depthSlice].p
-		};
-
-		UINT size = ARRAYSIZE(pRTVs);
-		for (UINT i = 0; i<size; ++i)
-		{
-			float zero[] = { 0.f, 0.f,0.f,0.f };
-			pContext->ClearRenderTargetView(pRTVs[i], zero);
-		}
-		pContext->OMSetRenderTargets(size, pRTVs, nullptr);
-
-		RenderQuad(pContext, activeTech, SCATTERING_TEXTURE_WIDTH, SCATTERING_TEXTURE_HEIGHT);
-		//pContext->OMSetRenderTargets(0, nullptr, nullptr);
-#if CREATE_TEXTURE_DDS_TEST
-		std::wstringstream ss;
-		ss << "Texture/MultiScatter/scatter_order_" << scatter_order<<"/"<< "MultiScatter_" <<depthSlice << ".dds";
-		V_RETURN(D3DX11SaveTextureToFile(pContext, pMultiScatterTex2D, D3DX11_IFF_DDS, ss.str().c_str()));
-		ss.str(L"");
-		ss.clear();
-		ss << "Texture/MultiScatter/scatter_order_" << scatter_order << "/" << "MultiScatter_Combined_" << depthSlice << ".dds";
-		V_RETURN(D3DX11SaveTextureToFile(pContext, pMultiScatterCombinedTex2D, D3DX11_IFF_DDS, ss.str().c_str()));
-#endif
-	}
 
 	return hr;
 }
@@ -835,17 +696,20 @@ void Atmosphere::OnFrameMove(double fTime, float fElapsedTime)
 }
 
 
-void Atmosphere::Resize(int screen_width, int screen_height, FLOAT fFOV, FLOAT fAspect)
+void Atmosphere::Resize(int screen_width, int screen_height, float fFOV, float fAspect, float fNear, float fFar)
 {
 	this->screen_width = screen_width;
 	this->screen_height = screen_height;
 
-	//m_FirstPersonCamera.SetProjParams(fFOV, fAspect, 1, 1e20);
-	//D3DXMATRIX Proj = *m_FirstPersonCamera.GetProjMatrix();
-	//float det = D3DXMatrixDeterminant(&Proj);
-	//D3DXMatrixInverse(&InvProj, &det, &Proj);
-	InvProj = D3DXMATRIX(fFOV * fAspect, 0.0, 0.0, 0.0,
-		0.0, fFOV, 0.0, 0.0,
-		0.0, 0.0, 0.0, -1,
-		0.0, 0.0, 1.0, 1);
+	VarMap["SCREEN_WIDTH"]->SetRawValue(&screen_width, 0, sizeof(int));
+	VarMap["SCREEN_HEIGHT"]->SetRawValue(&screen_height, 0, sizeof(int));
+
+	m_FirstPersonCamera.SetProjParams(fFOV, fAspect, fNear, fFar);
+	D3DXMATRIX Proj = *m_FirstPersonCamera.GetProjMatrix();
+	float det = D3DXMatrixDeterminant(&Proj);
+	D3DXMatrixInverse(&InvProj, &det, &Proj);
+	//InvProj = D3DXMATRIX(fFOV * fAspect, 0.0, 0.0, 0.0,
+	//	0.0, fFOV, 0.0, 0.0,
+	//	0.0, 0.0, 0.0, -1,
+	//	0.0, 0.0, 1.0, 1);
 }

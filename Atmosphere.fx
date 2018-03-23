@@ -124,12 +124,34 @@ float2 GetTransmittanceUVFromRMu(float r, float mu)
                     GetTextureCoordFromUnitRange(r_x, TRANSMITTANCE_TEXTURE_HEIGHT));
 }
 
+float3 ComputeOpticalToTopAtmosphereBoundaryTexture(QuadVertexOut In) : SV_Target
+{
+    float2 f2UV = ProjToUV(In.m_f2PosPS);
+    float2 RMu = GetRMuFromTransmittanceUV(f2UV);
+    
+    return ComputeOpticalLengthToTopAtmosphereBoundary(RMu.x, RMu.y);
+}
+
 float3 ComputeTransmittanceToTopAtmosphereBoundaryTexture(QuadVertexOut In) : SV_Target
 {
     float2 f2UV = ProjToUV(In.m_f2PosPS);
     float2 RMu = GetRMuFromTransmittanceUV(f2UV);
     
     return ComputeTransmittanceToTopAtmosphereBoundary(RMu.x, RMu.y);
+}
+
+technique11 ComputeOpticalLengthTex2DTech
+{
+    pass P0
+    {
+        SetBlendState(NoBlending, float4(0.0f, 0.0f, 0.0f, 0.0f), 0xFFFFFFFF);
+        SetRasterizerState(RS_SolidFill_NoCull);
+        SetDepthStencilState(DSS_NoDepthTest, 0);
+
+        SetVertexShader(CompileShader(vs_5_0, GenerateScreenSizeQuadVS()));
+        SetGeometryShader(NULL);
+        SetPixelShader(CompileShader(ps_5_0, ComputeOpticalToTopAtmosphereBoundaryTexture()));
+    }
 }
 
 technique11 ComputeTransmittanceTex2DTech
@@ -148,36 +170,20 @@ technique11 ComputeTransmittanceTex2DTech
 
 float3 GetTransmittanceToTopAtmosphereBoundary(float r, float mu)
 {
-    //float mu_horizon = -sqrt(r * r - atmosphere.bottom_radius * atmosphere.bottom_radius) / r;
-    //if (abs(mu - mu_horizon) < 0.2)
-    //{
-    //    const int SAMPLE_COUNT = 128;
-    //    float dx = DistanceToTopAtmosphereBoundary(r, mu) / float(SAMPLE_COUNT);
-    //    float3 result = 0.f;
-    //    for (int i = 0; i <= SAMPLE_COUNT; i++)
-    //    {
-    //        float d = dx * i;
-    //        float r_d = sqrt(r * r + d * d + 2 * r * d * mu);
-
-    //        float altitude = r_d - atmosphere.bottom_radius;
-    //        float rayleigh = GetLayerDensity(atmosphere.rayleigh_density, altitude);
-    //        float mie = GetLayerDensity(atmosphere.mie_density, altitude);
-    //        float ozone = altitude < atmosphere.ozone_width ?
-    //                            GetLayerDensity(atmosphere.ozone_density[0], altitude) :
-    //                              GetLayerDensity(atmosphere.ozone_density[1], altitude);
-    
-    //        float weight = (i == 0 || i == SAMPLE_COUNT) ? 0.5 : 1.0;
-    
-    //        result += weight * float3(rayleigh, mie, ozone);
-    //    }
-    //    result *= dx;
-    //    return exp(-(atmosphere.rayleigh_scattering * result.x +
-    //             atmosphere.mie_extinction * result.y +
-    //             atmosphere.absorption_extinction * result.z));
-    //}
-
     float2 uv = GetTransmittanceUVFromRMu(r, mu);
+#if !USE_OPTICAL_LUT
     return g_tex2DTransmittanceLUT.SampleLevel(samLinearClamp, uv,0);
+#endif
+    float3 optical_length = g_tex2DOpticalLengthLUT.SampleLevel(samLinearClamp, uv, 0);
+#if USE_OZONE_DENSITY
+    return exp(-(atmosphere.rayleigh_scattering * optical_length.x +
+                 atmosphere.mie_extinction * optical_length.y +
+                 atmosphere.absorption_extinction * optical_length.z));
+#else
+   return exp(-(atmosphere.rayleigh_scattering * optical_length.x +
+                atmosphere.mie_extinction * optical_length.y));
+#endif
+
 }
 
 float3 GetTransmittance(float r, float mu, float r_d, float mu_d, bool ray_r_mu_intersects_ground)
@@ -382,7 +388,7 @@ SingleScatterOutput ComputeSingleScatteringTexture(QuadVertexOut In) : SV_Target
         float mu_d = CosClamp((d + r * mu) / r_d);
         float mu_s_d = CosClamp((r * mu_s + d * nu) / r_d);
         float altitude_d = max(r_d - atmosphere.bottom_radius, 1e-20);
-        
+
         float rayleigh_density = GetLayerDensity(atmosphere.rayleigh_density, altitude_d);
         float mie_density = GetLayerDensity(atmosphere.mie_density, altitude_d);
         float ozone_density = altitude_d < atmosphere.ozone_width ?
@@ -391,7 +397,9 @@ SingleScatterOutput ComputeSingleScatteringTexture(QuadVertexOut In) : SV_Target
         float3 density = float3(rayleigh_density, mie_density, ozone_density);
         total_density += (pre_density + density) * dx / 2;
         pre_density = density;
-#if USE_TRANSMITTANCE_ANALYTIC
+#if USE_OPTICAL_LUT       
+        transmittance_cam = GetTransmittance(r, mu, r_d, mu_d, ray_r_mu_intersects_ground);
+#elif USE_TRANSMITTANCE_ANALYTIC
         if(i==0)
             transmittance_cam = 1;
         else
@@ -642,7 +650,9 @@ MultiScatterOutput ComputeMultiScatteringTexture(QuadVertexOut In) : SV_Target
         float3 density = float3(rayleigh_density, mie_density, ozone_density);
         total_density += (pre_density + density) * dx / 2;
         pre_density = density;
-#if USE_TRANSMITTANCE_ANALYTIC
+#if USE_OPTICAL_LUT       
+        transmittance_cam = GetTransmittance(r, mu, r_d, mu_d, ray_r_mu_intersects_ground);
+#elif USE_TRANSMITTANCE_ANALYTIC
         if (i == 0)
             transmittance_cam = 1;
         else
@@ -850,7 +860,7 @@ float3 GetSkyMultiScatter(float r, float mu, float mu_s, float nu)
     if(misc.scatter_order==1)
         return GetScattering(r,mu,mu_s,nu,1);
     else
-        return GetScattering(r,mu,mu_s,nu,1)+GetScattering(r,mu,mu_s,nu,2);
+        return GetScattering(r,mu,mu_s,nu,2);
 #endif
 }
 

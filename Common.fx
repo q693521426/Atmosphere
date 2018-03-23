@@ -1,27 +1,10 @@
 static const float PI = 3.141592654f;
 
-static const int TRANSMITTANCE_TEXTURE_WIDTH = 256; //mu
-static const int TRANSMITTANCE_TEXTURE_HEIGHT = 64; //r
-
-static const int SCATTERING_TEXTURE_R_SIZE = 32;
-static const int SCATTERING_TEXTURE_MU_SIZE = 128;
-static const int SCATTERING_TEXTURE_MU_S_SIZE = 32;
-static const int SCATTERING_TEXTURE_NU_SIZE = 8;
-
-static const int SCATTERING_TEXTURE_WIDTH = SCATTERING_TEXTURE_R_SIZE;
-static const int SCATTERING_TEXTURE_HEIGHT = SCATTERING_TEXTURE_MU_SIZE;
-static const int SCATTERING_TEXTURE_DEPTH = SCATTERING_TEXTURE_NU_SIZE * SCATTERING_TEXTURE_MU_S_SIZE;
-
-static const int IRRADIANCE_TEXTURE_WIDTH = 64;
-static const int IRRADIANCE_TEXTURE_HEIGHT = 16;
-
-// The conversion factor between watts and lumens.
-static const float MAX_LUMINOUS_EFFICACY = 683.0;
-
 #define USE_LUT_PARAMETERIZATION 1
 #define USE_TRANSMITTANCE_ANALYTIC 0
 #define USE_OZONE_DENSITY 1
 #define USE_SCATTER_COMBINED    1
+#define USE_OPTICAL_LUT    0
 
 SamplerState samLinearClamp
 {
@@ -159,7 +142,32 @@ struct QuadVertexOut
     float m_fInstID : InstanceID;
 };
 
+cbuffer cbTextureDim
+{
+    int SCREEN_WIDTH;
+    int SCREEN_HEIGHT;
+
+    int TRANSMITTANCE_TEXTURE_WIDTH; //mu
+    int TRANSMITTANCE_TEXTURE_HEIGHT; //r
+
+    int SCATTERING_TEXTURE_R_SIZE;
+    int SCATTERING_TEXTURE_MU_SIZE;
+    int SCATTERING_TEXTURE_MU_S_SIZE;
+    int SCATTERING_TEXTURE_NU_SIZE;
+
+    int SCATTERING_TEXTURE_WIDTH;
+    int SCATTERING_TEXTURE_HEIGHT;
+    int SCATTERING_TEXTURE_DEPTH;
+
+    int IRRADIANCE_TEXTURE_WIDTH;
+    int IRRADIANCE_TEXTURE_HEIGHT;
+
+    int EPIPOLAR_SLICE_NUM;
+    int EPIPOLAR_SAMPLE_NUM;
+};
+
 Texture2D<float3> g_tex2DTransmittanceLUT;
+Texture2D<float3> g_tex2DOpticalLengthLUT;
 Texture2D<float3> g_tex2DDirectIrradianceLUT;
 Texture2D<float3> g_tex2DIndirectIrradianceLUT;
 
@@ -171,6 +179,11 @@ Texture3D<float4> g_tex3DSingleScatteringCombinedLUT;
 Texture3D<float4> g_tex3DMultiScatteringCombinedLUT;
 
 Texture2D<float4> g_tex2DEarthGround;
+
+Texture2D<float> g_tex2DSpaceLinerDepth;
+Texture2D<float4> g_tex2DSliceEnd;
+
+
 
 QuadVertexOut GenerateScreenSizeQuadVS(in uint VertexId : SV_VertexID,
                                                  in uint InstID : SV_InstanceID)
