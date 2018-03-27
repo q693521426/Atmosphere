@@ -8,7 +8,7 @@
 #include "Common.h"
 #include "Cloud.h"
 
-#define CREATE_TEXTURE_DDS_TEST 0
+#define CREATE_TEXTURE_DDS_TEST 1
 
 struct DensityProfileLayer
 {
@@ -60,6 +60,8 @@ public:
 
 	HRESULT OnD3D11CreateDevice(ID3D11Device*, ID3D11DeviceContext*);
 	void SetTextureSize();
+	void SetCameraParams();
+	void SetLightParams();
 
 	HRESULT PreCompute(ID3D11Device*, ID3D11DeviceContext*, ID3D11RenderTargetView*);
 	void Render(ID3D11Device*, ID3D11DeviceContext*, ID3D11RenderTargetView*, ID3D11ShaderResourceView* depthSRV=nullptr);
@@ -67,6 +69,10 @@ public:
 	void MsgProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
 	void OnFrameMove(double fTime, float fElapsedTime);
+
+	D3DXVECTOR3 GetSunDir();
+
+	float GetCameraHeight();
 private:
 	CFirstPersonCamera					m_FirstPersonCamera;
 	Cloud*								m_pCloud;
@@ -95,6 +101,16 @@ private:
 	HRESULT PreComputeSingleSctrTex3D(ID3D11Device*, ID3D11DeviceContext*);
 	HRESULT PreComputeInDirectIrradianceTex2D(ID3D11Device*, ID3D11DeviceContext*,int);
 	HRESULT PreComputeMultiSctrTex3D(ID3D11Device*, ID3D11DeviceContext*,int);
+
+	HRESULT ComputeSpaceLinearDepthTex2D(ID3D11Device*, ID3D11DeviceContext*, ID3D11ShaderResourceView*);
+	HRESULT ComputeSliceEndTex1D(ID3D11Device*, ID3D11DeviceContext*);
+	HRESULT ComputeEpipolarCoordTex2D(ID3D11Device*, ID3D11DeviceContext*);
+	HRESULT RefineSampleLocal(ID3D11Device*, ID3D11DeviceContext*);
+	HRESULT Build1DMinMaxMipMap(ID3D11Device*, ID3D11DeviceContext*);
+	HRESULT MarkRayMarchSample(ID3D11Device*, ID3D11DeviceContext*);
+	HRESULT DoRayMarch(ID3D11Device*, ID3D11DeviceContext*);
+	HRESULT InterpolateScatter(ID3D11Device*, ID3D11DeviceContext*);
+	HRESULT ApplyInterpolateScatter(ID3D11Device*, ID3D11DeviceContext*);
 
 	int TRANSMITTANCE_TEXTURE_WIDTH = 256;    //mu
 	int TRANSMITTANCE_TEXTURE_HEIGHT = 64;    //r
@@ -149,7 +165,7 @@ private:
 	CComPtr<ID3D11Texture2D>							pSpaceLinearDepthTex2D;
 	CComPtr<ID3D11ShaderResourceView>					pSpaceLinearDepthSRV;
 	
-	CComPtr<ID3D11Texture2D>							pSliceEndTex2D;
+	CComPtr<ID3D11Texture2D>							pSliceEndTex1D;
 	CComPtr<ID3D11ShaderResourceView>					pSliceEndSRV;
 	
 	CComPtr<ID3D11Texture2D>							pEpipolarSampleTex2D;
@@ -181,10 +197,9 @@ private:
 		"DrawGroundAndSkyTech",
 
 		"ComputeSpaceLinearDepthTex2DTech",
-		"ComputeSliceEndTex2DTech",
+		"ComputeSliceEndTex1DTech",
 		"ComputeEpipolarCoordTex2DTech",
 		"RefineSampleLocalTech",
-
 		"Build1DMinMaxMipMapTech",
 		"MarkRayMarchSampleTech",
 		"DoRayMarchTech",
@@ -234,7 +249,17 @@ private:
 		"g_tex3DSingleScatteringCombinedLUT",
 		"g_tex3DMultiScatteringCombinedLUT",
 
-		"g_tex2DEarthGround"
+		"g_tex2DEarthGround",
+
+		"g_tex2DSpaceDepth",
+		"g_tex2DSpaceLinearDepth",
+		"g_tex1DSliceEnd",
+		"g_tex2DEpipolarSample",
+		"g_tex2DEpipolarSampleDepth",
+		"g_tex2DInterpolationSample",
+		"g_tex2DSliceUVOrigDir",
+		"g_tex2DScatter",
+		"g_texInterpolatedScatter"
 	};
 };
 

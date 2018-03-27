@@ -5,6 +5,8 @@ static const float PI = 3.141592654f;
 #define USE_OZONE_DENSITY 1
 #define USE_SCATTER_COMBINED    1
 #define USE_OPTICAL_LUT    0
+#define FLT_MAX 3.402823466e+38f
+
 
 SamplerState samLinearClamp
 {
@@ -180,9 +182,15 @@ Texture3D<float4> g_tex3DMultiScatteringCombinedLUT;
 
 Texture2D<float4> g_tex2DEarthGround;
 
-Texture2D<float> g_tex2DSpaceLinerDepth;
-Texture2D<float4> g_tex2DSliceEnd;
-
+Texture2D<float>  g_tex2DSpaceDepth;
+Texture2D<float>  g_tex2DSpaceLinearDepth;
+Texture1D<float4> g_tex1DSliceEnd;
+Texture2D<float4> g_tex2DEpipolarSample;
+Texture2D<float4> g_tex2DEpipolarSampleDepth;
+Texture2D<float4> g_tex2DInterpolationSample;
+Texture2D<float4> g_tex2DSliceUVOrigDir;
+Texture2D<float4> g_tex2DScatter;
+Texture2D<float4> g_texInterpolatedScatter;
 
 
 QuadVertexOut GenerateScreenSizeQuadVS(in uint VertexId : SV_VertexID,

@@ -171,9 +171,9 @@ technique11 ComputeTransmittanceTex2DTech
 float3 GetTransmittanceToTopAtmosphereBoundary(float r, float mu)
 {
     float2 uv = GetTransmittanceUVFromRMu(r, mu);
-#if !USE_OPTICAL_LUT
-    return g_tex2DTransmittanceLUT.SampleLevel(samLinearClamp, uv,0);
-#endif
+//#if !USE_OPTICAL_LUT
+//    return g_tex2DTransmittanceLUT.SampleLevel(samLinearClamp, uv,0);
+//#endif
     float3 optical_length = g_tex2DOpticalLengthLUT.SampleLevel(samLinearClamp, uv, 0);
 #if USE_OZONE_DENSITY
     return exp(-(atmosphere.rayleigh_scattering * optical_length.x +
@@ -672,11 +672,6 @@ MultiScatterOutput ComputeMultiScatteringTexture(QuadVertexOut In) : SV_Target
         transmittance_cam = exp(-(atmosphere.rayleigh_scattering * total_density.x +
                                     atmosphere.mie_extinction * total_density.y));
 #endif
-        //float weight = (i == 0 || i == SAMPLE_COUNT) ? 0.5 : 1.0;
-        
-        //transmittance = GetTransmittance(r, mu, r_d, mu_d, ray_r_mu_intersects_ground);
-        //transmittance = GetTransmittanceIntegralAnalytic(r, mu, d);
-        //float3 res = weight * transmittance * scatter_density;
         
         float3 res = transmittance_cam * scatter_density;
         rayleigh_mie += res;
@@ -1028,5 +1023,103 @@ technique11 DrawGroundAndSkyTech
         SetVertexShader(CompileShader(vs_5_0, GenerateScreenSizeQuadVS()));
         SetGeometryShader(NULL);
         SetPixelShader(CompileShader(ps_5_0, DrawGroundAndSky()));
+    }
+}
+
+float ComputeSpaceLinearDepthTex2D(QuadVertexOut In) : SV_Target
+{
+    float depth = g_tex2DSpaceDepth.Load(int3(In.m_f4Pos.xy, 0));
+    return camera.Proj[3][2] / (depth - camera.Proj[2][2]);
+}
+
+technique11 ComputeSpaceLinearDepthTex2DTech
+{
+    pass P0
+    {
+        SetBlendState(NoBlending, float4(0.0f, 0.0f, 0.0f, 0.0f), 0xFFFFFFFF);
+        SetRasterizerState(RS_SolidFill_NoCull);
+        SetDepthStencilState(DSS_NoDepthTest, 0);
+
+        SetVertexShader(CompileShader(vs_5_0, GenerateScreenSizeQuadVS()));
+        SetGeometryShader(NULL);
+        SetPixelShader(CompileShader(ps_5_0, ComputeSpaceLinearDepthTex2D()));
+    }
+}
+
+bool IsValidScreenLocation(in float2 f2XY)
+{
+    const float SAFETY_EPSILON = 0.2f;
+    return all(abs(f2XY) <= 1.f - (1.f - SAFETY_EPSILON) / float2(SCREEN_WIDTH, SCREEN_HEIGHT));
+}
+
+float4 INVALID_EPIPOLAR_LINE = float4(-1000, -1000, -100, -100);
+float4 ComputeSliceEndTex1D(QuadVertexOut In) : SV_Target
+{
+    float2 f2UV = ProjToUV(In.m_f2PosPS);
+    float fEpipolarSlice = GetUnitRangeFromTextureCoord(f2UV.x, EPIPOLAR_SLICE_NUM);
+
+    float4 f4ScreenPixelCoord = float4(-1, -1, 1, 1) + float4(1, 1, -1, -1) * float2(SCREEN_WIDTH, SCREEN_HEIGHT).xyxy;
+
+	uint uiBoundary = clamp(floor(fEpipolarSlice * 4), 0, 3);
+	float fPosOnBoundary = frac(fEpipolarSlice * 4);
+    uint4 ui4BoundaryFlags = uint4(uiBoundary.xxxx == uint4(0, 1, 2, 3));
+
+    float4 f4LightXYDistToBoundary = (light.f2LightScreenPos.xyxy - f4ScreenPixelCoord) * float4(1, 1, -1, -1);
+    uint4 ui4IsInvalidBoundary = uint4(f4LightXYDistToBoundary <= 0);
+    if (dot(ui4BoundaryFlags, ui4IsInvalidBoundary))
+        return INVALID_EPIPOLAR_LINE;
+
+    float4 f4BoundaryX = float4(0, fPosOnBoundary, 1, 1 - fPosOnBoundary);
+    float4 f4BoundaryY = float4(1 - fPosOnBoundary, 0, fPosOnBoundary, 1);
+    float2 f2SliceEndPos = float2(dot(f4BoundaryX, ui4BoundaryFlags), dot(f4BoundaryY, ui4BoundaryFlags));
+    f2SliceEndPos = lerp(f4ScreenPixelCoord.xy, f4ScreenPixelCoord.zw, f2SliceEndPos);
+
+    float2 f2SliceStartPos;
+    if (all(f4LightXYDistToBoundary >= 0))
+    {
+        f2SliceStartPos = light.f2LightScreenPos;
+    }
+    else
+    {
+        float2 f2RayDir = f2SliceEndPos - light.f2LightScreenPos;
+        float fRayLength = length(f2RayDir);
+        f2RayDir /= fRayLength;
+        
+        bool4 b4IsCorrectIntersectionFlag = abs(f2RayDir) > 1e-5;
+        float4 f4DistToBoundary = (f4ScreenPixelCoord - light.f2LightScreenPos.xyxy) / (f2RayDir.xyxy + !b4IsCorrectIntersectionFlag);
+        b4IsCorrectIntersectionFlag = b4IsCorrectIntersectionFlag && (f4DistToBoundary < (fRayLength - 1e-5));
+        f4DistToBoundary = b4IsCorrectIntersectionFlag * f4DistToBoundary +
+                            !b4IsCorrectIntersectionFlag * float4(-FLT_MAX, -FLT_MAX, -FLT_MAX, -FLT_MAX);
+        float fFirstIntersecDist = 0;
+        fFirstIntersecDist = max(fFirstIntersecDist, f4DistToBoundary.x);
+        fFirstIntersecDist = max(fFirstIntersecDist, f4DistToBoundary.y);
+        fFirstIntersecDist = max(fFirstIntersecDist, f4DistToBoundary.z);
+        fFirstIntersecDist = max(fFirstIntersecDist, f4DistToBoundary.w);
+
+        f2SliceStartPos = light.f2LightScreenPos + f2RayDir * fFirstIntersecDist;
+    }
+
+    if (IsValidScreenLocation(f2SliceStartPos))
+    {
+        // Compute length of the epipolar line in screen pixels:
+        float fEpipolarSliceScreenLen = length((f2SliceEndPos - f2SliceStartPos) * float2(SCREEN_WIDTH, SCREEN_HEIGHT) / 2);
+        // If epipolar line is too short, update epipolar line exit point to provide 1:1 texel to screen pixel correspondence:
+        f2SliceEndPos = f2SliceStartPos + (f2SliceEndPos - f2SliceStartPos) * max((float) EPIPOLAR_SAMPLE_NUM / fEpipolarSliceScreenLen, 1);
+    }
+
+    return float4(f2SliceStartPos, f2SliceEndPos);
+}
+
+technique11 ComputeSliceEndTex1DTech
+{
+    pass P0
+    {
+        SetBlendState(NoBlending, float4(0.0f, 0.0f, 0.0f, 0.0f), 0xFFFFFFFF);
+        SetRasterizerState(RS_SolidFill_NoCull);
+        SetDepthStencilState(DSS_NoDepthTest, 0);
+
+        SetVertexShader(CompileShader(vs_5_0, GenerateScreenSizeQuadVS()));
+        SetGeometryShader(NULL);
+        SetPixelShader(CompileShader(ps_5_0, ComputeSliceEndTex1D()));
     }
 }

@@ -7,6 +7,8 @@
 //--------------------------------------------------------------------------------------
 #include "DXUT.h"
 #include "Atmosphere.h"
+#include "Model/Model.h"
+#include "FrameBuffer.h"
 
 #ifdef _DEBUG 
 #define _CRTDBG_MAP_ALLOC
@@ -17,16 +19,33 @@
 #endif  // _DEBUG
 
 Atmosphere*							m_pAtmosphere;
+Model*								m_pModel;
+FrameBuffer*						m_pFrameBuffer;
 int									screen_width = 1920;
 int									screen_height = 1080;
 D3D11_VIEWPORT						g_viewport;
 D3DXMATRIX							g_World;
 D3DXMATRIX							g_View;
 D3DXMATRIX							g_Projection;
+float								m_EyeHeight = 0.f;	// Unit:m 
+float								m_ModelScaling = 1000.f;
+D3DXVECTOR3							g_Eye(10 * m_ModelScaling, m_EyeHeight, 20 * m_ModelScaling);
+D3DXVECTOR3							g_At(0.0f, m_EyeHeight, 20 * m_ModelScaling);
+DirectionalLight					g_DirectionalLight;
+CFirstPersonCamera					mCamera;
 ID3D11Device*						g_pd3dDevice = nullptr;
 ID3D11DeviceContext*				g_pd3dImmediateContext = nullptr;
 ID3D11RenderTargetView*				g_pRenderTargetView = nullptr;
 ID3D11DepthStencilView*				g_pDepthStencilView = nullptr;
+
+void UpdateMatrix()
+{
+	D3DXMatrixIdentity(&g_World);
+	g_View = *(mCamera.GetViewMatrix());
+	g_Projection = *(mCamera.GetProjMatrix());
+	g_Eye = *(mCamera.GetEyePt());
+}
+
 //--------------------------------------------------------------------------------------
 // Reject any D3D11 devices that aren't acceptable by returning false
 //--------------------------------------------------------------------------------------
@@ -56,9 +75,29 @@ HRESULT CALLBACK OnD3D11CreateDevice( ID3D11Device* pd3dDevice, const DXGI_SURFA
 
 	auto pContext = DXUTGetD3D11DeviceContext();
 
+	V_RETURN(RenderStates::Initialize(pd3dDevice));
+
+	g_DirectionalLight.Direction = D3DXVECTOR3(-10.0f, -3.0f, -1.0f);
+	g_DirectionalLight.Ambient = D3DXVECTOR4(0.05f, 0.05f, 0.05f, 1.0f);
+	g_DirectionalLight.Diffuse = D3DXVECTOR4(0.70f, 0.70f, 0.70f, 1.0f);
+	g_DirectionalLight.Specular = D3DXVECTOR4(0.70f, 0.70f, 0.70f, 0.70f);
+
+	D3DXMatrixIdentity(&g_World);
+	mCamera.SetViewParams(&g_Eye, &g_At);
+	g_View = *(mCamera.GetViewMatrix());
+
+	m_pModel = new Model();
+	m_pModel->Initialize();
+	m_pModel->SetModelHeight(m_EyeHeight);
+
+	m_pFrameBuffer = new FrameBuffer();
+	m_pFrameBuffer->Initialize();
+
 	m_pAtmosphere = new Atmosphere();
 	m_pAtmosphere->Initialize();
 
+	V_RETURN(m_pFrameBuffer->OnD3D11CreateDevice(pd3dDevice, pContext));
+	V_RETURN(m_pModel->OnD3D11CreateDevice(pd3dDevice, pContext));
 	V_RETURN(m_pAtmosphere->OnD3D11CreateDevice(pd3dDevice,pContext));
 
     return S_OK;
@@ -82,7 +121,12 @@ HRESULT CALLBACK OnD3D11ResizedSwapChain( ID3D11Device* pd3dDevice, IDXGISwapCha
 	g_pRenderTargetView = DXUTGetD3D11RenderTargetView();
 	g_pDepthStencilView = DXUTGetD3D11DepthStencilView();
 
-	m_pAtmosphere->Resize(screen_width, screen_height, D3DX_PI * 25.0f/180.0f, fAspect,fNear,fFar);
+	mCamera.SetProjParams(D3DX_PI * 0.25f, fAspect, 0.1f, 100.f*m_ModelScaling);
+	g_Projection = *(mCamera.GetProjMatrix());
+
+	m_pAtmosphere->Resize(screen_width, screen_height, D3DX_PI * 25.0f / 180.0f, fAspect, fNear, fFar);
+	m_pModel->Resize(pBackBufferSurfaceDesc);
+	m_pFrameBuffer->Resize(screen_width, screen_height);
     return S_OK;
 }
 
@@ -93,6 +137,7 @@ HRESULT CALLBACK OnD3D11ResizedSwapChain( ID3D11Device* pd3dDevice, IDXGISwapCha
 void CALLBACK OnFrameMove( double fTime, float fElapsedTime, void* pUserContext )
 {
 	m_pAtmosphere->OnFrameMove(fTime,fElapsedTime);
+	mCamera.FrameMove(fElapsedTime*1000);
 }
 
 
@@ -109,8 +154,23 @@ void CALLBACK OnD3D11FrameRender( ID3D11Device* pd3dDevice, ID3D11DeviceContext*
 	pd3dImmediateContext->ClearRenderTargetView(pRTV, ClearColor);
 	pd3dImmediateContext->ClearDepthStencilView(pDSV, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0, 0);
 
-	m_pAtmosphere->PreCompute(pd3dDevice, pd3dImmediateContext,pRTV);
-	m_pAtmosphere->Render(pd3dDevice, pd3dImmediateContext, pRTV);
+	//m_pAtmosphere->PreCompute(pd3dDevice, pd3dImmediateContext,pRTV);
+
+	m_pFrameBuffer->Activate();
+	m_pFrameBuffer->ActivateDepth(true);
+
+	pd3dImmediateContext->RSSetState(RenderStates::CullClockWiseRS);
+	UpdateMatrix();
+	m_pModel->SetWVP(g_World*g_View*g_Projection);
+	m_pModel->SetViewPos(g_Eye);
+	m_pModel->SetModelHeight(g_Eye.y);
+	m_pModel->SetLight(&g_DirectionalLight);
+	m_pModel->Render(pd3dDevice, pd3dImmediateContext);
+	pd3dImmediateContext->RSSetState(RenderStates::CullCounterClockWiseRS);
+
+	m_pFrameBuffer->DeactivateDepth();
+
+	m_pAtmosphere->Render(pd3dDevice, pd3dImmediateContext, pRTV, m_pFrameBuffer->GetDepthSRV());
 }
 
 
@@ -127,11 +187,24 @@ void CALLBACK OnD3D11ReleasingSwapChain( void* pUserContext )
 //--------------------------------------------------------------------------------------
 void CALLBACK OnD3D11DestroyDevice(void* pUserContext)
 {
+	RenderStates::Release();
 	if (m_pAtmosphere)
 	{
 		m_pAtmosphere->Release();
 		delete m_pAtmosphere;
 		m_pAtmosphere = nullptr;
+	}
+	if(m_pFrameBuffer)
+	{
+		m_pFrameBuffer->Release();
+		delete m_pFrameBuffer;
+		m_pFrameBuffer = nullptr;
+	}
+	if(m_pModel)
+	{
+		m_pModel->Release();
+		delete m_pModel;
+		m_pModel = nullptr;
 	}
 }
 
@@ -142,8 +215,16 @@ void CALLBACK OnD3D11DestroyDevice(void* pUserContext)
 LRESULT CALLBACK MsgProc( HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam,
                           bool* pbNoFurtherProcessing, void* pUserContext )
 {
-	if(m_pAtmosphere)
+	if (m_pAtmosphere)
+	{
 		m_pAtmosphere->MsgProc(hWnd, uMsg, wParam, lParam);
+		//g_Eye = D3DXVECTOR3(10 * m_ModelScaling, m_EyeHeight, 20 * m_ModelScaling);
+		//g_At = D3DXVECTOR3(0.0f, m_EyeHeight, 20 * m_ModelScaling);
+		//g_Eye.y = g_At.y = m_EyeHeight;
+		g_DirectionalLight.Direction = m_pAtmosphere->GetSunDir();
+	}
+	mCamera.HandleMessages(hWnd, uMsg, wParam, lParam);
+
     return 0;
 }
 
@@ -165,7 +246,6 @@ int WINAPI wWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdL
     // Enable run-time memory check for debug builds.
 #if defined(DEBUG) | defined(_DEBUG)
     _CrtSetDbgFlag( _CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF );
-	//_CrtSetBreakAlloc(463);
 #endif
 
     // DXUT will create and use the best device (either D3D9 or D3D11) 

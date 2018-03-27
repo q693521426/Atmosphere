@@ -220,13 +220,57 @@ void Atmosphere::SetTextureSize()
 }
 
 
+void Atmosphere::SetCameraParams()
+{
+	D3DXVECTOR3 EyePos = *m_FirstPersonCamera.GetEyePt();
+	D3DXVECTOR3 LookAt = *m_FirstPersonCamera.GetLookAtPt();
+
+	cameraParams.f3CameraPos = *m_FirstPersonCamera.GetEyePt();
+	D3DXMatrixTranspose(&cameraParams.View, m_FirstPersonCamera.GetViewMatrix());
+	D3DXMatrixTranspose(&cameraParams.Proj, m_FirstPersonCamera.GetProjMatrix());
+
+	float det = D3DXMatrixDeterminant(&cameraParams.View);
+	D3DXMATRIX InvView;
+	D3DXMatrixInverse(&InvView, &det, &cameraParams.View);
+
+	D3DXMATRIX InvViewProj;
+	InvViewProj = InvProj * InvView;
+	D3DXMatrixTranspose(&InvViewProj, &InvViewProj);
+	cameraParams.InvViewProj = InvViewProj;
+	cameraParams.f3CameraDir = LookAt - EyePos;
+	D3DXVec3Normalize(&cameraParams.f3CameraDir, &cameraParams.f3CameraDir);
+
+	VarMap["camera"]->SetRawValue(&cameraParams, 0, sizeof(CameraParams));
+}
+
+
+void Atmosphere::SetLightParams()
+{
+	lightParams.f3LightDir = GetSunDir();
+	D3DXVECTOR4 f4LightScreenPos;
+	D3DXMATRIX View = *m_FirstPersonCamera.GetViewMatrix();
+	D3DXMATRIX Proj = *m_FirstPersonCamera.GetProjMatrix();
+	D3DXMATRIX ViewProj = View * Proj;
+	D3DXVec3Transform(&f4LightScreenPos, &lightParams.f3LightDir, &ViewProj);
+	f4LightScreenPos /= f4LightScreenPos.w;
+	lightParams.f2LightScreenPos = D3DXVECTOR2(f4LightScreenPos.x, f4LightScreenPos.y);
+	float fDistLightToScreen = D3DXVec2Length(&lightParams.f2LightScreenPos);
+	float fMaxDist = 100;
+	if (fDistLightToScreen > 100)
+		lightParams.f2LightScreenPos *= fMaxDist / fDistLightToScreen;
+
+	VarMap["light"]->SetRawValue(&lightParams, 0, sizeof(LightParams));
+}
+
+
 HRESULT Atmosphere::PreCompute(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, ID3D11RenderTargetView* pRTV)
 {
 	HRESULT hr = S_OK;
 
 	if(!IsPreComputed)
 	{
-		V_RETURN(PreComputeTransmittanceTex2D(pDevice, pContext));
+		V_RETURN(PreComputeOpticalLengthTex2D(pDevice, pContext));
+		//V_RETURN(PreComputeTransmittanceTex2D(pDevice, pContext));
 		V_RETURN(PreComputeDirectIrradianceTex2D(pDevice, pContext));
 		V_RETURN(PreComputeSingleSctrTex3D(pDevice, pContext));
 
@@ -247,52 +291,31 @@ HRESULT Atmosphere::PreCompute(ID3D11Device* pDevice, ID3D11DeviceContext* pCont
 
 void Atmosphere::Render(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, ID3D11RenderTargetView* pRTV,ID3D11ShaderResourceView* depthSRV)
 {
-	//SetView(2.7e6, 0.81, 0.0, 1.57, 2.0, 10.0);
-	ID3DX11EffectTechnique* activeTech = TechMap["DrawGroundAndSkyTech"];
-	MiscDynamicParams misc;
-
-	D3DXVECTOR3 EyePos = *m_FirstPersonCamera.GetEyePt();
-	D3DXVECTOR3 LookAt = *m_FirstPersonCamera.GetLookAtPt();
-
-	cameraParams.f3CameraPos = *m_FirstPersonCamera.GetEyePt();
-	D3DXMATRIX View = *m_FirstPersonCamera.GetViewMatrix();
-	float det = D3DXMatrixDeterminant(&View);
-	D3DXMATRIX InvView;
-	D3DXMatrixInverse(&InvView, &det,&View);
-
-	D3DXMATRIX InvViewProj;
-	InvViewProj = InvProj * InvView;
-	D3DXMatrixTranspose(&InvViewProj, &InvViewProj);
-	cameraParams.InvViewProj = InvViewProj;
-	
-	float cos_sun_z = cos(sun_zenith_angle_radians);
-	float sin_sun_z = sin(sun_zenith_angle_radians);
-	float cos_sun_a = cos(sun_azimuth_angle_radians);
-	float sin_sun_a = sin(sun_azimuth_angle_radians);
-	lightParams.f3LightDir = D3DXVECTOR3(sin_sun_z*cos_sun_a, cos_sun_z, sin_sun_z*sin_sun_a);
-	
-	cameraParams.f3CameraDir = LookAt - EyePos;
-	D3DXVec3Normalize(&cameraParams.f3CameraDir, &cameraParams.f3CameraDir);
-
-	misc.scatter_order = 1;
-
+	SetCameraParams();
+	SetLightParams();
 	VarMap["atmosphere"]->SetRawValue(&atmosphereParams, 0, sizeof(AtmosphereParameters));
-	VarMap["misc"]->SetRawValue(&misc, 0, sizeof(MiscDynamicParams));
-	VarMap["camera"]->SetRawValue(&cameraParams, 0, sizeof(CameraParams));
-	VarMap["light"]->SetRawValue(&lightParams, 0, sizeof(LightParams));
-	ShaderResourceVarMap["g_tex2DTransmittanceLUT"]->SetResource(pTransmittanceSRV);
-	ShaderResourceVarMap["g_tex2DOpticalLengthLUT"]->SetResource(pOpticalLengthSRV);
-	ShaderResourceVarMap["g_tex2DDirectIrradianceLUT"]->SetResource(pDirectIrradianceSRV);
-	ShaderResourceVarMap["g_tex2DIndirectIrradianceLUT"]->SetResource(pIndirectIrradianceSRV);
-	ShaderResourceVarMap["g_tex3DSingleScatteringLUT"]->SetResource(pSingleScatterSRV);
-	ShaderResourceVarMap["g_tex3DMultiScatteringLUT"]->SetResource(pMultiScatterSRV);
-	ShaderResourceVarMap["g_tex3DSingleMieScatteringLUT"]->SetResource(pSingleScatterMieSRV);
-	ShaderResourceVarMap["g_tex3DSingleScatteringCombinedLUT"]->SetResource(pSingleScatterCombinedSRV);
-	ShaderResourceVarMap["g_tex3DMultiScatteringCombinedLUT"]->SetResource(pMultiScatterCombinedSRV);
-	ShaderResourceVarMap["g_tex2DEarthGround"]->SetResource(pEarthGroundSRV);
 
-	pContext->OMSetRenderTargets(1, &pRTV, nullptr);
-	RenderQuad(pContext, activeTech, screen_width, screen_height);
+	//ID3DX11EffectTechnique* activeTech = TechMap["DrawGroundAndSkyTech"];
+	//MiscDynamicParams misc;
+	//misc.scatter_order = 2;
+	//VarMap["misc"]->SetRawValue(&misc, 0, sizeof(MiscDynamicParams));
+
+	//ShaderResourceVarMap["g_tex2DTransmittanceLUT"]->SetResource(pTransmittanceSRV);
+	//ShaderResourceVarMap["g_tex2DOpticalLengthLUT"]->SetResource(pOpticalLengthSRV);
+	//ShaderResourceVarMap["g_tex2DDirectIrradianceLUT"]->SetResource(pDirectIrradianceSRV);
+	//ShaderResourceVarMap["g_tex2DIndirectIrradianceLUT"]->SetResource(pIndirectIrradianceSRV);
+	//ShaderResourceVarMap["g_tex3DSingleScatteringLUT"]->SetResource(pSingleScatterSRV);
+	//ShaderResourceVarMap["g_tex3DMultiScatteringLUT"]->SetResource(pMultiScatterSRV);
+	//ShaderResourceVarMap["g_tex3DSingleMieScatteringLUT"]->SetResource(pSingleScatterMieSRV);
+	//ShaderResourceVarMap["g_tex3DSingleScatteringCombinedLUT"]->SetResource(pSingleScatterCombinedSRV);
+	//ShaderResourceVarMap["g_tex3DMultiScatteringCombinedLUT"]->SetResource(pMultiScatterCombinedSRV);
+	//ShaderResourceVarMap["g_tex2DEarthGround"]->SetResource(pEarthGroundSRV);
+
+	//pContext->OMSetRenderTargets(1, &pRTV, nullptr);
+	//RenderQuad(pContext, activeTech, screen_width, screen_height);
+
+	ComputeSpaceLinearDepthTex2D(pDevice, pContext, depthSRV);
+	ComputeSliceEndTex1D(pDevice, pContext);
 }
 
 
@@ -600,6 +623,104 @@ HRESULT Atmosphere::PreComputeMultiSctrTex3D(ID3D11Device* pDevice, ID3D11Device
 }
 
 
+HRESULT Atmosphere::ComputeSpaceLinearDepthTex2D(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, ID3D11ShaderResourceView* depthSRV)
+{
+	HRESULT hr = S_OK;
+	ID3DX11EffectTechnique* activeTech = TechMap["ComputeSpaceLinearDepthTex2DTech"];
+
+	CComPtr<ID3D11RenderTargetView>	pRTV;
+
+	DXGI_FORMAT format = DXGI_FORMAT_R32_FLOAT;
+
+	pSpaceLinearDepthTex2D.Release();
+	pSpaceLinearDepthSRV.Release();
+	V_RETURN(CreateTexture2D(pDevice, pContext, screen_width,screen_height,format,
+				{ &pSpaceLinearDepthTex2D.p }, { &pSpaceLinearDepthSRV.p }, { &pRTV.p }));
+
+	ShaderResourceVarMap["g_tex2DSpaceDepth"]->SetResource(depthSRV);
+
+	pContext->OMSetRenderTargets(1, &pRTV.p, nullptr);
+	RenderQuad(pContext, activeTech, screen_width, screen_height);
+#if CREATE_TEXTURE_DDS_TEST
+	V_RETURN(D3DX11SaveTextureToFile(pContext, pSpaceLinearDepthTex2D, D3DX11_IFF_DDS, L"Texture/SpaceLinearDepth.dds"));
+#endif
+
+	return hr;
+}
+
+
+HRESULT Atmosphere::ComputeSliceEndTex1D(ID3D11Device* pDevice, ID3D11DeviceContext* pContext)
+{
+	HRESULT hr = S_OK;
+
+	ID3DX11EffectTechnique* activeTech = TechMap["ComputeSliceEndTex1DTech"];
+
+	CComPtr<ID3D11RenderTargetView>	pRTV;
+	DXGI_FORMAT format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+	pSliceEndTex1D.Release();
+	pSliceEndSRV.Release();
+	V_RETURN(CreateTexture2D(pDevice, pContext, EPIPOLAR_SLICE_NUM, 1, format,
+		{ &pSliceEndTex1D.p }, { &pSliceEndSRV.p }, { &pRTV.p }));
+
+	pContext->OMSetRenderTargets(1, &pRTV.p, nullptr);
+	RenderQuad(pContext, activeTech, EPIPOLAR_SLICE_NUM, 1);
+#if CREATE_TEXTURE_DDS_TEST
+	V_RETURN(D3DX11SaveTextureToFile(pContext, pSliceEndTex1D, D3DX11_IFF_DDS, L"Texture/pSliceEndTex.dds"));
+#endif
+
+	return hr;
+}
+
+
+HRESULT Atmosphere::ComputeEpipolarCoordTex2D(ID3D11Device* pDevice, ID3D11DeviceContext* pContext)
+{
+	HRESULT hr = S_OK;
+	return hr;
+}
+
+
+HRESULT Atmosphere::RefineSampleLocal(ID3D11Device* pDevice, ID3D11DeviceContext* pContext)
+{
+	HRESULT hr = S_OK;
+	return hr;
+}
+
+
+HRESULT Atmosphere::Build1DMinMaxMipMap(ID3D11Device* pDevice, ID3D11DeviceContext* pContext)
+{
+	HRESULT hr = S_OK;
+	return hr;
+}
+
+
+HRESULT Atmosphere::MarkRayMarchSample(ID3D11Device* pDevice, ID3D11DeviceContext* pContext)
+{
+	HRESULT hr = S_OK;
+	return hr;
+}
+
+
+HRESULT Atmosphere::DoRayMarch(ID3D11Device* pDevice, ID3D11DeviceContext* pContext)
+{
+	HRESULT hr = S_OK;
+	return hr;
+}
+
+
+HRESULT Atmosphere::InterpolateScatter(ID3D11Device* pDevice, ID3D11DeviceContext* pContext)
+{
+	HRESULT hr = S_OK;
+	return hr;
+}
+
+
+HRESULT Atmosphere::ApplyInterpolateScatter(ID3D11Device* pDevice, ID3D11DeviceContext* pContext)
+{
+	HRESULT hr = S_OK;
+	return hr;
+}
+
+
 void Atmosphere::SetView(float view_distance_meters, float view_zenith_angle_radians, float view_azimuth_angle_radians,
 							float sun_zenith_angle_radians, float sun_azimuth_angle_radians,float exposure)
 {
@@ -712,4 +833,20 @@ void Atmosphere::Resize(int screen_width, int screen_height, float fFOV, float f
 	//	0.0, fFOV, 0.0, 0.0,
 	//	0.0, 0.0, 0.0, -1,
 	//	0.0, 0.0, 1.0, 1);
+}
+
+
+D3DXVECTOR3 Atmosphere::GetSunDir()
+{
+	float cos_sun_z = cos(sun_zenith_angle_radians);
+	float sin_sun_z = sin(sun_zenith_angle_radians);
+	float cos_sun_a = cos(sun_azimuth_angle_radians);
+	float sin_sun_a = sin(sun_azimuth_angle_radians);
+	return D3DXVECTOR3(sin_sun_z*cos_sun_a, cos_sun_z, sin_sun_z*sin_sun_a);
+}
+
+
+float Atmosphere::GetCameraHeight()
+{
+	return view_distance_meters - atmosphereParams.bottom_radius;
 }

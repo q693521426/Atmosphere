@@ -93,8 +93,8 @@
     <LinkIncremental>true</LinkIncremental>
     <GenerateManifest>true</GenerateManifest>
     <ExecutablePath>$(DXSDK_DIR)Utilities\bin\x86;$(ExecutablePath)</ExecutablePath>
-    <IncludePath>$(IncludePath);$(DXSDK_DIR)Include;$(EFFECTSDK_DIR2015);</IncludePath>
-    <LibraryPath>$(LibraryPath);$(DXSDK_DIR)Lib\x86;$(EFFECTSDK_DIR2015);</LibraryPath>
+    <IncludePath>$(IncludePath);$(DXSDK_DIR)Include;$(EFFECTSDK_DIR2015);$(FBXSDK_DIR_VS2015)include;$(DXMESHSDK_DIR)</IncludePath>
+    <LibraryPath>$(LibraryPath);$(DXSDK_DIR)Lib\x86;$(EFFECTSDK_DIR2015);$(FBXSDK_DIR_VS2015)lib\vs2015\$(PlatformTarget)\$(Configuration);$(DXMESHSDK_DIR)Bin\Desktop_2015\Win32\Debug\</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|X64'">
     <LinkIncremental>true</LinkIncremental>
@@ -151,7 +151,7 @@
     </ClCompile>
     <Link>
       <AdditionalOptions> %(AdditionalOptions)</AdditionalOptions>
-      <AdditionalDependencies>d3dcompiler.lib;d3dx11d.lib;d3dx9d.lib;dxerr.lib;dxguid.lib;winmm.lib;comctl32.lib;legacy_stdio_definitions.lib;Effects11.lib;Effects11d.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>d3dcompiler.lib;d3dx11d.lib;d3dx9d.lib;dxerr.lib;dxguid.lib;winmm.lib;comctl32.lib;legacy_stdio_definitions.lib;Effects11.lib;Effects11d.lib;libfbxsdk-md.lib;DirectXMesh.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <LargeAddressAware>true</LargeAddressAware>
@@ -385,6 +385,12 @@
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="FrameBuffer.cpp" />
+    <ClCompile Include="Model\FBXLoader\CFBXLoader.cpp" />
+    <ClCompile Include="Model\FBXLoader\CFBXRendererDX11.cpp" />
+    <ClCompile Include="Model\FBXLoader\DDSTextureLoader.cpp" />
+    <ClCompile Include="Model\Model.cpp" />
+    <ClCompile Include="RenderStates.cpp" />
     <None Include="DXUT\Optional\directx.ico" />
     <ClInclude Include="Atmosphere.h" />
     <ClInclude Include="Cloud.h" />
@@ -424,6 +430,13 @@
     </None>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="FrameBuffer.h" />
+    <ClInclude Include="Model\FBXLoader\CFBXLoader.h" />
+    <ClInclude Include="Model\FBXLoader\CFBXRendererDX11.h" />
+    <ClInclude Include="Model\FBXLoader\DDSTextureLoader.h" />
+    <ClInclude Include="Model\Model.h" />
+    <ClInclude Include="Model\ModelConstants.h" />
+    <ClInclude Include="RenderStates.h" />
     <CLInclude Include="resource.h" />
     <ResourceCompile Include="Atmosphere.rc" />
   </ItemGroup>
@@ -436,6 +449,9 @@
     </None>
   </ItemGroup>
   <ItemGroup>
+    <None Include="Model\LoadModel.hlsl">
+      <FileType>Document</FileType>
+    </None>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets" />

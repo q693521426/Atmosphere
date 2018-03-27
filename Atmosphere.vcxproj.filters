@@ -8,6 +8,12 @@
     <Filter Include="DXUT">
       <UniqueIdentifier>{a43c5c25-0e86-4a20-b64a-883785ff74fd}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Model">
+      <UniqueIdentifier>{e27a60a0-a9f3-4af6-9045-4bc8b5244d6d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Model\FBXLoader">
+      <UniqueIdentifier>{1de3a802-d20a-4d1c-b0ec-d3ffecc1476a}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <None Include="DXUT\Optional\directx.ico">
@@ -76,12 +82,29 @@
     <None Include="Atmosphere.fx" />
     <None Include="Common.fx" />
     <None Include="Cloud.fx" />
+    <None Include="Model\LoadModel.hlsl">
+      <Filter>Model</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Atmosphere.cpp" />
     <ClCompile Include="Cloud.cpp" />
     <ClCompile Include="Common.cpp" />
+    <ClCompile Include="Model\Model.cpp">
+      <Filter>Model</Filter>
+    </ClCompile>
+    <ClCompile Include="Model\FBXLoader\CFBXLoader.cpp">
+      <Filter>Model\FBXLoader</Filter>
+    </ClCompile>
+    <ClCompile Include="Model\FBXLoader\CFBXRendererDX11.cpp">
+      <Filter>Model\FBXLoader</Filter>
+    </ClCompile>
+    <ClCompile Include="Model\FBXLoader\DDSTextureLoader.cpp">
+      <Filter>Model\FBXLoader</Filter>
+    </ClCompile>
+    <ClCompile Include="FrameBuffer.cpp" />
+    <ClCompile Include="RenderStates.cpp" />
   </ItemGroup>
   <ItemGroup>
     <CLInclude Include="resource.h">
@@ -93,5 +116,22 @@
     <ClInclude Include="Atmosphere.h" />
     <ClInclude Include="Common.h" />
     <ClInclude Include="Cloud.h" />
+    <ClInclude Include="Model\Model.h">
+      <Filter>Model</Filter>
+    </ClInclude>
+    <ClInclude Include="Model\ModelConstants.h">
+      <Filter>Model</Filter>
+    </ClInclude>
+    <ClInclude Include="Model\FBXLoader\CFBXLoader.h">
+      <Filter>Model\FBXLoader</Filter>
+    </ClInclude>
+    <ClInclude Include="Model\FBXLoader\CFBXRendererDX11.h">
+      <Filter>Model\FBXLoader</Filter>
+    </ClInclude>
+    <ClInclude Include="Model\FBXLoader\DDSTextureLoader.h">
+      <Filter>Model\FBXLoader</Filter>
+    </ClInclude>
+    <ClInclude Include="FrameBuffer.h" />
+    <ClInclude Include="RenderStates.h" />
   </ItemGroup>
 </Project>
