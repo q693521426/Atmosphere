@@ -165,14 +165,16 @@ private:
 	CComPtr<ID3D11Texture2D>							pSpaceLinearDepthTex2D;
 	CComPtr<ID3D11ShaderResourceView>					pSpaceLinearDepthSRV;
 	
-	CComPtr<ID3D11Texture2D>							pSliceEndTex1D;
+	CComPtr<ID3D11Texture2D>							pSliceEndTex2D;
 	CComPtr<ID3D11ShaderResourceView>					pSliceEndSRV;
 	
 	CComPtr<ID3D11Texture2D>							pEpipolarSampleTex2D;
 	CComPtr<ID3D11ShaderResourceView>					pEpipolarSampleSRV;
+	CComPtr<ID3D11DepthStencilView>						pEpipolarSampleDSV;
 
 	CComPtr<ID3D11Texture2D>							pEpipolarSampleDepthTex2D;
 	CComPtr<ID3D11ShaderResourceView>					pEpipolarSampleDepthSRV;
+
 
 	CComPtr<ID3D11Texture2D>							pInterpolationSampleTex2D;
 	CComPtr<ID3D11ShaderResourceView>					pInterpolationSampleSRV;
@@ -197,7 +199,7 @@ private:
 		"DrawGroundAndSkyTech",
 
 		"ComputeSpaceLinearDepthTex2DTech",
-		"ComputeSliceEndTex1DTech",
+		"ComputeSliceEndTex2DTech",
 		"ComputeEpipolarCoordTex2DTech",
 		"RefineSampleLocalTech",
 		"Build1DMinMaxMipMapTech",
@@ -253,7 +255,7 @@ private:
 
 		"g_tex2DSpaceDepth",
 		"g_tex2DSpaceLinearDepth",
-		"g_tex1DSliceEnd",
+		"g_tex2DSliceEnd",
 		"g_tex2DEpipolarSample",
 		"g_tex2DEpipolarSampleDepth",
 		"g_tex2DInterpolationSample",

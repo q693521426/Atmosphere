@@ -1053,12 +1053,12 @@ bool IsValidScreenLocation(in float2 f2XY)
 }
 
 float4 INVALID_EPIPOLAR_LINE = float4(-1000, -1000, -100, -100);
-float4 ComputeSliceEndTex1D(QuadVertexOut In) : SV_Target
+float4 ComputeSliceEndTex2D(QuadVertexOut In) : SV_Target
 {
     float2 f2UV = ProjToUV(In.m_f2PosPS);
     float fEpipolarSlice = GetUnitRangeFromTextureCoord(f2UV.x, EPIPOLAR_SLICE_NUM);
 
-    float4 f4ScreenPixelCoord = float4(-1, -1, 1, 1) + float4(1, 1, -1, -1) * float2(SCREEN_WIDTH, SCREEN_HEIGHT).xyxy;
+    float4 f4ScreenPixelCoord = float4(-1, -1, 1, 1) + float4(1, 1, -1, -1) / float2(SCREEN_WIDTH, SCREEN_HEIGHT).xyxy;
 
 	uint uiBoundary = clamp(floor(fEpipolarSlice * 4), 0, 3);
 	float fPosOnBoundary = frac(fEpipolarSlice * 4);
@@ -1085,7 +1085,7 @@ float4 ComputeSliceEndTex1D(QuadVertexOut In) : SV_Target
         float fRayLength = length(f2RayDir);
         f2RayDir /= fRayLength;
         
-        bool4 b4IsCorrectIntersectionFlag = abs(f2RayDir) > 1e-5;
+        bool4 b4IsCorrectIntersectionFlag = abs(f2RayDir.xyxy) > 1e-5;
         float4 f4DistToBoundary = (f4ScreenPixelCoord - light.f2LightScreenPos.xyxy) / (f2RayDir.xyxy + !b4IsCorrectIntersectionFlag);
         b4IsCorrectIntersectionFlag = b4IsCorrectIntersectionFlag && (f4DistToBoundary < (fRayLength - 1e-5));
         f4DistToBoundary = b4IsCorrectIntersectionFlag * f4DistToBoundary +
@@ -1110,7 +1110,7 @@ float4 ComputeSliceEndTex1D(QuadVertexOut In) : SV_Target
     return float4(f2SliceStartPos, f2SliceEndPos);
 }
 
-technique11 ComputeSliceEndTex1DTech
+technique11 ComputeSliceEndTex2DTech
 {
     pass P0
     {
@@ -1120,6 +1120,37 @@ technique11 ComputeSliceEndTex1DTech
 
         SetVertexShader(CompileShader(vs_5_0, GenerateScreenSizeQuadVS()));
         SetGeometryShader(NULL);
-        SetPixelShader(CompileShader(ps_5_0, ComputeSliceEndTex1D()));
+        SetPixelShader(CompileShader(ps_5_0, ComputeSliceEndTex2D()));
+    }
+}
+
+void ComputeEpipolarCoordTex2D(QuadVertexOut In, out float2 f2XY : SV_Target0, out float fCameraZ : SV_Target1) 
+{
+    float4 f4SliceEnd = g_tex2DSliceEnd.Load(uint3(In.m_f4Pos.y, 0,0));
+    if (!IsValidScreenLocation(f4SliceEnd.xy))
+    {
+        discard;
+    }
+    //float fEpipolarSample = (In.m_f4Pos.x - 0.5) / ((float)EPIPOLAR_SAMPLE_NUM - 1);
+    float fEpipolarSample = GetUnitRangeFromTextureCoord(ProjToUV(In.m_f2PosPS).x, EPIPOLAR_SAMPLE_NUM);
+    f2XY = lerp(f4SliceEnd.xy, f4SliceEnd.zw, fEpipolarSample);
+    if (!IsValidScreenLocation(f2XY))
+    {
+        discard;
+    }
+    fCameraZ = g_tex2DSpaceLinearDepth.SampleLevel(samLinearClamp, ProjToUV(f2XY), 0);
+}
+
+technique11 ComputeEpipolarCoordTex2DTech
+{
+    pass P0
+    {
+        SetBlendState(NoBlending, float4(0.0f, 0.0f, 0.0f, 0.0f), 0xFFFFFFFF);
+        SetRasterizerState(RS_SolidFill_NoCull);
+        SetDepthStencilState(DSS_NoDepthTest_IncrStencil, 0);
+
+        SetVertexShader(CompileShader(vs_5_0, GenerateScreenSizeQuadVS()));
+        SetGeometryShader(NULL);
+        SetPixelShader(CompileShader(ps_5_0, ComputeEpipolarCoordTex2D()));
     }
 }

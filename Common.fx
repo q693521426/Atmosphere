@@ -23,6 +23,30 @@ DepthStencilState DSS_NoDepthTest
     DepthWriteMask = ZERO;
 };
 
+DepthStencilState DSS_NoDepthTest_IncrStencil
+{
+    DepthEnable = false;
+    DepthWriteMask = ZERO;
+    StencilEnable = true;
+    FrontFaceStencilFunc = ALWAYS;
+    BackFaceStencilFunc = ALWAYS;
+    FrontFaceStencilPass = INCR;
+    BackFaceStencilPass = INCR;
+};
+
+DepthStencilState DSS_NoDepthTest_StEqual_IncrStencil
+{
+    DepthEnable = false;
+    DepthWriteMask = ZERO;
+    StencilEnable = true;
+    FrontFaceStencilFunc = EQUAL;
+    BackFaceStencilFunc = EQUAL;
+    FrontFaceStencilPass = INCR;
+    BackFaceStencilPass = INCR;
+    FrontFaceStencilFail = KEEP;
+    BackFaceStencilFail = KEEP;
+};
+
 RasterizerState RS_SolidFill_NoCull
 {
     FILLMODE = Solid;
@@ -184,7 +208,7 @@ Texture2D<float4> g_tex2DEarthGround;
 
 Texture2D<float>  g_tex2DSpaceDepth;
 Texture2D<float>  g_tex2DSpaceLinearDepth;
-Texture1D<float4> g_tex1DSliceEnd;
+Texture2D<float4> g_tex2DSliceEnd;
 Texture2D<float4> g_tex2DEpipolarSample;
 Texture2D<float4> g_tex2DEpipolarSampleDepth;
 Texture2D<float4> g_tex2DInterpolationSample;

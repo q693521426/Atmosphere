@@ -149,8 +149,10 @@ inline D3DXMATRIX InverseTranspose(D3DXMATRIX* m)
 }
 
 inline HRESULT CreateTexture2D(ID3D11Device* pDevice, ID3D11DeviceContext* pContext,
-								UINT width,UINT height, DXGI_FORMAT format,ID3D11Texture2D** ppTex2D,
-								ID3D11ShaderResourceView** ppSRV,ID3D11RenderTargetView** ppRTV)
+								UINT width,UINT height, DXGI_FORMAT format, 
+								std::vector<ID3D11Texture2D**> ppTex2Ds,
+								std::vector<ID3D11ShaderResourceView**> ppSRVs,
+								std::vector<ID3D11RenderTargetView**> ppRTVs)
 {
 	HRESULT hr = S_OK;
 
@@ -167,24 +169,28 @@ inline HRESULT CreateTexture2D(ID3D11Device* pDevice, ID3D11DeviceContext* pCont
 	PreCompute2DTexDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
 	PreCompute2DTexDesc.CPUAccessFlags = 0;
 	PreCompute2DTexDesc.MiscFlags = 0;
-	SAFE_RELEASE((*ppTex2D));
-	V_RETURN(pDevice->CreateTexture2D(&PreCompute2DTexDesc, nullptr, ppTex2D));
 
 	CComPtr<ID3D11RenderTargetView>	pDirectIrradianceRTV;
 	D3D11_RENDER_TARGET_VIEW_DESC PreComputeRTVDesc;
 	PreComputeRTVDesc.Format = PreCompute2DTexDesc.Format;
 	PreComputeRTVDesc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
 	PreComputeRTVDesc.Texture2D.MipSlice = 0;
-	SAFE_RELEASE((*ppRTV));
-	V_RETURN(pDevice->CreateRenderTargetView(*ppTex2D, &PreComputeRTVDesc, ppRTV));
 
 	D3D11_SHADER_RESOURCE_VIEW_DESC PreComputeSRVDesc;
 	PreComputeSRVDesc.Format = PreCompute2DTexDesc.Format;
 	PreComputeSRVDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
 	PreComputeSRVDesc.Texture2D.MostDetailedMip = 0;
 	PreComputeSRVDesc.Texture2D.MipLevels = 1;
-	SAFE_RELEASE((*ppSRV));
-	V_RETURN(pDevice->CreateShaderResourceView(*ppTex2D, &PreComputeSRVDesc, ppSRV));
+
+	for(int i = 0 ; i<ppTex2Ds.size(); ++i)
+	{
+		SAFE_RELEASE((*ppTex2Ds[i]));
+		SAFE_RELEASE((*ppRTVs[i]));
+		SAFE_RELEASE((*ppSRVs[i]));
+		V_RETURN(pDevice->CreateTexture2D(&PreCompute2DTexDesc, nullptr, ppTex2Ds[i]));
+		V_RETURN(pDevice->CreateRenderTargetView(*ppTex2Ds[i], &PreComputeRTVDesc, ppRTVs[i]));
+		V_RETURN(pDevice->CreateShaderResourceView(*ppTex2Ds[i], &PreComputeSRVDesc, ppSRVs[i]));
+	}
 
 	return hr;
 }
