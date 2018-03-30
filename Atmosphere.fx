@@ -1046,12 +1046,6 @@ technique11 ComputeSpaceLinearDepthTex2DTech
     }
 }
 
-bool IsValidScreenLocation(in float2 f2XY)
-{
-    const float SAFETY_EPSILON = 0.2f;
-    return all(abs(f2XY) <= 1.f - (1.f - SAFETY_EPSILON) / float2(SCREEN_WIDTH, SCREEN_HEIGHT));
-}
-
 float4 INVALID_EPIPOLAR_LINE = float4(-1000, -1000, -100, -100);
 float4 ComputeSliceEndTex2D(QuadVertexOut In) : SV_Target
 {

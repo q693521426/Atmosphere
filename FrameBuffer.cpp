@@ -9,6 +9,7 @@ FrameBuffer::FrameBuffer(void):
 	m_pDepthStencilView(nullptr),
 	m_pDepthStencilBuffer(nullptr),
 	m_pDepthSRV(nullptr),
+	m_pShadowMapSRV(nullptr),
 	m_pd3dDevice(nullptr),
 	m_pd3dImmediateContext(nullptr),
 	width(1024),
@@ -37,6 +38,7 @@ void FrameBuffer::Release()
 	SAFE_RELEASE(m_pDepthStencilView);
 	SAFE_RELEASE(m_pDepthStencilBuffer);
 	SAFE_RELEASE(m_pDepthSRV);
+	SAFE_RELEASE(m_pShadowMapSRV);
 }
 
 void FrameBuffer::Resize(int W,int H)

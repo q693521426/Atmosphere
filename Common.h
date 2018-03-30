@@ -10,6 +10,7 @@
 #include <vector>
 #include <atlcomcli.h>
 #include <unordered_map>
+#include <sstream>
 
 #define D3D_COMPILE_STANDARD_FILE_INCLUDE ((ID3DInclude*)(UINT_PTR)1)
 
@@ -96,6 +97,34 @@ struct Vertex
 	D3DXVECTOR2 TexC;
 };
 
+inline HRESULT CompileShaderFromFile(LPCTSTR strFilePath,
+	LPCSTR strFunctionName,
+	const D3D_SHADER_MACRO* pDefines,
+	LPCSTR profile,
+	ID3DBlob **ppBlobOut)
+{
+	DWORD dwShaderFlags = D3D10_SHADER_ENABLE_STRICTNESS;
+#if defined( DEBUG ) || defined( _DEBUG )
+	dwShaderFlags |= D3D10_SHADER_DEBUG;
+#else
+#endif
+	HRESULT hr;
+	do
+	{
+		CComPtr<ID3DBlob> errors;
+		hr = D3DX11CompileFromFile(strFilePath, pDefines, NULL, strFunctionName, profile, dwShaderFlags, 0, NULL, ppBlobOut, &errors, NULL);
+		if (errors)
+		{
+			OutputDebugStringA((char*)errors->GetBufferPointer());
+			if (FAILED(hr) &&
+				IDRETRY != MessageBoxA(NULL, (char*)errors->GetBufferPointer(), "FX Error", MB_ICONERROR | MB_ABORTRETRYIGNORE))
+			{
+				break;
+			}
+		}
+	} while (FAILED(hr));
+	return hr;
+}
 
 inline HRESULT CompileEffectFromFile(ID3D11Device* pd3dDevice, ID3DX11Effect** pEffect, wchar_t* FileName)
 {
@@ -137,6 +166,24 @@ inline HRESULT CompileEffectFromFile(ID3D11Device* pd3dDevice, ID3DX11Effect** p
 	SAFE_RELEASE(pEffectBuffer);
 
 	return hr;
+}
+
+template<typename T>
+const char* toString(const T& t) {
+	std::ostringstream oss;
+	oss << t;
+	return oss.str().c_str();
+}
+
+inline void UnbindResources(ID3D11DeviceContext *pDeviceCtx)
+{
+	ID3D11ShaderResourceView *pDummySRVs[12] = { nullptr };
+	ID3D11UnorderedAccessView *pDummyUAVs[8] = { nullptr };
+	pDeviceCtx->PSSetShaderResources(0, _countof(pDummySRVs), pDummySRVs);
+	pDeviceCtx->VSSetShaderResources(0, _countof(pDummySRVs), pDummySRVs);
+	pDeviceCtx->GSSetShaderResources(0, _countof(pDummySRVs), pDummySRVs);
+	pDeviceCtx->CSSetShaderResources(0, _countof(pDummySRVs), pDummySRVs);
+	pDeviceCtx->CSSetUnorderedAccessViews(0, _countof(pDummyUAVs), pDummyUAVs, NULL);
 }
 
 inline D3DXMATRIX InverseTranspose(D3DXMATRIX* m)

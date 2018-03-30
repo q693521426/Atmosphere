@@ -210,11 +210,11 @@ Texture2D<float>  g_tex2DSpaceDepth;
 Texture2D<float>  g_tex2DSpaceLinearDepth;
 Texture2D<float4> g_tex2DSliceEnd;
 Texture2D<float4> g_tex2DEpipolarSample;
-Texture2D<float4> g_tex2DEpipolarSampleDepth;
+Texture2D<float4> g_tex2DEpipolarSampleCamDepth;
 Texture2D<float4> g_tex2DInterpolationSample;
 Texture2D<float4> g_tex2DSliceUVOrigDir;
 Texture2D<float4> g_tex2DScatter;
-Texture2D<float4> g_texInterpolatedScatter;
+Texture2D<float4> g_tex2DInterpolatedScatter;
 
 
 QuadVertexOut GenerateScreenSizeQuadVS(in uint VertexId : SV_VertexID,
@@ -303,4 +303,10 @@ float3 ToneMap(in float3 f3Color)
     float3 curr = Uncharted2Tonemap(ExposureBias * f3ScaledColor);
     float3 whiteScale = 1.0f / Uncharted2Tonemap(whitePoint);
     return curr * whiteScale;
+}
+
+bool IsValidScreenLocation(in float2 f2XY)
+{
+    const float SAFETY_EPSILON = 0.2f;
+    return all(abs(f2XY) <= 1.f - (1.f - SAFETY_EPSILON) / float2(SCREEN_WIDTH, SCREEN_HEIGHT));
 }

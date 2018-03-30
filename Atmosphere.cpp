@@ -190,8 +190,8 @@ void Atmosphere::Release()
 	pEpipolarSampleSRV.Release();
 	pEpipolarSampleDSV.Release();
 
-	pEpipolarSampleDepthTex2D.Release();
-	pEpipolarSampleDepthSRV.Release();
+	pEpipolarSampleCamDepthTex2D.Release();
+	pEpipolarSampleCamDepthSRV.Release();
 
 
 	pInterpolationSampleTex2D.Release();
@@ -380,6 +380,7 @@ HRESULT Atmosphere::PreComputeTransmittanceTex2D(ID3D11Device* pDevice, ID3D11De
 
 	RenderQuad(pContext, activeTech, TRANSMITTANCE_TEXTURE_WIDTH, TRANSMITTANCE_TEXTURE_HEIGHT);
 	//pContext->OMSetRenderTargets(0, nullptr, nullptr);
+	UnbindResources(pContext);
 #if CREATE_TEXTURE_DDS_TEST
 	V_RETURN(D3DX11SaveTextureToFile(pContext, pTransmittanceTex2D, D3DX11_IFF_DDS, L"Texture/Transmittance.dds"));
 #endif
@@ -411,6 +412,7 @@ HRESULT Atmosphere::PreComputeOpticalLengthTex2D(ID3D11Device* pDevice, ID3D11De
 
 	RenderQuad(pContext, activeTech, TRANSMITTANCE_TEXTURE_WIDTH, TRANSMITTANCE_TEXTURE_HEIGHT);
 	//pContext->OMSetRenderTargets(0, nullptr, nullptr);
+	UnbindResources(pContext);
 #if CREATE_TEXTURE_DDS_TEST
 	V_RETURN(D3DX11SaveTextureToFile(pContext, pTransmittanceTex2D, D3DX11_IFF_DDS, L"Texture/OpticalLength.dds"));
 #endif
@@ -441,6 +443,7 @@ HRESULT Atmosphere::PreComputeDirectIrradianceTex2D(ID3D11Device* pDevice, ID3D1
 	ShaderResourceVarMap["g_tex2DTransmittanceLUT"]->SetResource(pTransmittanceSRV);
 
 	RenderQuad(pContext, activeTech, IRRADIANCE_TEXTURE_WIDTH, IRRADIANCE_TEXTURE_HEIGHT);
+	UnbindResources(pContext);
 #if CREATE_TEXTURE_DDS_TEST
 	V_RETURN(D3DX11SaveTextureToFile(pContext, pDirectIrradianceTex2D, D3DX11_IFF_DDS, L"Texture/DirectIrradiance.dds"));
 #endif
@@ -516,6 +519,7 @@ HRESULT Atmosphere::PreComputeSingleSctrTex3D(ID3D11Device* pDevice, ID3D11Devic
 
 		RenderQuad(pContext, activeTech, SCATTERING_TEXTURE_WIDTH, SCATTERING_TEXTURE_HEIGHT);
 	}
+	UnbindResources(pContext);
 #if CREATE_TEXTURE_DDS_TEST
 	V_RETURN(D3DX11SaveTextureToFile(pContext, pSingleScatterTex3D, D3DX11_IFF_DDS, L"Texture/SingleScatter/SingleScatter3D.dds"));
 	V_RETURN(D3DX11SaveTextureToFile(pContext, pSingleScatterCombinedTex3D, D3DX11_IFF_DDS, L"Texture/SingleScatter/SingleScatterCombined3D.dds"));
@@ -557,6 +561,7 @@ HRESULT Atmosphere::PreComputeInDirectIrradianceTex2D(ID3D11Device* pDevice, ID3
 	VarMap["misc"]->SetRawValue(&misc, 0, sizeof(MiscDynamicParams));
 
 	RenderQuad(pContext, activeTech, IRRADIANCE_TEXTURE_WIDTH, IRRADIANCE_TEXTURE_HEIGHT);
+	UnbindResources(pContext);
 #if CREATE_TEXTURE_DDS_TEST
 	std::wstringstream ss;
 	ss << "Texture/Irradiance/IndirectIrradiance_" << scatter_order << ".dds";
@@ -635,6 +640,8 @@ HRESULT Atmosphere::PreComputeMultiSctrTex3D(ID3D11Device* pDevice, ID3D11Device
 		RenderQuad(pContext, activeTech, SCATTERING_TEXTURE_WIDTH, SCATTERING_TEXTURE_HEIGHT);
 		//pContext->OMSetRenderTargets(0, nullptr, nullptr);
 	}
+	UnbindResources(pContext);
+
 #if CREATE_TEXTURE_DDS_TEST
 	std::wstringstream ss;
 	ss << "Texture/MultiScatter/MultiScatter_" << scatter_order << ".dds";
@@ -678,6 +685,8 @@ HRESULT Atmosphere::ComputeSpaceLinearDepthTex2D(ID3D11Device* pDevice, ID3D11De
 
 	pContext->OMSetRenderTargets(1, &pRTV.p, nullptr);
 	RenderQuad(pContext, activeTech, screen_width, screen_height);
+
+	UnbindResources(pContext);
 #if CREATE_TEXTURE_DDS_TEST
 	//V_RETURN(D3DX11SaveTextureToFile(pContext, pSpaceLinearDepthTex2D, D3DX11_IFF_DDS, L"Texture/SpaceLinearDepth.dds"));
 #endif
@@ -701,6 +710,7 @@ HRESULT Atmosphere::ComputeSliceEndTex1D(ID3D11Device* pDevice, ID3D11DeviceCont
 
 	pContext->OMSetRenderTargets(1, &pRTV.p, nullptr);
 	RenderQuad(pContext, activeTech, EPIPOLAR_SLICE_NUM, 1);
+
 #if CREATE_TEXTURE_DDS_TEST
 	V_RETURN(D3DX11SaveTextureToFile(pContext, pSliceEndTex2D, D3DX11_IFF_DDS, L"Texture/SliceEndTex.dds"));
 #endif
@@ -715,20 +725,20 @@ HRESULT Atmosphere::ComputeEpipolarCoordTex2D(ID3D11Device* pDevice, ID3D11Devic
 
 	ID3DX11EffectTechnique* activeTech = TechMap["ComputeEpipolarCoordTex2DTech"];
 
-	CComPtr<ID3D11RenderTargetView>	pEpipolarSampleRTV,pEpipolarSampleDepthRTV;
+	CComPtr<ID3D11RenderTargetView>	pEpipolarSampleRTV,pEpipolarSampleCamDepthRTV;
 
 	pEpipolarSampleTex2D.Release();
 	pEpipolarSampleSRV.Release();
-	pEpipolarSampleDepthTex2D.Release();
-	pEpipolarSampleDepthSRV.Release();
-	V_RETURN(CreateTexture2D(pDevice, pContext, EPIPOLAR_SLICE_NUM, EPIPOLAR_SAMPLE_NUM, DXGI_FORMAT_R32G32_FLOAT,
+	pEpipolarSampleCamDepthTex2D.Release();
+	pEpipolarSampleCamDepthSRV.Release();
+	V_RETURN(CreateTexture2D(pDevice, pContext, EPIPOLAR_SAMPLE_NUM, EPIPOLAR_SLICE_NUM, DXGI_FORMAT_R32G32_FLOAT,
 					{ &pEpipolarSampleTex2D.p }, 
 					{ &pEpipolarSampleSRV.p }, 
 					{ &pEpipolarSampleRTV.p}));
-	V_RETURN(CreateTexture2D(pDevice, pContext, EPIPOLAR_SLICE_NUM, EPIPOLAR_SAMPLE_NUM, DXGI_FORMAT_R32_FLOAT,
-					{ &pEpipolarSampleDepthTex2D.p },
-					{ &pEpipolarSampleDepthSRV.p },
-					{ &pEpipolarSampleDepthRTV.p }));
+	V_RETURN(CreateTexture2D(pDevice, pContext, EPIPOLAR_SAMPLE_NUM, EPIPOLAR_SLICE_NUM, DXGI_FORMAT_R32_FLOAT,
+					{ &pEpipolarSampleCamDepthTex2D.p },
+					{ &pEpipolarSampleCamDepthSRV.p },
+					{ &pEpipolarSampleCamDepthRTV.p }));
 
 	D3D11_TEXTURE2D_DESC TexDes;
 	pEpipolarSampleTex2D->GetDesc(&TexDes);
@@ -741,11 +751,11 @@ HRESULT Atmosphere::ComputeEpipolarCoordTex2D(ID3D11Device* pDevice, ID3D11Devic
 
 	ShaderResourceVarMap["g_tex2DSpaceLinearDepth"]->SetResource(pSpaceLinearDepthSRV);
 	ShaderResourceVarMap["g_tex2DSliceEnd"]->SetResource(pSliceEndSRV);
-
+	
 	ID3D11RenderTargetView* pRTVs[] =
 	{
 		pEpipolarSampleRTV.p,
-		pEpipolarSampleDepthRTV.p
+		pEpipolarSampleCamDepthRTV.p
 	};
 	int num = ARRAYSIZE(pRTVs);
 	static const float fInvalidCoordinate = -1e+30f; // Both coord texture and epipolar CamSpaceZ are 32-bit float
@@ -756,11 +766,12 @@ HRESULT Atmosphere::ComputeEpipolarCoordTex2D(ID3D11Device* pDevice, ID3D11Devic
 	}
 	pContext->OMSetRenderTargets(num, pRTVs, pEpipolarSampleDSV);
 	pContext->ClearDepthStencilView(pEpipolarSampleDSV, D3D11_CLEAR_STENCIL, 1.0f, 0);
-	RenderQuad(pContext, activeTech, EPIPOLAR_SLICE_NUM, EPIPOLAR_SAMPLE_NUM);
+	RenderQuad(pContext, activeTech,EPIPOLAR_SAMPLE_NUM , EPIPOLAR_SLICE_NUM);
+	UnbindResources(pContext);
 
 #if CREATE_TEXTURE_DDS_TEST
 	V_RETURN(D3DX11SaveTextureToFile(pContext, pEpipolarSampleTex2D, D3DX11_IFF_DDS, L"Texture/EpipolarSampleTex.dds"));
-	V_RETURN(D3DX11SaveTextureToFile(pContext, pEpipolarSampleDepthTex2D, D3DX11_IFF_DDS, L"Texture/EpipolarSampleDepth.dds"));
+	V_RETURN(D3DX11SaveTextureToFile(pContext, pEpipolarSampleCamDepthTex2D, D3DX11_IFF_DDS, L"Texture/EpipolarSampleDepth.dds"));
 #endif
 	return hr;
 }
@@ -769,6 +780,52 @@ HRESULT Atmosphere::ComputeEpipolarCoordTex2D(ID3D11Device* pDevice, ID3D11Devic
 HRESULT Atmosphere::RefineSampleLocal(ID3D11Device* pDevice, ID3D11DeviceContext* pContext)
 {
 	HRESULT hr = S_OK;
+
+	pInterpolationSampleTex2D.Release();
+	pInterpolationSampleSRV.Release();
+	pInterpolationSampleUAV.Release();
+
+	D3D11_TEXTURE2D_DESC PreCompute2DTexDesc;
+	ZeroMemory(&PreCompute2DTexDesc, sizeof(PreCompute2DTexDesc));
+	PreCompute2DTexDesc.Width = EPIPOLAR_SAMPLE_NUM;
+	PreCompute2DTexDesc.Height = EPIPOLAR_SLICE_NUM;
+	PreCompute2DTexDesc.MipLevels = 1;
+	PreCompute2DTexDesc.ArraySize = 1;
+	PreCompute2DTexDesc.Format = DXGI_FORMAT_R16G16_UINT;
+	PreCompute2DTexDesc.SampleDesc.Count = 1;
+	PreCompute2DTexDesc.SampleDesc.Quality = 0;
+	PreCompute2DTexDesc.Usage = D3D11_USAGE_DEFAULT;
+	PreCompute2DTexDesc.BindFlags = D3D11_BIND_UNORDERED_ACCESS | D3D11_BIND_SHADER_RESOURCE;
+	PreCompute2DTexDesc.CPUAccessFlags = 0;
+	PreCompute2DTexDesc.MiscFlags = 0;
+
+	V_RETURN(pDevice->CreateTexture2D(&PreCompute2DTexDesc, nullptr, &pInterpolationSampleTex2D));
+	V_RETURN(pDevice->CreateShaderResourceView(pInterpolationSampleTex2D, nullptr, &pInterpolationSampleSRV));
+	V_RETURN(pDevice->CreateUnorderedAccessView(pInterpolationSampleTex2D, nullptr, &pInterpolationSampleUAV));
+	
+	RefineSampleCSThreadGroupSize = max(RefineSampleCSThreadGroupSize, InterpolationSampleStep);
+	RefineSampleCSThreadGroupSize = min(RefineSampleCSThreadGroupSize, EPIPOLAR_SAMPLE_NUM);
+
+	CComPtr<ID3DBlob> pShaderByteCode;
+	CComPtr<ID3D11ComputeShader> pComputeShader;
+	std::vector<D3D_SHADER_MACRO> Macros 
+	{
+		{ "THREAD_GROUP_SIZE",  toString(RefineSampleCSThreadGroupSize) },
+		{ "SAMPLE_STEP", toString(InterpolationSampleStep) }
+	};
+
+	V_RETURN(CompileShaderFromFile(L"RefineSample.fx", "RefineSampleCS", &Macros[0], "cs_5_0", &pShaderByteCode));
+	V_RETURN(pDevice->CreateComputeShader(pShaderByteCode->GetBufferPointer(), pShaderByteCode->GetBufferSize(), nullptr, &pComputeShader));
+
+	ShaderResourceVarMap["g_tex2DEpipolarSample"]->SetResource(pEpipolarSampleSRV);
+	ShaderResourceVarMap["g_tex2DEpipolarSampleCamDepth"]->SetResource(pEpipolarSampleCamDepthSRV);
+
+	pContext->CSSetUnorderedAccessViews(0, 1, &pInterpolationSampleUAV.p, nullptr);
+	pContext->CSSetShader(pComputeShader, nullptr, 0);
+	pContext->Dispatch(EPIPOLAR_SAMPLE_NUM / RefineSampleCSThreadGroupSize,
+		EPIPOLAR_SLICE_NUM, 1);
+
+	UnbindResources(pContext);
 	return hr;
 }
 

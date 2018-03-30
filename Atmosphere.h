@@ -133,6 +133,9 @@ private:
 	int EPIPOLAR_SLICE_NUM = 512;
 	int EPIPOLAR_SAMPLE_NUM = 256;
 
+	int RefineSampleCSThreadGroupSize = 128;
+	int InterpolationSampleStep = 16;
+
 	CComPtr<ID3D11Texture2D>							pTransmittanceTex2D;
 	CComPtr<ID3D11ShaderResourceView>					pTransmittanceSRV;
 
@@ -172,12 +175,12 @@ private:
 	CComPtr<ID3D11ShaderResourceView>					pEpipolarSampleSRV;
 	CComPtr<ID3D11DepthStencilView>						pEpipolarSampleDSV;
 
-	CComPtr<ID3D11Texture2D>							pEpipolarSampleDepthTex2D;
-	CComPtr<ID3D11ShaderResourceView>					pEpipolarSampleDepthSRV;
-
+	CComPtr<ID3D11Texture2D>							pEpipolarSampleCamDepthTex2D;
+	CComPtr<ID3D11ShaderResourceView>					pEpipolarSampleCamDepthSRV;
 
 	CComPtr<ID3D11Texture2D>							pInterpolationSampleTex2D;
 	CComPtr<ID3D11ShaderResourceView>					pInterpolationSampleSRV;
+	CComPtr<ID3D11UnorderedAccessView>					pInterpolationSampleUAV;
 
 	CComPtr<ID3D11Texture2D>							pSliceUVOrigDirTex2D;
 	CComPtr<ID3D11ShaderResourceView>					pSliceUVOrigDirSRV;
@@ -257,11 +260,11 @@ private:
 		"g_tex2DSpaceLinearDepth",
 		"g_tex2DSliceEnd",
 		"g_tex2DEpipolarSample",
-		"g_tex2DEpipolarSampleDepth",
+		"g_tex2DEpipolarSampleCamDepth",
 		"g_tex2DInterpolationSample",
 		"g_tex2DSliceUVOrigDir",
 		"g_tex2DScatter",
-		"g_texInterpolatedScatter"
+		"g_tex2DInterpolatedScatter"
 	};
 };
 
