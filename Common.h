@@ -11,6 +11,7 @@
 #include <atlcomcli.h>
 #include <unordered_map>
 #include <sstream>
+#include <set>
 
 #define D3D_COMPILE_STANDARD_FILE_INCLUDE ((ID3DInclude*)(UINT_PTR)1)
 
@@ -168,12 +169,31 @@ inline HRESULT CompileEffectFromFile(ID3D11Device* pd3dDevice, ID3DX11Effect** p
 	return hr;
 }
 
-template<typename T>
-const char* toString(const T& t) {
-	std::ostringstream oss;
-	oss << t;
-	return oss.str().c_str();
-}
+//std::set<std::string> m_DefinitionsSet;
+//
+//template<class T>
+//void AddMarco(std::vector<D3D_SHADER_MACRO>& Marcos, LPCSTR Name,T Val)
+//{
+//	std::string Definition = std::to_string(Val);
+//	D3D_SHADER_MACRO Marco =
+//	{
+//		Name,
+//		m_DefinitionsSet.insert(Definition).first->c_str()
+//	};
+//	Marcos.push_back(Marco);
+//}
+//
+//inline
+//void FinishMarco(std::vector<D3D_SHADER_MACRO>& Marcos)
+//{
+//	D3D_SHADER_MACRO Marco =
+//	{
+//		nullptr,
+//		nullptr
+//	};
+//	Marcos.push_back(Marco);
+//	m_DefinitionsSet.clear();
+//}
 
 inline void UnbindResources(ID3D11DeviceContext *pDeviceCtx)
 {
@@ -183,7 +203,7 @@ inline void UnbindResources(ID3D11DeviceContext *pDeviceCtx)
 	pDeviceCtx->VSSetShaderResources(0, _countof(pDummySRVs), pDummySRVs);
 	pDeviceCtx->GSSetShaderResources(0, _countof(pDummySRVs), pDummySRVs);
 	pDeviceCtx->CSSetShaderResources(0, _countof(pDummySRVs), pDummySRVs);
-	pDeviceCtx->CSSetUnorderedAccessViews(0, _countof(pDummyUAVs), pDummyUAVs, NULL);
+	pDeviceCtx->CSSetUnorderedAccessViews(0, _countof(pDummyUAVs), pDummyUAVs, nullptr);
 }
 
 inline D3DXMATRIX InverseTranspose(D3DXMATRIX* m)

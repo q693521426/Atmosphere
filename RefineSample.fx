@@ -2,14 +2,16 @@
 
 RWTexture2D<uint2> g_rwtex2DInterpolationSource : register(u0);
 
-#ifndef SAMPLE_STEP
-#define SAMPLE_STEP 128
-#endif
+//#ifndef SAMPLE_STEP
+//#define SAMPLE_STEP 128
+//#endif
 
-#ifndef THREAD_GROUP_SIZE
-#define THREAD_GROUP_SIZE max(SAMPLE_STEP, 32)
-#endif
+//#ifndef THREAD_GROUP_SIZE
+//#define THREAD_GROUP_SIZE max(SAMPLE_STEP, 32)
+//#endif
 
+static const uint SAMPLE_STEP = 16;
+static const uint THREAD_GROUP_SIZE = 128;
 static const uint g_uiPackNum = THREAD_GROUP_SIZE / 32;
 groupshared uint g_uiCamDepthDiffPackFlags[g_uiPackNum];
 
@@ -87,7 +89,7 @@ void RefineSampleCS(uint3 Gid : SV_GroupID,
                 bNoBreak = false;
         }
 
-        if(bNoBreak)
+        if(!bNoBreak)
         {
             uint uiSampleLeft = GTid.x - 1; // GTid.x != 0
             uint uiSampleLeftPackNum = uiSampleLeft / 32;
@@ -102,36 +104,35 @@ void RefineSampleCS(uint3 Gid : SV_GroupID,
                 {
                     uiFlag |= (uint(0xFFFFFFFFU) << (uiNumInPackSampleLeft + 1));
                 }
-                uint iFirstBreakFlagNum = firstbithigh(~uiFlag);
-                if (!(iFirstBreakFlagNum >= 0 && iFirstBreakFlagNum <= 31))
+                iFirstBreakFlag = firstbithigh(~uiFlag);
+                if (!(iFirstBreakFlag >= 0 && iFirstBreakFlag <= 31))
                     iFirstBreakFlag = -1;
                 uiSampleLeft -= uiNumInPackSampleLeft - iFirstBreakFlag;
                 uiSampleLeftPackNum--;
             }
+            uiSampleLeftBoundary = max(uiSampleLeftBoundary, uiSampleLeft);
 
+            uint uiSampleRight = GTid.x + 1; // GTid.x != 31
+            uint uiSampleRightPackNum = uiSampleRight / 32;
+            iFirstBreakFlag = 32;
+            while (iFirstBreakFlag == 32 && uiSampleRightPackNum <= uiPackNum1)
+            {
+                uint uiFlag = uiCamDepthDiffPackFlags[uiSampleRightPackNum];
+                uint uiNumInPackSampleRight = uiSampleRight % 32;
 
+                if (uiNumInPackSampleRight > 0)
+                {
+                    uiFlag |= (uint(1) << uiNumInPackSampleRight) - 1;
+                }
+
+                uint iFirstBreakFlagNum = firstbitlow(~uiFlag);
+                if (!(iFirstBreakFlagNum >= 0 && iFirstBreakFlagNum <= 31))
+                    iFirstBreakFlag = 32;
+                uiSampleRight += iFirstBreakFlag - uiNumInPackSampleRight;
+                uiSampleRightPackNum++;
+            }
+            uiSampleRightBoundary = min(uiSampleRightBoundary, uiSampleRight);
         }
-        //if (uiPackNum0 == uiPackNum1)
-        //{
-        //    uint uiFlagMask = (1 << uiSampleStep) - 1;
-        //    uint uiFlag = (uiCamDepthDiffPackFlags[uiPackNum0] >> uiPackNum0) & uiFlagMask;
-        //    if (uiFlag!=uiFlagMask)
-        //        bNoBreak = false;
-        //}
-        //else
-        //{
-        //    //uint uiFlagMask = (1 << (32 - uiNumInPack0)) - 1;
-        //    //uint uiFlag = (uiCamDepthDiffPackFlags[uiPackNum0] >> uiPackNum0) & uiFlagMask;
-        //    //if (uiFlag != uiFlagMask)
-        //    //    bNoBreak = false;
-        //    //for (int i = uiPackNum0 + 1; i < uiPackNum1 && bNoBreak; i++)
-        //    //{
-        //    //    if (uiCamDepthDiffPackFlags[i] != 0xFFFFFFFFU)
-        //    //        bNoBreak = false;
-        //    //}
-        //}
-        
-
     }
     else
     {

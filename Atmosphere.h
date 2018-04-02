@@ -8,7 +8,7 @@
 #include "Common.h"
 #include "Cloud.h"
 
-#define CREATE_TEXTURE_DDS_TEST 1
+#define CREATE_TEXTURE_DDS_TEST 0
 
 struct DensityProfileLayer
 {
@@ -103,9 +103,10 @@ private:
 	HRESULT PreComputeMultiSctrTex3D(ID3D11Device*, ID3D11DeviceContext*,int);
 
 	HRESULT ComputeSpaceLinearDepthTex2D(ID3D11Device*, ID3D11DeviceContext*, ID3D11ShaderResourceView*);
-	HRESULT ComputeSliceEndTex1D(ID3D11Device*, ID3D11DeviceContext*);
+	HRESULT ComputeSliceEndTex2D(ID3D11Device*, ID3D11DeviceContext*);
 	HRESULT ComputeEpipolarCoordTex2D(ID3D11Device*, ID3D11DeviceContext*);
 	HRESULT RefineSampleLocal(ID3D11Device*, ID3D11DeviceContext*);
+	HRESULT ComputeSliceUVOrigDirTex2D(ID3D11Device*, ID3D11DeviceContext*);
 	HRESULT Build1DMinMaxMipMap(ID3D11Device*, ID3D11DeviceContext*);
 	HRESULT MarkRayMarchSample(ID3D11Device*, ID3D11DeviceContext*);
 	HRESULT DoRayMarch(ID3D11Device*, ID3D11DeviceContext*);
@@ -204,7 +205,8 @@ private:
 		"ComputeSpaceLinearDepthTex2DTech",
 		"ComputeSliceEndTex2DTech",
 		"ComputeEpipolarCoordTex2DTech",
-		"RefineSampleLocalTech",
+		"RefineSampleTech",
+		"ComputeSliceUVOrigDirTex2DTech",
 		"Build1DMinMaxMipMapTech",
 		"MarkRayMarchSampleTech",
 		"DoRayMarchTech",

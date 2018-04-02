@@ -1148,3 +1148,179 @@ technique11 ComputeEpipolarCoordTex2DTech
         SetPixelShader(CompileShader(ps_5_0, ComputeEpipolarCoordTex2D()));
     }
 }
+
+RWTexture2D<uint2> g_rwtex2DInterpolationSource : register(u0);
+static const uint SAMPLE_STEP = 16;
+static const uint THREAD_GROUP_SIZE = 128;
+static const uint g_uiPackNum = THREAD_GROUP_SIZE / 32;
+groupshared uint g_uiCamDepthDiffPackFlags[g_uiPackNum];
+
+static const float fRefinementThreshold = 0.03;
+static const float fSampleDense = 2;
+
+[numthreads(THREAD_GROUP_SIZE, 1, 1)]
+void RefineSampleCS(uint3 Gid : SV_GroupID,
+                    uint3 GTid : SV_GroupThreadID)
+{
+    uint uiSliceNum = Gid.y;
+    uint uiSampleGroupStart = Gid.x * THREAD_GROUP_SIZE;
+    uint uiSampleGlobalNum = uiSampleGroupStart + GTid.x;
+    
+    float2 f2SampleScreenXY = g_tex2DEpipolarSample.Load(uint3(uiSampleGlobalNum, uiSliceNum, 0));
+
+    bool IsValidThread = all(abs(f2SampleScreenXY) < 1 + 1e-4);
+
+    if (Gid.x < g_uiPackNum)
+        g_uiCamDepthDiffPackFlags[Gid.x] = 0;
+    GroupMemoryBarrierWithGroupSync();
+
+    [branch]
+    if (IsValidThread)
+    {
+        float fSampleCamDepth = g_tex2DEpipolarSampleCamDepth.Load(uint3(uiSampleGlobalNum, uiSliceNum, 0));
+        float fSampleCamDepthRight = g_tex2DEpipolarSampleCamDepth.Load(uint3(min(uiSampleGlobalNum + 1, EPIPOLAR_SAMPLE_NUM - 1), uiSliceNum, 0));
+        float fMax = max(fSampleCamDepth, fSampleCamDepthRight);
+        fMax = max(fMax, 1 - 1e-4) + 1e-4;
+        bool bFlag = abs(fSampleCamDepth - fSampleCamDepthRight) / fMax < 0.2 * fRefinementThreshold; // 1 No break
+                                                                                                      // 0 Depth break
+        InterlockedOr(g_uiCamDepthDiffPackFlags[GTid.x / 32], bFlag << (GTid.x % 32));
+    }
+    GroupMemoryBarrierWithGroupSync();
+
+    if (!IsValidThread)
+        return;
+    
+    uint uiSampleStep = SAMPLE_STEP;
+    uint uiSampleLocalNum0 = (GTid.x / uiSampleStep) * uiSampleStep;
+    uint uiSampleGlobalNum0 = uiSampleLocalNum0 + uiSampleGroupStart;
+    float2 f2SampleScreenXY0 = g_tex2DEpipolarSample.Load(uint3(uiSampleGlobalNum0, uiSliceNum, 0));
+    if (length(f2SampleScreenXY0 - light.f2LightScreenPos) < 0.1 &&
+        (float) uiSampleGlobalNum0 / EPIPOLAR_SAMPLE_NUM < 0.05)
+    {
+        uiSampleStep = max(uiSampleStep / fSampleDense, 1);
+        uiSampleLocalNum0 = (GTid.x / uiSampleStep) * uiSampleStep;
+    }
+    uint uiSampleLocalNum1 = uiSampleLocalNum0 + uiSampleStep;
+    if (Gid.x == EPIPOLAR_SAMPLE_NUM / THREAD_GROUP_SIZE - 1)
+        uiSampleLocalNum1 = min(uiSampleLocalNum1, THREAD_GROUP_SIZE - 1);
+    uiSampleStep = uiSampleLocalNum1 - uiSampleLocalNum0;
+
+    int iSampleLeftBoundary = uiSampleLocalNum0;
+    int iSampleRightBoundary = uiSampleLocalNum1;
+    if (GTid.x > uiSampleLocalNum0 && GTid.x < uiSampleLocalNum1)
+    {
+        uint uiCamDepthDiffPackFlags[g_uiPackNum];
+        for (int i = 0; i < g_uiPackNum; i++)
+        {
+            uiCamDepthDiffPackFlags[i] = g_uiCamDepthDiffPackFlags[i];
+        }
+        
+        bool bNoBreak = true;
+
+        int iPackNum0 = uiSampleLocalNum0 / 32;
+        int iNumInPack0 = uiSampleLocalNum0 % 32;
+        
+        int iPackNum1 = uiSampleLocalNum1 / 32;
+        int iNumInPack1 = uiSampleLocalNum1 % 32;
+
+        for (int i = iPackNum0; i <= iPackNum1; i++)
+        {
+            if (uiCamDepthDiffPackFlags[i] != 0xFFFFFFFFU)
+            {
+                bNoBreak = false;
+                break;
+            }
+        }
+
+        if (!bNoBreak)
+        {
+            int iSampleLeft = GTid.x; 
+            int iSampleLeftPackNum = iSampleLeft / 32;
+
+            int iFirstBreakFlag = -1;
+            while (iFirstBreakFlag == -1 && iSampleLeftPackNum >= iPackNum0)
+            {
+                uint uiFlag = uiCamDepthDiffPackFlags[iSampleLeftPackNum];
+                int iNumInPackSampleLeft = iSampleLeft % 32;
+
+                if (iNumInPackSampleLeft < 31)
+                {
+                    uiFlag |= (uint(0x0FFFFFFFFU) << (iNumInPackSampleLeft + 1));
+                }
+                iFirstBreakFlag = firstbithigh(uint(~uiFlag));
+                if (!(iFirstBreakFlag >= 0 && iFirstBreakFlag <= 31))
+                    iFirstBreakFlag = -1;
+                iSampleLeft -= iNumInPackSampleLeft - iFirstBreakFlag;
+                iSampleLeftPackNum--;
+            }
+            iSampleLeftBoundary = max(iSampleLeftBoundary, iSampleLeft + 1);
+            iSampleLeftBoundary = min(iSampleLeftBoundary, GTid.x);
+
+            int iSampleRight = GTid.x - 1; // if last break this right should be this
+            int iSampleRightPackNum = iSampleRight / 32;
+            iFirstBreakFlag = 32;
+            while (iFirstBreakFlag == 32 && iSampleRightPackNum <= iPackNum1)
+            {
+                uint uiFlag = uiCamDepthDiffPackFlags[iSampleRightPackNum];
+                int iNumInPackSampleRight = iSampleRight % 32;
+
+                if (iNumInPackSampleRight > 0)
+                {
+                    uiFlag |= ((1 << uint(iNumInPackSampleRight)) - 1);
+                }
+                iFirstBreakFlag = firstbitlow(uint(~uiFlag));
+                if (!(iFirstBreakFlag >= 0 && iFirstBreakFlag <= 31))
+                    iFirstBreakFlag = 32;
+                iSampleRight += iFirstBreakFlag - iNumInPackSampleRight;
+                iSampleRightPackNum++;
+            }
+            iSampleRightBoundary = min(iSampleRightBoundary, iSampleRight);
+            iSampleRightBoundary = max(iSampleRightBoundary, GTid.x);
+            //g_rwtex2DInterpolationSource[uint2(uiSampleGlobalNum, uiSliceNum)] = uint4(1,1, 1, 1);
+        }
+        //else
+            //g_rwtex2DInterpolationSource[uint2(uiSampleGlobalNum, uiSliceNum)] = uint4(uiSampleGroupStart + iSampleLeftBoundary, uiSampleGroupStart + iSampleRightBoundary, 0, 1);
+    }
+    else
+    {
+        iSampleLeftBoundary = iSampleRightBoundary = GTid.x;
+        //g_rwtex2DInterpolationSource[uint2(uiSampleGlobalNum, uiSliceNum)] = uint4(0,0,0,1);
+    }
+
+    g_rwtex2DInterpolationSource[uint2(uiSampleGlobalNum, uiSliceNum)] = uint2(uiSampleGroupStart + iSampleLeftBoundary, uiSampleGroupStart + iSampleRightBoundary);
+}
+
+technique11 RefineSampleTech
+{
+    pass
+    {
+        SetBlendState(NoBlending, float4(0.0f, 0.0f, 0.0f, 0.0f), 0xFFFFFFFF);
+        SetRasterizerState(RS_SolidFill_NoCull);
+        SetDepthStencilState(DSS_NoDepthTest, 0);
+
+        SetVertexShader(NULL);
+        SetGeometryShader(NULL);
+        SetPixelShader(NULL);
+        SetComputeShader(CompileShader(cs_5_0, RefineSampleCS()));
+    }
+}
+
+void MarkRayMarchSample(QuadVertexOut In) 
+{
+    uint2 uiInte = g_tex2DInterpolationSample.Load(uint2(In.m_f4Pos.xy));
+
+}
+
+technique11 MarkRayMarchSampleTech
+{
+    pass
+    {
+        SetBlendState(NoBlending, float4(0.0f, 0.0f, 0.0f, 0.0f), 0xFFFFFFFF);
+        SetRasterizerState(RS_SolidFill_NoCull);
+        SetDepthStencilState(DSS_NoDepthTest_StEqual_IncrStencil, 1);
+
+        SetVertexShader(CompileShader(vs_5_0, GenerateScreenSizeQuadVS()));
+        SetGeometryShader(NULL);
+        SetPixelShader(CompileShader(ps_5_0, MarkRayMarchSample()));
+    }
+}
