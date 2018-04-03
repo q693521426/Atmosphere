@@ -43,6 +43,11 @@ struct LightParams
 
 	D3DXVECTOR2 f2LightScreenPos;
 	float padding2[2];
+
+	D3DXMATRIX View;
+	D3DXMATRIX Proj;
+	D3DXMATRIX ViewProj;
+	D3DXMATRIX InvViewProj;
 };
 
 class GameObject

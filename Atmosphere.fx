@@ -1084,11 +1084,9 @@ float4 ComputeSliceEndTex2D(QuadVertexOut In) : SV_Target
         b4IsCorrectIntersectionFlag = b4IsCorrectIntersectionFlag && (f4DistToBoundary < (fRayLength - 1e-5));
         f4DistToBoundary = b4IsCorrectIntersectionFlag * f4DistToBoundary +
                             !b4IsCorrectIntersectionFlag * float4(-FLT_MAX, -FLT_MAX, -FLT_MAX, -FLT_MAX);
-        float fFirstIntersecDist = 0;
-        fFirstIntersecDist = max(fFirstIntersecDist, f4DistToBoundary.x);
-        fFirstIntersecDist = max(fFirstIntersecDist, f4DistToBoundary.y);
-        fFirstIntersecDist = max(fFirstIntersecDist, f4DistToBoundary.z);
-        fFirstIntersecDist = max(fFirstIntersecDist, f4DistToBoundary.w);
+
+        float2 f2FirstIntersecDist = max(f4DistToBoundary.xy, f4DistToBoundary.zw);
+        float fFirstIntersecDist = max(f2FirstIntersecDist.x, f2FirstIntersecDist.y);
 
         f2SliceStartPos = light.f2LightScreenPos + f2RayDir * fFirstIntersecDist;
     }
@@ -1205,8 +1203,8 @@ void RefineSampleCS(uint3 Gid : SV_GroupID,
         uiSampleLocalNum1 = min(uiSampleLocalNum1, THREAD_GROUP_SIZE - 1);
     uiSampleStep = uiSampleLocalNum1 - uiSampleLocalNum0;
 
-    int iSampleLeftBoundary = uiSampleLocalNum0;
-    int iSampleRightBoundary = uiSampleLocalNum1;
+    uint uiSampleLeftBoundary = uiSampleLocalNum0;
+    uint uiSampleRightBoundary = uiSampleLocalNum1;
     if (GTid.x > uiSampleLocalNum0 && GTid.x < uiSampleLocalNum1)
     {
         uint uiCamDepthDiffPackFlags[g_uiPackNum];
@@ -1217,13 +1215,13 @@ void RefineSampleCS(uint3 Gid : SV_GroupID,
         
         bool bNoBreak = true;
 
-        int iPackNum0 = uiSampleLocalNum0 / 32;
-        int iNumInPack0 = uiSampleLocalNum0 % 32;
+        uint uiPackNum0 = uiSampleLocalNum0 / 32;
+        uint uiNumInPack0 = uiSampleLocalNum0 % 32;
         
-        int iPackNum1 = uiSampleLocalNum1 / 32;
-        int iNumInPack1 = uiSampleLocalNum1 % 32;
+        uint uiPackNum1 = uiSampleLocalNum1 / 32;
+        uint uiNumInPack1 = uiSampleLocalNum1 % 32;
 
-        for (int i = iPackNum0; i <= iPackNum1; i++)
+        for (uint i = uiPackNum0; i <= uiPackNum1; i++)
         {
             if (uiCamDepthDiffPackFlags[i] != 0xFFFFFFFFU)
             {
@@ -1234,48 +1232,48 @@ void RefineSampleCS(uint3 Gid : SV_GroupID,
 
         if (!bNoBreak)
         {
-            int iSampleLeft = GTid.x; 
-            int iSampleLeftPackNum = iSampleLeft / 32;
+            uint uiSampleLeft = GTid.x; 
+            uint uiSampleLeftPackNum = uiSampleLeft / 32;
 
             int iFirstBreakFlag = -1;
-            while (iFirstBreakFlag == -1 && iSampleLeftPackNum >= iPackNum0)
+            while (iFirstBreakFlag == -1 && uiSampleLeftPackNum >= uiPackNum0)
             {
-                uint uiFlag = uiCamDepthDiffPackFlags[iSampleLeftPackNum];
-                int iNumInPackSampleLeft = iSampleLeft % 32;
+                uint uiFlag = uiCamDepthDiffPackFlags[uiSampleLeftPackNum];
+                uint uiNumInPackSampleLeft = uiSampleLeft % 32;
 
-                if (iNumInPackSampleLeft < 31)
+                if (uiNumInPackSampleLeft < 31)
                 {
-                    uiFlag |= (uint(0x0FFFFFFFFU) << (iNumInPackSampleLeft + 1));
+                    uiFlag |= (uint(0x0FFFFFFFFU) << (uiNumInPackSampleLeft + 1));
                 }
                 iFirstBreakFlag = firstbithigh(uint(~uiFlag));
                 if (!(iFirstBreakFlag >= 0 && iFirstBreakFlag <= 31))
                     iFirstBreakFlag = -1;
-                iSampleLeft -= iNumInPackSampleLeft - iFirstBreakFlag;
-                iSampleLeftPackNum--;
+                uiSampleLeft -= uiNumInPackSampleLeft - iFirstBreakFlag;
+                uiSampleLeftPackNum--;
             }
-            iSampleLeftBoundary = max(iSampleLeftBoundary, iSampleLeft + 1);
-            iSampleLeftBoundary = min(iSampleLeftBoundary, GTid.x);
+            uiSampleLeftBoundary = max(uiSampleLeftBoundary, uiSampleLeft + 1);
+            uiSampleLeftBoundary = min(uiSampleLeftBoundary, GTid.x);
 
-            int iSampleRight = GTid.x - 1; // if last break this right should be this
-            int iSampleRightPackNum = iSampleRight / 32;
+            uint uiSampleRight = GTid.x - 1; // if last break this right should be this
+            uint uiSampleRightPackNum = uiSampleRight / 32;
             iFirstBreakFlag = 32;
-            while (iFirstBreakFlag == 32 && iSampleRightPackNum <= iPackNum1)
+            while (iFirstBreakFlag == 32 && uiSampleRightPackNum <= uiPackNum1)
             {
-                uint uiFlag = uiCamDepthDiffPackFlags[iSampleRightPackNum];
-                int iNumInPackSampleRight = iSampleRight % 32;
+                uint uiFlag = uiCamDepthDiffPackFlags[uiSampleRightPackNum];
+                uint uiNumInPackSampleRight = uiSampleRight % 32;
 
-                if (iNumInPackSampleRight > 0)
+                if (uiNumInPackSampleRight > 0)
                 {
-                    uiFlag |= ((1 << uint(iNumInPackSampleRight)) - 1);
+                    uiFlag |= ((1 << uint(uiNumInPackSampleRight)) - 1);
                 }
                 iFirstBreakFlag = firstbitlow(uint(~uiFlag));
                 if (!(iFirstBreakFlag >= 0 && iFirstBreakFlag <= 31))
                     iFirstBreakFlag = 32;
-                iSampleRight += iFirstBreakFlag - iNumInPackSampleRight;
-                iSampleRightPackNum++;
+                uiSampleRight += iFirstBreakFlag - uiNumInPackSampleRight;
+                uiSampleRightPackNum++;
             }
-            iSampleRightBoundary = min(iSampleRightBoundary, iSampleRight);
-            iSampleRightBoundary = max(iSampleRightBoundary, GTid.x);
+            uiSampleRightBoundary = min(uiSampleRightBoundary, uiSampleRight);
+            uiSampleRightBoundary = max(uiSampleRightBoundary, GTid.x);
             //g_rwtex2DInterpolationSource[uint2(uiSampleGlobalNum, uiSliceNum)] = uint4(1,1, 1, 1);
         }
         //else
@@ -1283,11 +1281,11 @@ void RefineSampleCS(uint3 Gid : SV_GroupID,
     }
     else
     {
-        iSampleLeftBoundary = iSampleRightBoundary = GTid.x;
+        uiSampleLeftBoundary = uiSampleRightBoundary = GTid.x;
         //g_rwtex2DInterpolationSource[uint2(uiSampleGlobalNum, uiSliceNum)] = uint4(0,0,0,1);
     }
 
-    g_rwtex2DInterpolationSource[uint2(uiSampleGlobalNum, uiSliceNum)] = uint2(uiSampleGroupStart + iSampleLeftBoundary, uiSampleGroupStart + iSampleRightBoundary);
+    g_rwtex2DInterpolationSource[uint2(uiSampleGlobalNum, uiSliceNum)] = uint2(uiSampleGroupStart + uiSampleLeftBoundary, uiSampleGroupStart + uiSampleRightBoundary);
 }
 
 technique11 RefineSampleTech
@@ -1305,10 +1303,59 @@ technique11 RefineSampleTech
     }
 }
 
+float4 ComputeSliceUVOrigDirTex2D(QuadVertexOut In) : SV_Target
+{
+    float4 f4SliceEnd = g_tex2DSliceEnd.Load(uint3(In.m_f4Pos.x,0,0));
+    if (!IsValidScreenLocation(f4SliceEnd.xy))
+        return INVALID_EPIPOLAR_LINE;
+    float4 f4SliceEndInWorldSpace = mul(float4(f4SliceEnd.zw, 1.0,1.0), camera.InvViewProj);
+    f4SliceEndInWorldSpace /= f4SliceEndInWorldSpace.w;
+    float4 f4SliceEndInLightSpace = mul(f4SliceEndInWorldSpace, light.ViewProj);
+    float2 f2SliceEnd = f4SliceEndInLightSpace.xy / f4SliceEndInLightSpace.w;
+
+    float4 f4SliceStartInLightSpace = mul(float4(camera.f3CameraPos, 1.0), light.ViewProj);
+    float2 f2SliceUVOrig = f4SliceStartInLightSpace.xy / f4SliceStartInLightSpace.w;
+    float2 f2SliceDir = f2SliceEnd - f2SliceUVOrig;
+    float fSliceDirLength = length(f2SliceDir);
+    f2SliceDir /= fSliceDirLength;
+    
+    float2 f2ShadowMapDim = float2(SHADOWMAP_TEXTURE_WIDTH, SHADOWMAP_TEXTURE_HEIGHT);
+    float4 f4Boundary = float4(-1, -1, 1, 1) + float4(0.5, 0.5, -0.5, -0.5) * f2ShadowMapDim.xyxy;
+
+    float4 f4DistToBoundary = (f2SliceUVOrig.xyxy - f4Boundary) * float4(1, 1, -1, -1);
+    if (any(f4DistToBoundary<0))
+    {
+        bool4 b4IsCorrectIntersectionFlag = abs(f2SliceDir.xyxy) > 1e-5;
+        float4 f4DirDistToBoundary = (f4Boundary - f2SliceUVOrig.xyxy) / (f2SliceDir.xyxy + !b4IsCorrectIntersectionFlag);
+        b4IsCorrectIntersectionFlag = b4IsCorrectIntersectionFlag && (f4DirDistToBoundary < (fSliceDirLength - 1e-5));
+        f4DirDistToBoundary = f4DirDistToBoundary * b4IsCorrectIntersectionFlag + 
+                                float4(-FLT_MAX, -FLT_MAX, -FLT_MAX, -FLT_MAX) * !b4IsCorrectIntersectionFlag;
+        float2 f2FirstDistToBoundary = max(f4DirDistToBoundary.xy, f4DirDistToBoundary.zw);
+        float fFirstDistToBoundary = max(f2FirstDistToBoundary.x, f2FirstDistToBoundary.y);
+        f2SliceUVOrig += f2SliceDir * fFirstDistToBoundary;
+    }
+    return float4(f2SliceUVOrig, f2SliceDir);
+}
+
+technique11 ComputeSliceUVOrigDirTex2DTech
+{
+    pass
+    {
+        SetBlendState(NoBlending, float4(0.0f, 0.0f, 0.0f, 0.0f), 0xFFFFFFFF);
+        SetRasterizerState(RS_SolidFill_NoCull);
+        SetDepthStencilState(DSS_NoDepthTest, 0);
+
+        SetVertexShader(CompileShader(vs_5_0, GenerateScreenSizeQuadVS()));
+        SetGeometryShader(NULL);
+        SetPixelShader(CompileShader(ps_5_0, ComputeSliceUVOrigDirTex2D()));
+    }
+}
+
 void MarkRayMarchSample(QuadVertexOut In) 
 {
-    uint2 uiInte = g_tex2DInterpolationSample.Load(uint2(In.m_f4Pos.xy));
-
+    uint2 uiInterpolationSample = g_tex2DInterpolationSample.Load(uint3(In.m_f4Pos.xy,0));
+    if(uiInterpolationSample.x != uiInterpolationSample.y)
+        discard;
 }
 
 technique11 MarkRayMarchSampleTech

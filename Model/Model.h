@@ -23,6 +23,9 @@ public:
 	void Release();
 
 	void Render(ID3D11Device*, ID3D11DeviceContext*);
+	void RenderShadowMap(ID3D11Device*, ID3D11DeviceContext*, const D3DXMATRIX&);
+	void Model::RenderModel(ID3D11Device*, ID3D11DeviceContext*, const D3DXMATRIX&, bool);
+
 	void Resize(const DXGI_SURFACE_DESC*);
 
 	void SetWVP(const D3DXMATRIX&);

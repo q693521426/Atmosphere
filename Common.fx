@@ -139,6 +139,10 @@ struct LightParams
     float2 f2LightScreenPos;
     float2 padding2;
 
+    matrix View;
+    matrix Proj;
+    matrix ViewProj;
+    matrix InvViewProj;
 };
 
 cbuffer cbLightParams
@@ -170,26 +174,29 @@ struct QuadVertexOut
 
 cbuffer cbTextureDim
 {
-    int SCREEN_WIDTH;
-    int SCREEN_HEIGHT;
+    uint SCREEN_WIDTH;
+    uint SCREEN_HEIGHT;
 
-    int TRANSMITTANCE_TEXTURE_WIDTH; //mu
-    int TRANSMITTANCE_TEXTURE_HEIGHT; //r
+    uint TRANSMITTANCE_TEXTURE_WIDTH; //mu
+    uint TRANSMITTANCE_TEXTURE_HEIGHT; //r
 
-    int SCATTERING_TEXTURE_R_SIZE;
-    int SCATTERING_TEXTURE_MU_SIZE;
-    int SCATTERING_TEXTURE_MU_S_SIZE;
-    int SCATTERING_TEXTURE_NU_SIZE;
+    uint SCATTERING_TEXTURE_R_SIZE;
+    uint SCATTERING_TEXTURE_MU_SIZE;
+    uint SCATTERING_TEXTURE_MU_S_SIZE;
+    uint SCATTERING_TEXTURE_NU_SIZE;
 
-    int SCATTERING_TEXTURE_WIDTH;
-    int SCATTERING_TEXTURE_HEIGHT;
-    int SCATTERING_TEXTURE_DEPTH;
+    uint SCATTERING_TEXTURE_WIDTH;
+    uint SCATTERING_TEXTURE_HEIGHT;
+    uint SCATTERING_TEXTURE_DEPTH;
 
-    int IRRADIANCE_TEXTURE_WIDTH;
-    int IRRADIANCE_TEXTURE_HEIGHT;
+    uint IRRADIANCE_TEXTURE_WIDTH;
+    uint IRRADIANCE_TEXTURE_HEIGHT;
 
-    int EPIPOLAR_SLICE_NUM;
-    int EPIPOLAR_SAMPLE_NUM;
+    uint EPIPOLAR_SLICE_NUM;
+    uint EPIPOLAR_SAMPLE_NUM;
+
+    uint SHADOWMAP_TEXTURE_WIDTH;
+    uint SHADOWMAP_TEXTURE_HEIGHT;
 };
 
 Texture2D<float3> g_tex2DTransmittanceLUT;
@@ -207,6 +214,7 @@ Texture3D<float4> g_tex3DMultiScatteringCombinedLUT;
 Texture2D<float4> g_tex2DEarthGround;
 
 Texture2D<float>  g_tex2DSpaceDepth;
+Texture2D<float>  g_tex2DShadowMap;
 Texture2D<float>  g_tex2DSpaceLinearDepth;
 Texture2D<float4> g_tex2DSliceEnd;
 Texture2D<float4> g_tex2DEpipolarSample;

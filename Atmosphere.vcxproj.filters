@@ -85,7 +85,6 @@
     <None Include="Model\LoadModel.hlsl">
       <Filter>Model</Filter>
     </None>
-    <None Include="RefineSample.fx" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />

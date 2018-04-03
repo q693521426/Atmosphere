@@ -21,8 +21,10 @@
 Atmosphere*							m_pAtmosphere;
 Model*								m_pModel;
 FrameBuffer*						m_pFrameBuffer;
+FrameBuffer*						m_pShadowMapFrameBuffer;
 int									screen_width = 1920;
 int									screen_height = 1080;
+int									m_shadowMapDim = 1024;
 D3D11_VIEWPORT						g_viewport;
 D3DXMATRIX							g_World;
 D3DXMATRIX							g_View;
@@ -32,7 +34,7 @@ float								m_ModelScaling = 1000.f;
 D3DXVECTOR3							g_Eye(10 * m_ModelScaling, m_EyeHeight, 20 * m_ModelScaling);
 D3DXVECTOR3							g_At(0.0f, m_EyeHeight, 20 * m_ModelScaling);
 DirectionalLight					g_DirectionalLight;
-CFirstPersonCamera					mCamera;
+CFirstPersonCamera					m_Camera;
 ID3D11Device*						g_pd3dDevice = nullptr;
 ID3D11DeviceContext*				g_pd3dImmediateContext = nullptr;
 ID3D11RenderTargetView*				g_pRenderTargetView = nullptr;
@@ -41,9 +43,9 @@ ID3D11DepthStencilView*				g_pDepthStencilView = nullptr;
 void UpdateMatrix()
 {
 	D3DXMatrixIdentity(&g_World);
-	g_View = *(mCamera.GetViewMatrix());
-	g_Projection = *(mCamera.GetProjMatrix());
-	g_Eye = *(mCamera.GetEyePt());
+	g_View = *(m_Camera.GetViewMatrix());
+	g_Projection = *(m_Camera.GetProjMatrix());
+	g_Eye = *(m_Camera.GetEyePt());
 }
 
 //--------------------------------------------------------------------------------------
@@ -83,8 +85,8 @@ HRESULT CALLBACK OnD3D11CreateDevice( ID3D11Device* pd3dDevice, const DXGI_SURFA
 	g_DirectionalLight.Specular = D3DXVECTOR4(0.70f, 0.70f, 0.70f, 0.70f);
 
 	D3DXMatrixIdentity(&g_World);
-	mCamera.SetViewParams(&g_Eye, &g_At);
-	g_View = *(mCamera.GetViewMatrix());
+	m_Camera.SetViewParams(&g_Eye, &g_At);
+	g_View = *(m_Camera.GetViewMatrix());
 
 	m_pModel = new Model();
 	m_pModel->Initialize();
@@ -93,12 +95,18 @@ HRESULT CALLBACK OnD3D11CreateDevice( ID3D11Device* pd3dDevice, const DXGI_SURFA
 	m_pFrameBuffer = new FrameBuffer();
 	m_pFrameBuffer->Initialize();
 
+	m_pShadowMapFrameBuffer = new FrameBuffer();
+	m_pShadowMapFrameBuffer->Initialize();
+
 	m_pAtmosphere = new Atmosphere();
 	m_pAtmosphere->Initialize();
 
 	V_RETURN(m_pFrameBuffer->OnD3D11CreateDevice(pd3dDevice, pContext));
+	V_RETURN(m_pShadowMapFrameBuffer->OnD3D11CreateDevice(pd3dDevice, pContext));
 	V_RETURN(m_pModel->OnD3D11CreateDevice(pd3dDevice, pContext));
 	V_RETURN(m_pAtmosphere->OnD3D11CreateDevice(pd3dDevice,pContext));
+
+	m_pShadowMapFrameBuffer->Resize(m_shadowMapDim, m_shadowMapDim);
 
     return S_OK;
 }
@@ -121,8 +129,8 @@ HRESULT CALLBACK OnD3D11ResizedSwapChain( ID3D11Device* pd3dDevice, IDXGISwapCha
 	g_pRenderTargetView = DXUTGetD3D11RenderTargetView();
 	g_pDepthStencilView = DXUTGetD3D11DepthStencilView();
 
-	mCamera.SetProjParams(D3DX_PI * 0.25f, fAspect, 0.1f, 100.f*m_ModelScaling);
-	g_Projection = *(mCamera.GetProjMatrix());
+	m_Camera.SetProjParams(D3DX_PI * 0.25f, fAspect, 0.1f, 100.f*m_ModelScaling);
+	g_Projection = *(m_Camera.GetProjMatrix());
 
 	m_pAtmosphere->Resize(screen_width, screen_height, D3DX_PI * 25.0f / 180.0f, fAspect, fNear, fFar);
 	m_pModel->Resize(pBackBufferSurfaceDesc);
@@ -137,7 +145,7 @@ HRESULT CALLBACK OnD3D11ResizedSwapChain( ID3D11Device* pd3dDevice, IDXGISwapCha
 void CALLBACK OnFrameMove( double fTime, float fElapsedTime, void* pUserContext )
 {
 	m_pAtmosphere->OnFrameMove(fTime,fElapsedTime);
-	mCamera.FrameMove(fElapsedTime*1000);
+	m_Camera.FrameMove(fElapsedTime*1000);
 }
 
 
@@ -155,22 +163,34 @@ void CALLBACK OnD3D11FrameRender( ID3D11Device* pd3dDevice, ID3D11DeviceContext*
 	pd3dImmediateContext->ClearDepthStencilView(pDSV, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0, 0);
 
 	//m_pAtmosphere->PreCompute(pd3dDevice, pd3dImmediateContext,pRTV);
+	{
+		m_pFrameBuffer->Activate();
+		m_pFrameBuffer->ActivateDepth(true);
 
-	m_pFrameBuffer->Activate();
-	m_pFrameBuffer->ActivateDepth(true);
+		pd3dImmediateContext->RSSetState(RenderStates::CullClockWiseRS);
+		UpdateMatrix();
+		m_pModel->SetWVP(g_World*g_View*g_Projection);
+		m_pModel->SetViewPos(g_Eye);
+		m_pModel->SetModelHeight(g_Eye.y);
+		m_pModel->SetLight(&g_DirectionalLight);
+		m_pModel->Render(pd3dDevice, pd3dImmediateContext);
 
-	pd3dImmediateContext->RSSetState(RenderStates::CullClockWiseRS);
-	UpdateMatrix();
-	m_pModel->SetWVP(g_World*g_View*g_Projection);
-	m_pModel->SetViewPos(g_Eye);
-	m_pModel->SetModelHeight(g_Eye.y);
-	m_pModel->SetLight(&g_DirectionalLight);
-	m_pModel->Render(pd3dDevice, pd3dImmediateContext);
-	pd3dImmediateContext->RSSetState(RenderStates::CullCounterClockWiseRS);
+		m_pFrameBuffer->DeactivateDepth();
+	}
+	{
+		m_pShadowMapFrameBuffer->Activate();
+		m_pShadowMapFrameBuffer->ActivateDepth(true);
 
-	m_pFrameBuffer->DeactivateDepth();
+		D3DXMATRIX lightViewProj = m_pAtmosphere->GetSunViewProj(g_DirectionalLight.Direction);
+		m_pModel->RenderShadowMap(pd3dDevice, pd3dImmediateContext, lightViewProj);
+		pd3dImmediateContext->RSSetState(RenderStates::CullCounterClockWiseRS);
 
-	m_pAtmosphere->Render(pd3dDevice, pd3dImmediateContext, pRTV, m_pFrameBuffer->GetDepthSRV());
+		m_pShadowMapFrameBuffer->DeactivateDepth();
+	}
+	int shadowMapDim[] = { m_shadowMapDim, m_shadowMapDim };
+	m_pAtmosphere->Render(pd3dDevice, pd3dImmediateContext, pRTV, 
+		m_pFrameBuffer->GetDepthSRV(), m_pShadowMapFrameBuffer->GetDepthSRV(),
+		shadowMapDim);
 }
 
 
@@ -200,6 +220,12 @@ void CALLBACK OnD3D11DestroyDevice(void* pUserContext)
 		delete m_pFrameBuffer;
 		m_pFrameBuffer = nullptr;
 	}
+	if (m_pShadowMapFrameBuffer)
+	{
+		m_pShadowMapFrameBuffer->Release();
+		delete m_pShadowMapFrameBuffer;
+		m_pShadowMapFrameBuffer = nullptr;
+	}
 	if(m_pModel)
 	{
 		m_pModel->Release();
@@ -223,7 +249,7 @@ LRESULT CALLBACK MsgProc( HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam,
 		//g_Eye.y = g_At.y = m_EyeHeight;
 		g_DirectionalLight.Direction = m_pAtmosphere->GetSunDir();
 	}
-	mCamera.HandleMessages(hWnd, uMsg, wParam, lParam);
+	m_Camera.HandleMessages(hWnd, uMsg, wParam, lParam);
 
     return 0;
 }

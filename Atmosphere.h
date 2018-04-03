@@ -64,13 +64,16 @@ public:
 	void SetLightParams();
 
 	HRESULT PreCompute(ID3D11Device*, ID3D11DeviceContext*, ID3D11RenderTargetView*);
-	void Render(ID3D11Device*, ID3D11DeviceContext*, ID3D11RenderTargetView*, ID3D11ShaderResourceView* depthSRV=nullptr);
+	void Render(ID3D11Device*, ID3D11DeviceContext*, ID3D11RenderTargetView*,ID3D11ShaderResourceView*, ID3D11ShaderResourceView*, const int[2]);
 
 	void MsgProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
 	void OnFrameMove(double fTime, float fElapsedTime);
 
 	D3DXVECTOR3 GetSunDir();
+	D3DXMATRIX GetSunView(const D3DXVECTOR3&);
+	D3DXMATRIX GetSunProj();
+	D3DXMATRIX GetSunViewProj(const D3DXVECTOR3&);
 
 	float GetCameraHeight();
 private:
@@ -89,7 +92,7 @@ private:
 	float exposure = 10.f;
 
 	D3DXMATRIX InvView, InvProj;
-	int screen_width, screen_height;
+	UINT screen_width, screen_height;
 
 	AtmosphereParameters atmosphereParams;
 	CameraParams cameraParams;
@@ -106,36 +109,36 @@ private:
 	HRESULT ComputeSliceEndTex2D(ID3D11Device*, ID3D11DeviceContext*);
 	HRESULT ComputeEpipolarCoordTex2D(ID3D11Device*, ID3D11DeviceContext*);
 	HRESULT RefineSampleLocal(ID3D11Device*, ID3D11DeviceContext*);
-	HRESULT ComputeSliceUVOrigDirTex2D(ID3D11Device*, ID3D11DeviceContext*);
-	HRESULT Build1DMinMaxMipMap(ID3D11Device*, ID3D11DeviceContext*);
+	HRESULT ComputeSliceUVOrigDirTex2D(ID3D11Device*, ID3D11DeviceContext*, ID3D11ShaderResourceView*);
+	HRESULT Build1DMinMaxMipMap(ID3D11Device*, ID3D11DeviceContext*, ID3D11ShaderResourceView*);
 	HRESULT MarkRayMarchSample(ID3D11Device*, ID3D11DeviceContext*);
-	HRESULT DoRayMarch(ID3D11Device*, ID3D11DeviceContext*);
+	HRESULT DoRayMarch(ID3D11Device*, ID3D11DeviceContext*, ID3D11ShaderResourceView*);
 	HRESULT InterpolateScatter(ID3D11Device*, ID3D11DeviceContext*);
-	HRESULT ApplyInterpolateScatter(ID3D11Device*, ID3D11DeviceContext*);
+	HRESULT FixAndApplyInterpolateScatter(ID3D11Device*, ID3D11DeviceContext*, ID3D11ShaderResourceView*);
 
-	int TRANSMITTANCE_TEXTURE_WIDTH = 256;    //mu
-	int TRANSMITTANCE_TEXTURE_HEIGHT = 64;    //r
+	UINT TRANSMITTANCE_TEXTURE_WIDTH = 256;    //mu
+	UINT TRANSMITTANCE_TEXTURE_HEIGHT = 64;    //r
 
-	int SCATTERING_TEXTURE_R_SIZE = 32;
-	int SCATTERING_TEXTURE_MU_SIZE = 128;
-	int SCATTERING_TEXTURE_MU_S_SIZE = 32;
-	int SCATTERING_TEXTURE_NU_SIZE = 8;
+	UINT SCATTERING_TEXTURE_R_SIZE = 32;
+	UINT SCATTERING_TEXTURE_MU_SIZE = 128;
+	UINT SCATTERING_TEXTURE_MU_S_SIZE = 32;
+	UINT SCATTERING_TEXTURE_NU_SIZE = 8;
 
-	int SCATTERING_TEXTURE_WIDTH = SCATTERING_TEXTURE_R_SIZE;
-	int SCATTERING_TEXTURE_HEIGHT = SCATTERING_TEXTURE_MU_SIZE;
-	int SCATTERING_TEXTURE_DEPTH = SCATTERING_TEXTURE_MU_S_SIZE*SCATTERING_TEXTURE_NU_SIZE;
+	UINT SCATTERING_TEXTURE_WIDTH = SCATTERING_TEXTURE_R_SIZE;
+	UINT SCATTERING_TEXTURE_HEIGHT = SCATTERING_TEXTURE_MU_SIZE;
+	UINT SCATTERING_TEXTURE_DEPTH = SCATTERING_TEXTURE_MU_S_SIZE*SCATTERING_TEXTURE_NU_SIZE;
 
-	int IRRADIANCE_TEXTURE_WIDTH = 64;
-	int IRRADIANCE_TEXTURE_HEIGHT = 16;
+	UINT IRRADIANCE_TEXTURE_WIDTH = 64;
+	UINT IRRADIANCE_TEXTURE_HEIGHT = 16;
 
 	// The conversion factor between watts and lumens.
 	double MAX_LUMINOUS_EFFICACY = 683.0;
 
-	int EPIPOLAR_SLICE_NUM = 512;
-	int EPIPOLAR_SAMPLE_NUM = 256;
+	UINT EPIPOLAR_SLICE_NUM = 512;
+	UINT EPIPOLAR_SAMPLE_NUM = 256;
 
-	int RefineSampleCSThreadGroupSize = 128;
-	int InterpolationSampleStep = 16;
+	UINT RefineSampleCSThreadGroupSize = 128;
+	UINT InterpolationSampleStep = 16;
 
 	CComPtr<ID3D11Texture2D>							pTransmittanceTex2D;
 	CComPtr<ID3D11ShaderResourceView>					pTransmittanceSRV;
@@ -211,7 +214,7 @@ private:
 		"MarkRayMarchSampleTech",
 		"DoRayMarchTech",
 		"InterpolateScatterTech",
-		"ApplyInterpolateScatterTech"
+		"FixAndApplyInterpolateScatter"
 	};
 
 	std::vector<std::string> VarStr
@@ -240,7 +243,10 @@ private:
 		"IRRADIANCE_TEXTURE_HEIGHT",
 
 		"EPIPOLAR_SLICE_NUM",
-		"EPIPOLAR_SAMPLE_NUM"
+		"EPIPOLAR_SAMPLE_NUM",
+
+		"SHADOWMAP_TEXTURE_WIDTH",
+		"SHADOWMAP_TEXTURE_HEIGHT"
 	};
 
 	std::vector<std::string> ShaderResourceVarStr
@@ -264,6 +270,7 @@ private:
 		"g_tex2DEpipolarSample",
 		"g_tex2DEpipolarSampleCamDepth",
 		"g_tex2DInterpolationSample",
+		"g_tex2DShadowMap",
 		"g_tex2DSliceUVOrigDir",
 		"g_tex2DScatter",
 		"g_tex2DInterpolatedScatter"

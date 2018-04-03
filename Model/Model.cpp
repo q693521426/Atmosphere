@@ -156,16 +156,25 @@ HRESULT Model::OnD3D11CreateDevice(ID3D11Device* pd3dDevice, ID3D11DeviceContext
 	return hr;
 }
 
-void Model::Render(ID3D11Device* pd3dDevice, ID3D11DeviceContext* pd3dImmediateContext)
+void Model::RenderModel(ID3D11Device* pd3dDevice, ID3D11DeviceContext* pd3dImmediateContext,const D3DXMATRIX& viewProj,bool IsOnlyZPass)
 {
 #if LOAD_MODEL
 	for (DWORD i = 0; i < NUMBER_OF_MODELS; i++)
 	{
 		size_t nodeCount = m_pFbxDX11[i]->GetNodeCount();
 
-		pd3dImmediateContext->VSSetShader(m_pVertexShader, nullptr, 0);
 		pd3dImmediateContext->VSSetConstantBuffers(0, 1, &m_pCBChangesEveryFrame);
-		pd3dImmediateContext->PSSetShader(m_pPixelShader, nullptr, 0);
+
+		if(IsOnlyZPass)
+		{
+			pd3dImmediateContext->VSSetShader(m_pVertexShader, nullptr, 0);
+			pd3dImmediateContext->PSSetShader(nullptr, nullptr, 0);
+		}
+		else
+		{
+			pd3dImmediateContext->VSSetShader(m_pVertexShader, nullptr, 0);
+			pd3dImmediateContext->PSSetShader(m_pPixelShader, nullptr, 0);
+		}
 
 		HRESULT hr;
 		D3D11_MAPPED_SUBRESOURCE MappedResource;
@@ -177,12 +186,11 @@ void Model::Render(ID3D11Device* pd3dDevice, ID3D11DeviceContext* pd3dImmediateC
 
 		V(pd3dImmediateContext->Map(m_pFrustumBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &MappedResource));
 		auto  FB = reinterpret_cast<FrustumBuffer*>(MappedResource.pData);
-		FB->ViewPos = D3DXVECTOR4(m_ViewPos,1.0f);
+		FB->ViewPos = D3DXVECTOR4(m_ViewPos, 1.0f);
 		pd3dImmediateContext->Unmap(m_pFrustumBuffer, 0);
 
 		pd3dImmediateContext->PSSetConstantBuffers(2, 1, &m_pLightBuffer);
 		pd3dImmediateContext->PSSetConstantBuffers(3, 1, &m_pFrustumBuffer);
-
 
 		for (size_t j = 0; j < nodeCount; j++)
 		{
@@ -193,21 +201,21 @@ void Model::Render(ID3D11Device* pd3dDevice, ID3D11DeviceContext* pd3dImmediateC
 			auto pCB = reinterpret_cast<CBChangesEveryFrame*>(MappedResource.pData);
 
 			D3DXMATRIX change(1.f, 0.f, 0.f, 0.f,
-								0.f, 0.f, 1.f, 0.f,
-								0.f, 1.f, 0.f, 0.f,
-								0.f, 0.f, 0.f, 1.f);
+				0.f, 0.f, 1.f, 0.f,
+				0.f, 1.f, 0.f, 0.f,
+				0.f, 0.f, 0.f, 1.f);
 			D3DXMATRIX translation;
-			D3DXMatrixTranslation(&translation,40*ModelScaling, ModelHeight-1*ModelScaling, 565*ModelScaling);
+			D3DXMatrixTranslation(&translation, 40 * ModelScaling, ModelHeight - 1 * ModelScaling, 565 * ModelScaling);
 			D3DXMATRIX scale;
-			D3DXMatrixScaling(&scale,ModelScaling,ModelScaling,ModelScaling);
+			D3DXMatrixScaling(&scale, ModelScaling, ModelScaling, ModelScaling);
 
 			m_Local = m_Local * scale;
 			m_Local = m_Local * change;
 			m_Local = m_Local * translation;
 
-			auto WVP =m_Local * m_WVP;
-			D3DXMatrixTranspose(&pCB->mWorld,&m_Local);
-			D3DXMatrixTranspose(&pCB->mWVP,&WVP);
+			auto WVP = m_Local * viewProj;
+			D3DXMatrixTranspose(&pCB->mWorld, &m_Local);
+			D3DXMatrixTranspose(&pCB->mWVP, &WVP);
 			pd3dImmediateContext->Unmap(m_pCBChangesEveryFrame, 0);
 
 			//SetModelInstancingMatrix(pd3dImmediateContext);
@@ -225,10 +233,20 @@ void Model::Render(ID3D11Device* pd3dDevice, ID3D11DeviceContext* pd3dImmediateC
 		}
 	}
 #endif
+}
+
+void Model::Render(ID3D11Device* pd3dDevice, ID3D11DeviceContext* pd3dImmediateContext)
+{
+	RenderModel(pd3dDevice, pd3dImmediateContext, this->m_WVP, false);
 #if LIGHT_SPHERE
 	m_LightSphere->SetWVP(m_WVP);
 	m_LightSphere->Render(pd3dDevice, pd3dImmediateContext);
 #endif
+}
+
+void Model::RenderShadowMap(ID3D11Device* pd3dDevice, ID3D11DeviceContext* pd3dImmediateContext, const D3DXMATRIX& viewProj)
+{
+	RenderModel(pd3dDevice, pd3dImmediateContext, viewProj, true);
 }
 
 void Model::Resize(const DXGI_SURFACE_DESC* pBackBufferSurfaceDesc)
