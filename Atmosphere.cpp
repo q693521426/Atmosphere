@@ -200,6 +200,9 @@ void Atmosphere::Release()
 	pSliceUVOrigDirTex2D.Release();
 	pSliceUVOrigDirSRV.Release();
 
+	pMinMaxMinMapTex2D.Release();
+	pMinMaxMinMapTexSRV.Release();
+
 	pScatterTex2D.Release();
 	pScatterSRV.Release();
 
@@ -255,18 +258,18 @@ void Atmosphere::SetCameraParams()
 	D3DXVECTOR3 EyePos = *m_FirstPersonCamera.GetEyePt();
 	D3DXVECTOR3 LookAt = *m_FirstPersonCamera.GetLookAtPt();
 
-	cameraParams.f3CameraPos = *m_FirstPersonCamera.GetEyePt();
-	D3DXMatrixTranspose(&cameraParams.View, m_FirstPersonCamera.GetViewMatrix());
-	D3DXMatrixTranspose(&cameraParams.Proj, m_FirstPersonCamera.GetProjMatrix());
+	cameraParams.f3CameraPos = EyePos;
+	cameraParams.View = *m_FirstPersonCamera.GetViewMatrix();
+	cameraParams.Proj = *m_FirstPersonCamera.GetProjMatrix();
+	cameraParams.ViewProj = cameraParams.View * cameraParams.Proj;
+	float det = D3DXMatrixDeterminant(&cameraParams.ViewProj);
+	D3DXMatrixInverse(&cameraParams.InvViewProj, &det, &cameraParams.ViewProj);
 
-	float det = D3DXMatrixDeterminant(&cameraParams.View);
-	D3DXMATRIX InvView;
-	D3DXMatrixInverse(&InvView, &det, &cameraParams.View);
+	D3DXMatrixTranspose(&cameraParams.View, &cameraParams.View);
+	D3DXMatrixTranspose(&cameraParams.Proj, &cameraParams.Proj);
+	D3DXMatrixTranspose(&cameraParams.ViewProj, &cameraParams.ViewProj);
+	D3DXMatrixTranspose(&cameraParams.InvViewProj, &cameraParams.InvViewProj);
 
-	D3DXMATRIX InvViewProj;
-	InvViewProj = InvProj * InvView;
-	D3DXMatrixTranspose(&InvViewProj, &InvViewProj);
-	cameraParams.InvViewProj = InvViewProj;
 	cameraParams.f3CameraDir = LookAt - EyePos;
 	D3DXVec3Normalize(&cameraParams.f3CameraDir, &cameraParams.f3CameraDir);
 
@@ -291,7 +294,7 @@ void Atmosphere::SetLightParams()
 
 	lightParams.View = GetSunView(lightParams.f3LightDir);
 	lightParams.Proj = GetSunProj();
-	lightParams.ViewProj = lightParams.View *lightParams.ViewProj;
+	lightParams.ViewProj = lightParams.View *lightParams.Proj;
 	float det = D3DXMatrixDeterminant(&lightParams.ViewProj);
 	D3DXMatrixInverse(&lightParams.InvViewProj, &det, &lightParams.ViewProj);
 
@@ -331,13 +334,12 @@ HRESULT Atmosphere::PreCompute(ID3D11Device* pDevice, ID3D11DeviceContext* pCont
 
 
 void Atmosphere::Render(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, ID3D11RenderTargetView* pRTV,
-						ID3D11ShaderResourceView* pDepthSRV,ID3D11ShaderResourceView* pShadowMapSRV,const int shadowMapDim[2])
+						ID3D11ShaderResourceView* pDepthSRV,ID3D11ShaderResourceView* pShadowMapSRV,UINT shadowMapResolution)
 {
 	SetCameraParams();
 	SetLightParams();
 	VarMap["atmosphere"]->SetRawValue(&atmosphereParams, 0, sizeof(AtmosphereParameters));
-	VarMap["SHADOWMAP_TEXTURE_WIDTH"]->SetRawValue(&shadowMapDim[0], 0, sizeof(UINT));
-	VarMap["SHADOWMAP_TEXTURE_HEIGHT"]->SetRawValue(&shadowMapDim[1], 0, sizeof(UINT));
+	VarMap["SHADOWMAP_TEXTURE_DIM"]->SetRawValue(&shadowMapResolution, 0, sizeof(UINT));
 
 	//ID3DX11EffectTechnique* activeTech = TechMap["DrawGroundAndSkyTech"];
 	//MiscDynamicParams misc;
@@ -363,7 +365,7 @@ void Atmosphere::Render(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, ID
 	ComputeEpipolarCoordTex2D(pDevice, pContext);
 	RefineSampleLocal(pDevice, pContext);
 	ComputeSliceUVOrigDirTex2D(pDevice, pContext, pShadowMapSRV);
-	Build1DMinMaxMipMap(pDevice, pContext, pShadowMapSRV);
+	Build1DMinMaxMipMap(pDevice, pContext, pShadowMapSRV, shadowMapResolution);
 	MarkRayMarchSample(pDevice, pContext);
 	DoRayMarch(pDevice, pContext, pShadowMapSRV);
 	InterpolateScatter(pDevice, pContext);
@@ -543,7 +545,7 @@ HRESULT Atmosphere::PreComputeSingleSctrTex3D(ID3D11Device* pDevice, ID3D11Devic
 }
 
 
-HRESULT Atmosphere::PreComputeInDirectIrradianceTex2D(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, int scatter_order)
+HRESULT Atmosphere::PreComputeInDirectIrradianceTex2D(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, UINT scatter_order)
 {
 	HRESULT hr = S_OK;
 
@@ -586,7 +588,7 @@ HRESULT Atmosphere::PreComputeInDirectIrradianceTex2D(ID3D11Device* pDevice, ID3
 }
 
 
-HRESULT Atmosphere::PreComputeMultiSctrTex3D(ID3D11Device* pDevice, ID3D11DeviceContext* pContext,int scatter_order)
+HRESULT Atmosphere::PreComputeMultiSctrTex3D(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, UINT scatter_order)
 {
 	HRESULT hr = S_OK;
 
@@ -897,10 +899,21 @@ HRESULT Atmosphere::ComputeSliceUVOrigDirTex2D(ID3D11Device* pDevice, ID3D11Devi
 }
 
 
-HRESULT Atmosphere::Build1DMinMaxMipMap(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, ID3D11ShaderResourceView* pShadowMapSRV)
+HRESULT Atmosphere::Build1DMinMaxMipMap(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, ID3D11ShaderResourceView* pShadowMapSRV,UINT shadowMapResolution)
 {
 	HRESULT hr = S_OK;
 
+	ID3DX11EffectTechnique* activeTech = TechMap["Initial1DMinMaxMipMapTech"];
+	ShaderResourceVarMap["g_tex2DSliceUVOrigDir"]->SetResource(pSliceUVOrigDirSRV);
+	
+	RenderQuad(pContext, activeTech, shadowMapResolution, EPIPOLAR_SLICE_NUM, 0, shadowMapResolution / 2);
+
+	UnbindResources(pContext);
+	
+
+
+	activeTech = TechMap["ComputeSliceUVOrigDirTex2DTech"];
+	UnbindResources(pContext);
 	return hr;
 }
 
@@ -1053,14 +1066,6 @@ void Atmosphere::Resize(int screen_width, int screen_height, float fFOV, float f
 	VarMap["SCREEN_HEIGHT"]->SetRawValue(&screen_height, 0, sizeof(int));
 
 	m_FirstPersonCamera.SetProjParams(fFOV, fAspect, fNear, fFar);
-	D3DXMATRIX Proj = *m_FirstPersonCamera.GetProjMatrix();
-	float det = D3DXMatrixDeterminant(&Proj);
-	D3DXMatrixInverse(&InvProj, &det, &Proj);
-
-	//InvProj = D3DXMATRIX(fFOV * fAspect, 0.0, 0.0, 0.0,
-	//	0.0, fFOV, 0.0, 0.0,
-	//	0.0, 0.0, 0.0, -1,
-	//	0.0, 0.0, 1.0, 1);
 }
 
 

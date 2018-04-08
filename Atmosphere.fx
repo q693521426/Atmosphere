@@ -1311,29 +1311,33 @@ float4 ComputeSliceUVOrigDirTex2D(QuadVertexOut In) : SV_Target
     float4 f4SliceEndInWorldSpace = mul(float4(f4SliceEnd.zw, 1.0,1.0), camera.InvViewProj);
     f4SliceEndInWorldSpace /= f4SliceEndInWorldSpace.w;
     float4 f4SliceEndInLightSpace = mul(f4SliceEndInWorldSpace, light.ViewProj);
-    float2 f2SliceEnd = f4SliceEndInLightSpace.xy / f4SliceEndInLightSpace.w;
+    float2 f2SliceUVEnd = ProjToUV(f4SliceEndInLightSpace.xy / f4SliceEndInLightSpace.w);
 
     float4 f4SliceStartInLightSpace = mul(float4(camera.f3CameraPos, 1.0), light.ViewProj);
-    float2 f2SliceUVOrig = f4SliceStartInLightSpace.xy / f4SliceStartInLightSpace.w;
-    float2 f2SliceDir = f2SliceEnd - f2SliceUVOrig;
+    float2 f2SliceUVOrig = ProjToUV(f4SliceStartInLightSpace.xy / f4SliceStartInLightSpace.w);
+    float2 f2SliceDir = f2SliceUVEnd - f2SliceUVOrig;
     float fSliceDirLength = length(f2SliceDir);
     f2SliceDir /= fSliceDirLength;
     
-    float2 f2ShadowMapDim = float2(SHADOWMAP_TEXTURE_WIDTH, SHADOWMAP_TEXTURE_HEIGHT);
-    float4 f4Boundary = float4(-1, -1, 1, 1) + float4(0.5, 0.5, -0.5, -0.5) * f2ShadowMapDim.xyxy;
+    float2 f2ShadowMapDim = float2(SHADOWMAP_TEXTURE_DIM, SHADOWMAP_TEXTURE_DIM);
+    float4 f4Boundary = float4(0, 0, 1, 1) + float4(0.5, 0.5, -0.5, -0.5) / f2ShadowMapDim.xyxy;
 
     float4 f4DistToBoundary = (f2SliceUVOrig.xyxy - f4Boundary) * float4(1, 1, -1, -1);
     if (any(f4DistToBoundary<0))
     {
         bool4 b4IsCorrectIntersectionFlag = abs(f2SliceDir.xyxy) > 1e-5;
         float4 f4DirDistToBoundary = (f4Boundary - f2SliceUVOrig.xyxy) / (f2SliceDir.xyxy + !b4IsCorrectIntersectionFlag);
-        b4IsCorrectIntersectionFlag = b4IsCorrectIntersectionFlag && (f4DirDistToBoundary < (fSliceDirLength - 1e-5));
+
+        float4 f4InsecBoundary = f2SliceUVOrig.yxyx + f2SliceDir.yxyx * f4DirDistToBoundary;
+        //b4IsCorrectIntersectionFlag = b4IsCorrectIntersectionFlag && (f4DirDistToBoundary < (fSliceDirLength - 1e-5));
+        b4IsCorrectIntersectionFlag = b4IsCorrectIntersectionFlag && (f4InsecBoundary >= f4Boundary.yxyx) && (f4InsecBoundary <= f4Boundary.wzwz);
         f4DirDistToBoundary = f4DirDistToBoundary * b4IsCorrectIntersectionFlag + 
-                                float4(-FLT_MAX, -FLT_MAX, -FLT_MAX, -FLT_MAX) * !b4IsCorrectIntersectionFlag;
-        float2 f2FirstDistToBoundary = max(f4DirDistToBoundary.xy, f4DirDistToBoundary.zw);
-        float fFirstDistToBoundary = max(f2FirstDistToBoundary.x, f2FirstDistToBoundary.y);
+                                float4(+FLT_MAX, +FLT_MAX, +FLT_MAX, +FLT_MAX) * !b4IsCorrectIntersectionFlag;
+        float2 f2FirstDistToBoundary = min(f4DirDistToBoundary.xy, f4DirDistToBoundary.zw);
+        float fFirstDistToBoundary = min(f2FirstDistToBoundary.x, f2FirstDistToBoundary.y);
         f2SliceUVOrig += f2SliceDir * fFirstDistToBoundary;
     }
+    f2SliceDir /= f2ShadowMapDim.xy;
     return float4(f2SliceUVOrig, f2SliceDir);
 }
 
@@ -1348,6 +1352,57 @@ technique11 ComputeSliceUVOrigDirTex2DTech
         SetVertexShader(CompileShader(vs_5_0, GenerateScreenSizeQuadVS()));
         SetGeometryShader(NULL);
         SetPixelShader(CompileShader(ps_5_0, ComputeSliceUVOrigDirTex2D()));
+    }
+}
+
+float2 Initial1DMinMaxMipMap(QuadVertexOut In) : SV_Target
+{
+    float2 f2MinMax;
+    float4 f4SliceUVOrigDir = g_tex2DSliceUVOrigDir.Load(uint3(In.m_f4Pos.y, 0, 0));
+    float2 f2CurrUV = f4SliceUVOrigDir.xy + f4SliceUVOrigDir.zw * floor(In.m_f4Pos.x) * 2.f;
+
+    float4 f4MinDepth = 1;
+    float4 f4MaxDepth = 0;
+    for (int i = 0; i <= 1; i++)
+    {
+        float4 f4Depths = g_tex2DShadowMap.Gather(samLinearBorder0, f2CurrUV + i * f4SliceUVOrigDir.zw);
+
+    }
+
+    return f2MinMax;
+}
+
+technique11 Initial1DMinMaxMipMapTech
+{
+    pass
+    {
+        SetBlendState(NoBlending, float4(0.0f, 0.0f, 0.0f, 0.0f), 0xFFFFFFFF);
+        SetRasterizerState(RS_SolidFill_NoCull);
+        SetDepthStencilState(DSS_NoDepthTest, 0);
+
+        SetVertexShader(CompileShader(vs_5_0, GenerateScreenSizeQuadVS()));
+        SetGeometryShader(NULL);
+        SetPixelShader(CompileShader(ps_5_0, Initial1DMinMaxMipMap()));
+    }
+}
+
+float2 Compute1DMinMaxMipMapLevel(QuadVertexOut In) : SV_Target
+{
+    float2 f2MinMax;
+    return f2MinMax;
+}
+
+technique11 Compute1DMinMaxMipMapLevelTech
+{
+    pass
+    {
+        SetBlendState(NoBlending, float4(0.0f, 0.0f, 0.0f, 0.0f), 0xFFFFFFFF);
+        SetRasterizerState(RS_SolidFill_NoCull);
+        SetDepthStencilState(DSS_NoDepthTest, 0);
+
+        SetVertexShader(CompileShader(vs_5_0, GenerateScreenSizeQuadVS()));
+        SetGeometryShader(NULL);
+        SetPixelShader(CompileShader(ps_5_0, Compute1DMinMaxMipMapLevel()));
     }
 }
 

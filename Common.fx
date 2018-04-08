@@ -13,7 +13,22 @@ SamplerState samLinearClamp
     Filter = MIN_MAG_MIP_LINEAR;
     AddressU = Clamp;
     AddressV = Clamp;
-    AddressW = Clamp;
+};
+
+SamplerState samLinearBorder0
+{
+    Filter = MIN_MAG_MIP_LINEAR;
+    AddressU = Border;
+    AddressV = Border;
+    BorderColor = float4(0, 0, 0, 0);
+};
+
+SamplerState samComparison
+{
+    Filter = COMPARISON_MIN_MAG_LINEAR_MIP_POINT;
+    AddressU = Border;
+    AddressV = Border;
+    ComparisonFunc = GREATER;
 };
 
 // Depth stencil state disabling depth test
@@ -195,8 +210,7 @@ cbuffer cbTextureDim
     uint EPIPOLAR_SLICE_NUM;
     uint EPIPOLAR_SAMPLE_NUM;
 
-    uint SHADOWMAP_TEXTURE_WIDTH;
-    uint SHADOWMAP_TEXTURE_HEIGHT;
+    uint SHADOWMAP_TEXTURE_DIM;
 };
 
 Texture2D<float3> g_tex2DTransmittanceLUT;
@@ -216,6 +230,7 @@ Texture2D<float4> g_tex2DEarthGround;
 Texture2D<float>  g_tex2DSpaceDepth;
 Texture2D<float>  g_tex2DShadowMap;
 Texture2D<float>  g_tex2DSpaceLinearDepth;
+Texture2D<float>  g_tex2DMinMaxMipMap;
 Texture2D<float4> g_tex2DSliceEnd;
 Texture2D<float4> g_tex2DEpipolarSample;
 Texture2D<float4> g_tex2DEpipolarSampleCamDepth;

@@ -64,7 +64,7 @@ public:
 	void SetLightParams();
 
 	HRESULT PreCompute(ID3D11Device*, ID3D11DeviceContext*, ID3D11RenderTargetView*);
-	void Render(ID3D11Device*, ID3D11DeviceContext*, ID3D11RenderTargetView*,ID3D11ShaderResourceView*, ID3D11ShaderResourceView*, const int[2]);
+	void Render(ID3D11Device*, ID3D11DeviceContext*, ID3D11RenderTargetView*,ID3D11ShaderResourceView*, ID3D11ShaderResourceView*, UINT);
 
 	void MsgProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
@@ -91,7 +91,7 @@ private:
 	float sun_azimuth_angle_radians = 2.9f;
 	float exposure = 10.f;
 
-	D3DXMATRIX InvView, InvProj;
+	//D3DXMATRIX InvView, InvProj;
 	UINT screen_width, screen_height;
 
 	AtmosphereParameters atmosphereParams;
@@ -102,15 +102,15 @@ private:
 	HRESULT PreComputeOpticalLengthTex2D(ID3D11Device*, ID3D11DeviceContext*);
 	HRESULT PreComputeDirectIrradianceTex2D(ID3D11Device*, ID3D11DeviceContext*);
 	HRESULT PreComputeSingleSctrTex3D(ID3D11Device*, ID3D11DeviceContext*);
-	HRESULT PreComputeInDirectIrradianceTex2D(ID3D11Device*, ID3D11DeviceContext*,int);
-	HRESULT PreComputeMultiSctrTex3D(ID3D11Device*, ID3D11DeviceContext*,int);
+	HRESULT PreComputeInDirectIrradianceTex2D(ID3D11Device*, ID3D11DeviceContext*, UINT);
+	HRESULT PreComputeMultiSctrTex3D(ID3D11Device*, ID3D11DeviceContext*, UINT);
 
 	HRESULT ComputeSpaceLinearDepthTex2D(ID3D11Device*, ID3D11DeviceContext*, ID3D11ShaderResourceView*);
 	HRESULT ComputeSliceEndTex2D(ID3D11Device*, ID3D11DeviceContext*);
 	HRESULT ComputeEpipolarCoordTex2D(ID3D11Device*, ID3D11DeviceContext*);
 	HRESULT RefineSampleLocal(ID3D11Device*, ID3D11DeviceContext*);
 	HRESULT ComputeSliceUVOrigDirTex2D(ID3D11Device*, ID3D11DeviceContext*, ID3D11ShaderResourceView*);
-	HRESULT Build1DMinMaxMipMap(ID3D11Device*, ID3D11DeviceContext*, ID3D11ShaderResourceView*);
+	HRESULT Build1DMinMaxMipMap(ID3D11Device*, ID3D11DeviceContext*, ID3D11ShaderResourceView*,UINT);
 	HRESULT MarkRayMarchSample(ID3D11Device*, ID3D11DeviceContext*);
 	HRESULT DoRayMarch(ID3D11Device*, ID3D11DeviceContext*, ID3D11ShaderResourceView*);
 	HRESULT InterpolateScatter(ID3D11Device*, ID3D11DeviceContext*);
@@ -189,6 +189,9 @@ private:
 	CComPtr<ID3D11Texture2D>							pSliceUVOrigDirTex2D;
 	CComPtr<ID3D11ShaderResourceView>					pSliceUVOrigDirSRV;
 
+	CComPtr<ID3D11Texture2D>							pMinMaxMinMapTex2D;
+	CComPtr<ID3D11ShaderResourceView>					pMinMaxMinMapTexSRV;
+
 	CComPtr<ID3D11Texture2D>							pScatterTex2D;
 	CComPtr<ID3D11ShaderResourceView>					pScatterSRV;
 
@@ -210,7 +213,8 @@ private:
 		"ComputeEpipolarCoordTex2DTech",
 		"RefineSampleTech",
 		"ComputeSliceUVOrigDirTex2DTech",
-		"Build1DMinMaxMipMapTech",
+		"Initial1DMinMaxMipMapTech",
+		"Compute1DMinMaxMipMapLevelTech",
 		"MarkRayMarchSampleTech",
 		"DoRayMarchTech",
 		"InterpolateScatterTech",
@@ -245,8 +249,7 @@ private:
 		"EPIPOLAR_SLICE_NUM",
 		"EPIPOLAR_SAMPLE_NUM",
 
-		"SHADOWMAP_TEXTURE_WIDTH",
-		"SHADOWMAP_TEXTURE_HEIGHT"
+		"SHADOWMAP_TEXTURE_DIM"
 	};
 
 	std::vector<std::string> ShaderResourceVarStr
@@ -272,6 +275,7 @@ private:
 		"g_tex2DInterpolationSample",
 		"g_tex2DShadowMap",
 		"g_tex2DSliceUVOrigDir",
+		"g_tex2DMinMaxMipMap",
 		"g_tex2DScatter",
 		"g_tex2DInterpolatedScatter"
 	};
