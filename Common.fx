@@ -120,6 +120,8 @@ struct MiscDynamicParams
     float2 f2WQ;
     float scatter_order;
     float padding;
+
+    uint4 ui4SrcDstMinMaxOffset;
 };
 
 cbuffer cbMiscDynamicParams

@@ -162,7 +162,7 @@ void CALLBACK OnD3D11FrameRender( ID3D11Device* pd3dDevice, ID3D11DeviceContext*
 	pd3dImmediateContext->ClearRenderTargetView(pRTV, ClearColor);
 	pd3dImmediateContext->ClearDepthStencilView(pDSV, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0, 0);
 
-	//m_pAtmosphere->PreCompute(pd3dDevice, pd3dImmediateContext,pRTV);
+	m_pAtmosphere->PreCompute(pd3dDevice, pd3dImmediateContext,pRTV);
 	{
 		m_pFrameBuffer->Activate();
 		m_pFrameBuffer->ActivateDepth(true);
@@ -187,10 +187,9 @@ void CALLBACK OnD3D11FrameRender( ID3D11Device* pd3dDevice, ID3D11DeviceContext*
 
 		m_pShadowMapFrameBuffer->DeactivateDepth();
 	}
-	int shadowMapDim[] = { m_shadowMapDim, m_shadowMapDim };
 	m_pAtmosphere->Render(pd3dDevice, pd3dImmediateContext, pRTV, 
 		m_pFrameBuffer->GetDepthSRV(), m_pShadowMapFrameBuffer->GetDepthSRV(),
-		shadowMapDim);
+		m_shadowMapDim);
 }
 
 

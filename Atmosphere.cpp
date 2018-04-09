@@ -200,8 +200,11 @@ void Atmosphere::Release()
 	pSliceUVOrigDirTex2D.Release();
 	pSliceUVOrigDirSRV.Release();
 
-	pMinMaxMinMapTex2D.Release();
-	pMinMaxMinMapTexSRV.Release();
+	for (int i = 0; i < 2; i++)
+	{
+		pMinMaxMinMapTex2D[i].Release();
+		pMinMaxMinMapTexSRV[i].Release();
+	}
 
 	pScatterTex2D.Release();
 	pScatterSRV.Release();
@@ -902,17 +905,58 @@ HRESULT Atmosphere::ComputeSliceUVOrigDirTex2D(ID3D11Device* pDevice, ID3D11Devi
 HRESULT Atmosphere::Build1DMinMaxMipMap(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, ID3D11ShaderResourceView* pShadowMapSRV,UINT shadowMapResolution)
 {
 	HRESULT hr = S_OK;
+	DXGI_FORMAT format = DXGI_FORMAT_R32G32_FLOAT;
+	for (int i = 0; i < 2; i++)
+	{
+		pMinMaxMinMapTex2D[i].Release();
+		pMinMaxMinMapTexSRV[i].Release();
+	}
+	CComPtr<ID3D11RenderTargetView> pMinMaxMinMapTexRTV[2];
+	V_RETURN(CreateTexture2D(pDevice, pContext, shadowMapResolution, EPIPOLAR_SLICE_NUM, format,
+							{ &pMinMaxMinMapTex2D[0].p,&pMinMaxMinMapTex2D[1].p }, 
+							{ &pMinMaxMinMapTexSRV[0].p,&pMinMaxMinMapTexSRV[1].p },
+							{ &pMinMaxMinMapTexRTV[0].p,&pMinMaxMinMapTexRTV[1].p }));
+
 
 	ID3DX11EffectTechnique* activeTech = TechMap["Initial1DMinMaxMipMapTech"];
 	ShaderResourceVarMap["g_tex2DSliceUVOrigDir"]->SetResource(pSliceUVOrigDirSRV);
-	
-	RenderQuad(pContext, activeTech, shadowMapResolution, EPIPOLAR_SLICE_NUM, 0, shadowMapResolution / 2);
-
+	pContext->OMSetRenderTargets(1, &pMinMaxMinMapTexRTV[0].p, nullptr);
+	RenderQuad(pContext, activeTech, shadowMapResolution / 2, EPIPOLAR_SLICE_NUM);
 	UnbindResources(pContext);
 	
+	activeTech = TechMap["Compute1DMinMaxMipMapLevelTech"];
+	CComPtr<ID3D11Resource> pDstResource, pSrcResource;
+	pMinMaxMinMapTexRTV[0]->GetResource(&pDstResource.p);
+	pMinMaxMinMapTexRTV[1]->GetResource(&pSrcResource.p);
 
+	UINT offsetX = shadowMapResolution / 2;
+	UINT preOffsetX = 0;
+	for (UINT level = 2, step = 4; level <= MaxMinMaxMapLevel; level++,step <<= 1)
+	{
+		ShaderResourceVarMap["g_tex2DMinMaxMipMap"]->SetResource(pMinMaxMinMapTexSRV[level % 2]);
+		misc.uiSrcMinMaxOffsetX = preOffsetX;
+		misc.uiSrcMinMaxOffsetY = 0;
+		misc.uiDstMinMaxOffsetX = offsetX;
+		misc.uiDstMinMaxOffsetY = 0;
+		VarMap["misc"]->SetRawValue(&misc, 0, sizeof(MiscDynamicParams));
+		pContext->OMSetRenderTargets(1, &pMinMaxMinMapTexRTV[(level + 1) % 2].p, nullptr);
+		RenderQuad(pContext, activeTech, shadowMapResolution / step, EPIPOLAR_SLICE_NUM, offsetX, 0);
 
-	activeTech = TechMap["ComputeSliceUVOrigDirTex2DTech"];
+		preOffsetX = offsetX;
+		offsetX += shadowMapResolution / step;
+		if((level + 1) % 2)
+		{
+			D3D11_BOX SrcBox;
+			SrcBox.left = preOffsetX;
+			SrcBox.right = offsetX;
+			SrcBox.top = 0;
+			SrcBox.bottom = EPIPOLAR_SLICE_NUM;
+			SrcBox.front = 0;
+			SrcBox.back = 1;
+			pContext->CopySubresourceRegion(pDstResource, 0, offsetX, 0, 0, pSrcResource, 0, &SrcBox);
+		}
+	}
+
 	UnbindResources(pContext);
 	return hr;
 }

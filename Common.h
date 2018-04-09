@@ -20,6 +20,11 @@ struct MiscDynamicParams
 	D3DXVECTOR2 f2WQ;
 	float scatter_order;
 	float padding;
+
+	UINT uiSrcMinMaxOffsetX;
+	UINT uiSrcMinMaxOffsetY;
+	UINT uiDstMinMaxOffsetX;
+	UINT uiDstMinMaxOffsetY;
 };
 
 struct CameraParams

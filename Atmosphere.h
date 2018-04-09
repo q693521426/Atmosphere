@@ -83,6 +83,7 @@ private:
 	int scatter_order_num;
 
 	bool IsPreComputed = false;
+	UINT MaxMinMaxMapLevel = 4;
 
 	float view_distance_meters = 9000.f;
 	float view_zenith_angle_radians = 1.47f;
@@ -189,8 +190,8 @@ private:
 	CComPtr<ID3D11Texture2D>							pSliceUVOrigDirTex2D;
 	CComPtr<ID3D11ShaderResourceView>					pSliceUVOrigDirSRV;
 
-	CComPtr<ID3D11Texture2D>							pMinMaxMinMapTex2D;
-	CComPtr<ID3D11ShaderResourceView>					pMinMaxMinMapTexSRV;
+	CComPtr<ID3D11Texture2D>							pMinMaxMinMapTex2D[2];
+	CComPtr<ID3D11ShaderResourceView>					pMinMaxMinMapTexSRV[2];
 
 	CComPtr<ID3D11Texture2D>							pScatterTex2D;
 	CComPtr<ID3D11ShaderResourceView>					pScatterSRV;
