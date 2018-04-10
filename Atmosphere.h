@@ -193,11 +193,11 @@ private:
 	CComPtr<ID3D11Texture2D>							pMinMaxMinMapTex2D[2];
 	CComPtr<ID3D11ShaderResourceView>					pMinMaxMinMapTexSRV[2];
 
-	CComPtr<ID3D11Texture2D>							pScatterTex2D;
-	CComPtr<ID3D11ShaderResourceView>					pScatterSRV;
+	CComPtr<ID3D11Texture2D>							pSampleScatterTex2D;
+	CComPtr<ID3D11ShaderResourceView>					pSampleScatterSRV;
 
-	CComPtr<ID3D11Texture2D>							pInterpolatedScatterTex2D;
-	CComPtr<ID3D11ShaderResourceView>					pInterpolatedScatterSRV;
+	CComPtr<ID3D11Texture2D>							pInterpolatedSampleScatterTex2D;
+	CComPtr<ID3D11ShaderResourceView>					pInterpolatedSampleScatterSRV;
 
 	std::vector<std::string> TechStr
 	{
@@ -250,7 +250,8 @@ private:
 		"EPIPOLAR_SLICE_NUM",
 		"EPIPOLAR_SAMPLE_NUM",
 
-		"SHADOWMAP_TEXTURE_DIM"
+		"SHADOWMAP_TEXTURE_DIM",
+		"MIN_MAX_TEXTURE_DIM"
 	};
 
 	std::vector<std::string> ShaderResourceVarStr

@@ -119,7 +119,7 @@ struct MiscDynamicParams
 {
     float2 f2WQ;
     float scatter_order;
-    float padding;
+    uint uiMinMaxLevelMax;
 
     uint4 ui4SrcDstMinMaxOffset;
 };
@@ -213,6 +213,7 @@ cbuffer cbTextureDim
     uint EPIPOLAR_SAMPLE_NUM;
 
     uint SHADOWMAP_TEXTURE_DIM;
+    uint MIN_MAX_TEXTURE_DIM;
 };
 
 Texture2D<float3> g_tex2DTransmittanceLUT;

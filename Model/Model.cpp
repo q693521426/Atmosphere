@@ -168,7 +168,7 @@ void Model::RenderModel(ID3D11Device* pd3dDevice, ID3D11DeviceContext* pd3dImmed
 		if(IsOnlyZPass)
 		{
 			pd3dImmediateContext->VSSetShader(m_pVertexShader, nullptr, 0);
-			pd3dImmediateContext->PSSetShader(nullptr, nullptr, 0);
+			pd3dImmediateContext->PSSetShader(m_pPixelShader, nullptr, 0);
 		}
 		else
 		{

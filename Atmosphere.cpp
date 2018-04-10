@@ -206,11 +206,11 @@ void Atmosphere::Release()
 		pMinMaxMinMapTexSRV[i].Release();
 	}
 
-	pScatterTex2D.Release();
-	pScatterSRV.Release();
+	pSampleScatterTex2D.Release();
+	pSampleScatterSRV.Release();
 
-	pInterpolatedScatterTex2D.Release();
-	pInterpolatedScatterSRV.Release();
+	pInterpolatedSampleScatterTex2D.Release();
+	pInterpolatedSampleScatterSRV.Release();
 
 	GameObject::Release();
 }
@@ -891,7 +891,6 @@ HRESULT Atmosphere::ComputeSliceUVOrigDirTex2D(ID3D11Device* pDevice, ID3D11Devi
 							{ &pSliceUVOrigDirRTV.p }));
 
 	ID3DX11EffectTechnique* activeTech = TechMap["ComputeSliceUVOrigDirTex2DTech"];
-	ShaderResourceVarMap["g_tex2DShadowMap"]->SetResource(pShadowMapSRV);
 	ShaderResourceVarMap["g_tex2DSliceEnd"]->SetResource(pSliceEndSRV);
 
 	pContext->OMSetRenderTargets(1, &pSliceUVOrigDirRTV.p, nullptr);
@@ -906,24 +905,29 @@ HRESULT Atmosphere::Build1DMinMaxMipMap(ID3D11Device* pDevice, ID3D11DeviceConte
 {
 	HRESULT hr = S_OK;
 	DXGI_FORMAT format = DXGI_FORMAT_R32G32_FLOAT;
+	UINT MIN_MAX_TEXTURE_DIM = shadowMapResolution;
 	for (int i = 0; i < 2; i++)
 	{
 		pMinMaxMinMapTex2D[i].Release();
 		pMinMaxMinMapTexSRV[i].Release();
 	}
 	CComPtr<ID3D11RenderTargetView> pMinMaxMinMapTexRTV[2];
-	V_RETURN(CreateTexture2D(pDevice, pContext, shadowMapResolution, EPIPOLAR_SLICE_NUM, format,
+	VarMap["MIN_MAX_TEXTURE_DIM"]->SetRawValue(&MIN_MAX_TEXTURE_DIM, 0, sizeof(UINT));
+	V_RETURN(CreateTexture2D(pDevice, pContext, MIN_MAX_TEXTURE_DIM, EPIPOLAR_SLICE_NUM, format,
 							{ &pMinMaxMinMapTex2D[0].p,&pMinMaxMinMapTex2D[1].p }, 
 							{ &pMinMaxMinMapTexSRV[0].p,&pMinMaxMinMapTexSRV[1].p },
 							{ &pMinMaxMinMapTexRTV[0].p,&pMinMaxMinMapTexRTV[1].p }));
 
 
 	ID3DX11EffectTechnique* activeTech = TechMap["Initial1DMinMaxMipMapTech"];
+	ShaderResourceVarMap["g_tex2DShadowMap"]->SetResource(pShadowMapSRV);
 	ShaderResourceVarMap["g_tex2DSliceUVOrigDir"]->SetResource(pSliceUVOrigDirSRV);
 	pContext->OMSetRenderTargets(1, &pMinMaxMinMapTexRTV[0].p, nullptr);
 	RenderQuad(pContext, activeTech, shadowMapResolution / 2, EPIPOLAR_SLICE_NUM);
 	UnbindResources(pContext);
-	
+	CComPtr<ID3D11RenderTargetView> pDummyRTV = nullptr;
+	pContext->OMSetRenderTargets(1, &pDummyRTV, nullptr);
+
 	activeTech = TechMap["Compute1DMinMaxMipMapLevelTech"];
 	CComPtr<ID3D11Resource> pDstResource, pSrcResource;
 	pMinMaxMinMapTexRTV[0]->GetResource(&pDstResource.p);
@@ -955,6 +959,8 @@ HRESULT Atmosphere::Build1DMinMaxMipMap(ID3D11Device* pDevice, ID3D11DeviceConte
 			SrcBox.back = 1;
 			pContext->CopySubresourceRegion(pDstResource, 0, offsetX, 0, 0, pSrcResource, 0, &SrcBox);
 		}
+		pContext->OMSetRenderTargets(1, &pDummyRTV, nullptr);
+		UnbindResources(pContext);
 	}
 
 	UnbindResources(pContext);
@@ -980,6 +986,7 @@ HRESULT Atmosphere::MarkRayMarchSample(ID3D11Device* pDevice, ID3D11DeviceContex
 		pass->Apply(0, pContext);
 	}
 	pContext->OMSetRenderTargets(1, &pDummyRTV, nullptr);
+	UnbindResources(pContext);
 	return hr;
 }
 
@@ -987,6 +994,27 @@ HRESULT Atmosphere::MarkRayMarchSample(ID3D11Device* pDevice, ID3D11DeviceContex
 HRESULT Atmosphere::DoRayMarch(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, ID3D11ShaderResourceView* pShadowMapSRV)
 {
 	HRESULT hr = S_OK;
+	DXGI_FORMAT format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+	pSampleScatterTex2D.Release();
+	pSampleScatterSRV.Release();
+	CComPtr<ID3D11RenderTargetView> pSampleScatterRTV;
+	V_RETURN(CreateTexture2D(pDevice, pContext, EPIPOLAR_SAMPLE_NUM, EPIPOLAR_SLICE_NUM, format,
+			{ &pSampleScatterTex2D.p }, { &pSampleScatterSRV.p }, { &pSampleScatterRTV.p }));
+
+	ID3DX11EffectTechnique* activeTech = TechMap["DoRayMarchTech"];
+	ShaderResourceVarMap["g_tex2DEpipolarSample"]->SetResource(pEpipolarSampleSRV);
+	ShaderResourceVarMap["g_tex2DEpipolarSampleCamDepth"]->SetResource(pEpipolarSampleCamDepthSRV);
+	ShaderResourceVarMap["g_tex2DOpticalLengthLUT"]->SetResource(pOpticalLengthSRV);
+	ShaderResourceVarMap["g_tex3DMultiScatteringCombinedLUT"]->SetResource(pMultiScatterCombinedSRV);
+
+	misc.uiMinMaxLevelMax = MaxMinMaxMapLevel;
+	VarMap["misc"]->SetRawValue(&misc, 0, sizeof(MiscDynamicParams));
+
+	pContext->OMSetRenderTargets(1, &pSampleScatterRTV.p, pEpipolarSampleDSV);
+	RenderQuad(pContext, activeTech, EPIPOLAR_SAMPLE_NUM, EPIPOLAR_SLICE_NUM);
+	
+	UnbindResources(pContext);
+
 	return hr;
 }
 

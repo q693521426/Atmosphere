@@ -19,7 +19,7 @@ struct MiscDynamicParams
 {
 	D3DXVECTOR2 f2WQ;
 	float scatter_order;
-	float padding;
+	UINT uiMinMaxLevelMax;
 
 	UINT uiSrcMinMaxOffsetX;
 	UINT uiSrcMinMaxOffsetY;
