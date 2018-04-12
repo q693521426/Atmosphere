@@ -11,6 +11,7 @@ public:
 	static HRESULT Initialize(ID3D11Device* device);
 	static void Release();
 	
+	static ID3D11RasterizerState* NoCullRS;
 	static ID3D11RasterizerState* CullClockWiseRS;
 	static ID3D11RasterizerState* CullCounterClockWiseRS;
 	static ID3D11DepthStencilState*	OnDepthStencilState;

@@ -12,7 +12,7 @@ Model::Model():
 	m_pTextureRV(nullptr),
 	m_pSamplerLinear(nullptr),
 	ModelHeight(1800.f),
-	ModelScaling(1000.f)
+	ModelScaling(1.f)
 {
 }
 
@@ -237,16 +237,102 @@ void Model::RenderModel(ID3D11Device* pd3dDevice, ID3D11DeviceContext* pd3dImmed
 
 void Model::Render(ID3D11Device* pd3dDevice, ID3D11DeviceContext* pd3dImmediateContext)
 {
-	RenderModel(pd3dDevice, pd3dImmediateContext, this->m_WVP, false);
+	RenderModel(pd3dDevice, pd3dImmediateContext, m_ViewProj, false);
 #if LIGHT_SPHERE
 	m_LightSphere->SetWVP(m_WVP);
 	m_LightSphere->Render(pd3dDevice, pd3dImmediateContext);
 #endif
 }
 
-void Model::RenderShadowMap(ID3D11Device* pd3dDevice, ID3D11DeviceContext* pd3dImmediateContext, const D3DXMATRIX& viewProj)
+void Model::RenderShadowMap(ID3D11Device* pd3dDevice, ID3D11DeviceContext* pd3dImmediateContext, const D3DXVECTOR3& SunDir,UINT shadowMapDim)
 {
-	RenderModel(pd3dDevice, pd3dImmediateContext, viewProj, true);
+	D3DXVECTOR3 lightDir = -SunDir;
+	D3DXVECTOR3 lightSpaceZ = lightDir;
+	D3DXVECTOR3 lightSpaceX = D3DXVECTOR3(1, 0, 0);
+	D3DXVECTOR3 lightSpaceY;
+	D3DXVec3Cross(&lightSpaceY, &lightSpaceX, &lightSpaceZ);
+	D3DXVec3Cross(&lightSpaceX, &lightSpaceZ, &lightSpaceY);
+
+	D3DXVec3Normalize(&lightSpaceX, &lightSpaceX);
+	D3DXVec3Normalize(&lightSpaceY, &lightSpaceY);
+	D3DXVec3Normalize(&lightSpaceZ, &lightSpaceZ);
+
+	D3DXMATRIX lightView;
+	D3DXMatrixIdentity(&lightView);
+	lightView._11 = lightSpaceX.x;
+	lightView._21 = lightSpaceX.y;
+	lightView._31 = lightSpaceX.z;
+
+	lightView._12 = lightSpaceY.x;
+	lightView._22 = lightSpaceY.y;
+	lightView._32 = lightSpaceY.z;
+
+	lightView._13 = lightSpaceZ.x;
+	lightView._23 = lightSpaceZ.y;
+	lightView._33 = lightSpaceZ.z;
+
+	D3DXMATRIX camInvViewProj;
+	float det = D3DXMatrixDeterminant(&m_ViewProj);
+	D3DXMatrixInverse(&camInvViewProj, &det, &m_ViewProj);
+
+	D3DXVECTOR3 f3ViewPosInLightSpace;
+	D3DXVec3TransformCoord(&f3ViewPosInLightSpace, &m_ViewPos, &lightView);
+
+	D3DXMATRIX camProjSpaceToLightSpace = camInvViewProj * lightView;
+
+	D3DXVECTOR3 f3MinXYZ(FLT_MAX, FLT_MAX, FLT_MAX);
+	D3DXVECTOR3 f3MaxXYZ(-FLT_MAX, -FLT_MAX, -FLT_MAX);
+
+	for (int iClipPlaneCorner = 0; iClipPlaneCorner < 8; ++iClipPlaneCorner)
+	{
+		D3DXVECTOR3 f3PlaneCornerProjSpace((iClipPlaneCorner & 0x01) ? +1.f : -1.f,
+										(iClipPlaneCorner & 0x02) ? +1.f : -1.f,
+										(iClipPlaneCorner & 0x04) ? 1.f : 0.f);
+		D3DXVECTOR3 f3PlaneCornerLightSpace;
+		D3DXVec3TransformCoord(&f3PlaneCornerLightSpace, &f3PlaneCornerProjSpace, &camProjSpaceToLightSpace);
+		D3DXVec3Minimize(&f3MinXYZ, &f3MinXYZ, &f3PlaneCornerLightSpace);
+		D3DXVec3Maximize(&f3MaxXYZ, &f3MaxXYZ, &f3PlaneCornerLightSpace);
+	}
+	//float fEarthRadius = 6360.f;
+	//f3MinXYZ.z -= fEarthRadius * sqrt(2.f);
+
+	//float fShadowMapDim = (float)shadowMapDim;
+	//float fXExt = (f3MaxXYZ.x - f3MinXYZ.x) * (1 + 1.f / fShadowMapDim);
+	//float fYExt = (f3MaxXYZ.y - f3MinXYZ.y) * (1 + 1.f / fShadowMapDim);
+	//const float fExtStep = 2.f;
+	//fXExt = pow(fExtStep, ceil(log(fXExt) / log(fExtStep)));
+	//fYExt = pow(fExtStep, ceil(log(fYExt) / log(fExtStep)));
+	//// Align cascade center with the shadow map texels to alleviate temporal aliasing
+	//float fXCenter = (f3MaxXYZ.x + f3MinXYZ.x) / 2.f;
+	//float fYCenter = (f3MaxXYZ.y + f3MinXYZ.y) / 2.f;
+	//float fTexelXSize = fXExt / fShadowMapDim;
+	//float fTexelYSize = fXExt / fShadowMapDim;
+	//fXCenter = floor(fXCenter / fTexelXSize) * fTexelXSize;
+	//fYCenter = floor(fYCenter / fTexelYSize) * fTexelYSize;
+	//// Compute new cascade min/max xy coords
+	//f3MaxXYZ.x = fXCenter + fXExt / 2.f;
+	//f3MinXYZ.x = fXCenter - fXExt / 2.f;
+	//f3MaxXYZ.y = fYCenter + fYExt / 2.f;
+	//f3MinXYZ.y = fYCenter - fYExt / 2.f;
+
+	D3DXVECTOR3 f3LightSpaceScale, f3LightSpaceScaledBias;
+
+	f3LightSpaceScale.x = 2.f / (f3MaxXYZ.x - f3MinXYZ.x);
+	f3LightSpaceScale.y = 2.f / (f3MaxXYZ.y - f3MinXYZ.y);
+	f3LightSpaceScale.z = 1.f / (f3MaxXYZ.z - f3MinXYZ.z);
+	// Apply bias to shift the extent to [-1,1]x[-1,1]x[0,1]
+	f3LightSpaceScaledBias.x = -f3MinXYZ.x * f3LightSpaceScale.x - 1.f;
+	f3LightSpaceScaledBias.y = -f3MinXYZ.y * f3LightSpaceScale.y - 1.f;
+	f3LightSpaceScaledBias.z = -f3MinXYZ.z * f3LightSpaceScale.z + 0.f;
+	D3DXMATRIX ScaleMatrix;
+	D3DXMatrixScaling(&ScaleMatrix, f3LightSpaceScale.x, f3LightSpaceScale.y, f3LightSpaceScale.z);
+	D3DXMATRIX ScaledBiasMatrix;
+	D3DXMatrixTranslation(&ScaledBiasMatrix, f3LightSpaceScaledBias.x, f3LightSpaceScaledBias.y, f3LightSpaceScaledBias.z);
+
+	// Note: bias is applied after scaling!
+	D3DXMATRIX lightProj = ScaleMatrix * ScaledBiasMatrix;
+	D3DXMATRIX lightViewProj = lightView * lightProj;
+	RenderModel(pd3dDevice, pd3dImmediateContext, lightViewProj, true);
 }
 
 void Model::Resize(const DXGI_SURFACE_DESC* pBackBufferSurfaceDesc)
@@ -261,9 +347,9 @@ void Model::SetModelHeight(float h)
 	ModelHeight = h;
 }
 
-void Model::SetWVP(const D3DXMATRIX& wvp)
+void Model::SetViewProj(const D3DXMATRIX& viewProj)
 {
-	m_WVP = wvp;
+	this->m_ViewProj = viewProj;
 }
 
 

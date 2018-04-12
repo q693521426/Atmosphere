@@ -59,9 +59,6 @@ public:
 	void Resize(int, int, float, float, float, float);
 
 	HRESULT OnD3D11CreateDevice(ID3D11Device*, ID3D11DeviceContext*);
-	void SetTextureSize();
-	void SetCameraParams();
-	void SetLightParams();
 
 	HRESULT PreCompute(ID3D11Device*, ID3D11DeviceContext*, ID3D11RenderTargetView*);
 	void Render(ID3D11Device*, ID3D11DeviceContext*, ID3D11RenderTargetView*,ID3D11ShaderResourceView*, ID3D11ShaderResourceView*, UINT);
@@ -71,13 +68,12 @@ public:
 	void OnFrameMove(double fTime, float fElapsedTime);
 
 	D3DXVECTOR3 GetSunDir();
-	D3DXMATRIX GetSunView(const D3DXVECTOR3&);
-	D3DXMATRIX GetSunProj();
-	D3DXMATRIX GetSunViewProj(const D3DXVECTOR3&);
+	void SetLightView(const D3DXMATRIX&);
+	void SetLightProj(const D3DXMATRIX&);
 
-	float GetCameraHeight();
+	void SetCamParam(const D3DXVECTOR3&, const D3DXVECTOR3&, const D3DXMATRIX&, const D3DXMATRIX&);
 private:
-	CFirstPersonCamera					m_FirstPersonCamera;
+	//CFirstPersonCamera					m_FirstPersonCamera;
 	Cloud*								m_pCloud;
 
 	int scatter_order_num;
@@ -98,6 +94,18 @@ private:
 	AtmosphereParameters atmosphereParams;
 	CameraParams cameraParams;
 	LightParams lightParams;
+
+	D3DXMATRIX lightView;
+	D3DXMATRIX lightProj;
+
+	D3DXMATRIX camView;
+	D3DXMATRIX camProj;
+	D3DXVECTOR3 f3CamPos;
+	D3DXVECTOR3 f3CamDir;
+
+	void SetTextureSize();
+	void SetCameraParams();
+	void SetLightParams();
 
 	HRESULT PreComputeTransmittanceTex2D(ID3D11Device*, ID3D11DeviceContext*);
 	HRESULT PreComputeOpticalLengthTex2D(ID3D11Device*, ID3D11DeviceContext*);

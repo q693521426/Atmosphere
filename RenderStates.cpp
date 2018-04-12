@@ -2,10 +2,12 @@
 #include "RenderStates.h"
 #include <minwinbase.h>
 
+ID3D11RasterizerState* RenderStates::NoCullRS = nullptr;
 ID3D11RasterizerState* RenderStates::CullClockWiseRS = nullptr;
 ID3D11RasterizerState* RenderStates::CullCounterClockWiseRS = nullptr;
 ID3D11DepthStencilState* RenderStates::OnDepthStencilState = nullptr;
 ID3D11DepthStencilState* RenderStates::OffDepthStencilState = nullptr;
+
 RenderStates::RenderStates()
 {
 }
@@ -35,6 +37,9 @@ HRESULT RenderStates::Initialize(ID3D11Device* device)
 	rasterDesc.FrontCounterClockwise = false;
 	V_RETURN(device->CreateRasterizerState(&rasterDesc, &CullCounterClockWiseRS));
 
+	rasterDesc.CullMode = D3D11_CULL_NONE;
+	V_RETURN(device->CreateRasterizerState(&rasterDesc, &NoCullRS));
+	
 	D3D11_DEPTH_STENCIL_DESC depthStencilDesc;
 	ZeroMemory(&depthStencilDesc, sizeof(depthStencilDesc));
 	depthStencilDesc.DepthEnable = true;
@@ -64,6 +69,7 @@ HRESULT RenderStates::Initialize(ID3D11Device* device)
 
 void RenderStates::Release()
 {
+	SAFE_RELEASE(NoCullRS);
 	SAFE_RELEASE(CullClockWiseRS);
 	SAFE_RELEASE(CullCounterClockWiseRS);
 	SAFE_RELEASE(OnDepthStencilState);

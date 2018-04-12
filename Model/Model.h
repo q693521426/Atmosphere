@@ -23,12 +23,12 @@ public:
 	void Release();
 
 	void Render(ID3D11Device*, ID3D11DeviceContext*);
-	void RenderShadowMap(ID3D11Device*, ID3D11DeviceContext*, const D3DXMATRIX&);
+	void RenderShadowMap(ID3D11Device*, ID3D11DeviceContext*, const D3DXVECTOR3&, UINT);
 	void Model::RenderModel(ID3D11Device*, ID3D11DeviceContext*, const D3DXMATRIX&, bool);
 
 	void Resize(const DXGI_SURFACE_DESC*);
 
-	void SetWVP(const D3DXMATRIX&);
+	void SetViewProj(const D3DXMATRIX&);
 	void SetViewPos(const D3DXVECTOR3&);
 	void SetLight(const DirectionalLight*);
 
@@ -37,7 +37,7 @@ private:
 	float							ModelHeight;
 	float							ModelScaling;
 	D3DXMATRIX						m_World;
-	D3DXMATRIX						m_WVP;
+	D3DXMATRIX						m_ViewProj;
 	D3DXVECTOR3						m_ViewPos;
 	const static DWORD				NUMBER_OF_MODELS = 1;
 	ID3D11VertexShader*				m_pVertexShader;
