@@ -62,6 +62,19 @@ DepthStencilState DSS_NoDepthTest_StEqual_IncrStencil
     BackFaceStencilFail = KEEP;
 };
 
+DepthStencilState DSS_NoDepthTest_StEqual_KeepStencil
+{
+    DepthEnable = false;
+    DepthWriteMask = ZERO;
+    StencilEnable = true;
+    FrontFaceStencilFunc = EQUAL;
+    BackFaceStencilFunc = EQUAL;
+    FrontFaceStencilPass = KEEP;
+    BackFaceStencilPass = KEEP;
+    FrontFaceStencilFail = KEEP;
+    BackFaceStencilFail = KEEP;
+};
+
 RasterizerState RS_SolidFill_NoCull
 {
     FILLMODE = Solid;
@@ -233,11 +246,11 @@ Texture2D<float4> g_tex2DEarthGround;
 Texture2D<float>  g_tex2DSpaceDepth;
 Texture2D<float>  g_tex2DShadowMap;
 Texture2D<float>  g_tex2DSpaceLinearDepth;
-Texture2D<float>  g_tex2DMinMaxMipMap;
+Texture2D<float2>  g_tex2DMinMaxMipMap;
 Texture2D<float4> g_tex2DSliceEnd;
-Texture2D<float4> g_tex2DEpipolarSample;
-Texture2D<float4> g_tex2DEpipolarSampleCamDepth;
-Texture2D<float4> g_tex2DInterpolationSample;
+Texture2D<float2> g_tex2DEpipolarSample;
+Texture2D<float> g_tex2DEpipolarSampleCamDepth;
+Texture2D<uint2> g_tex2DInterpolationSample;
 Texture2D<float4> g_tex2DSliceUVOrigDir;
 Texture2D<float4> g_tex2DScatter;
 Texture2D<float4> g_tex2DInterpolatedScatter;

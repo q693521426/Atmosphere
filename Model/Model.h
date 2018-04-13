@@ -32,12 +32,19 @@ public:
 	void SetViewPos(const D3DXVECTOR3&);
 	void SetLight(const DirectionalLight*);
 
+	D3DXMATRIX GetLightView()const;
+	D3DXMATRIX GetLightProj()const;
+	D3DXMATRIX GetLightViewProj()const;
+
 	void SetModelHeight(float h);
 private:
 	float							ModelHeight;
 	float							ModelScaling;
 	D3DXMATRIX						m_World;
 	D3DXMATRIX						m_ViewProj;
+	D3DXMATRIX						m_LightView;
+	D3DXMATRIX						m_LightProj;
+	D3DXMATRIX						m_LightViewProj;
 	D3DXVECTOR3						m_ViewPos;
 	const static DWORD				NUMBER_OF_MODELS = 1;
 	ID3D11VertexShader*				m_pVertexShader;
@@ -49,6 +56,9 @@ private:
 	ID3D11Buffer*					m_pFrustumBuffer;
 	ID3D11ShaderResourceView*		m_pTextureRV;
 	ID3D11SamplerState*				m_pSamplerLinear;
+
+	D3DXVECTOR3						m_f3MinXYZ;
+	D3DXVECTOR3						m_f3MaxXYZ;
 #if LIGHT_SPHERE
 	Sphere*							m_LightSphere;
 #endif

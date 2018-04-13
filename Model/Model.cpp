@@ -257,31 +257,32 @@ void Model::RenderShadowMap(ID3D11Device* pd3dDevice, ID3D11DeviceContext* pd3dI
 	D3DXVec3Normalize(&lightSpaceY, &lightSpaceY);
 	D3DXVec3Normalize(&lightSpaceZ, &lightSpaceZ);
 
-	D3DXMATRIX lightView;
-	D3DXMatrixIdentity(&lightView);
-	lightView._11 = lightSpaceX.x;
-	lightView._21 = lightSpaceX.y;
-	lightView._31 = lightSpaceX.z;
+	D3DXMatrixIdentity(&m_LightView);
+	m_LightView._11 = lightSpaceX.x;
+	m_LightView._21 = lightSpaceX.y;
+	m_LightView._31 = lightSpaceX.z;
 
-	lightView._12 = lightSpaceY.x;
-	lightView._22 = lightSpaceY.y;
-	lightView._32 = lightSpaceY.z;
+	m_LightView._12 = lightSpaceY.x;
+	m_LightView._22 = lightSpaceY.y;
+	m_LightView._32 = lightSpaceY.z;
 
-	lightView._13 = lightSpaceZ.x;
-	lightView._23 = lightSpaceZ.y;
-	lightView._33 = lightSpaceZ.z;
+	m_LightView._13 = lightSpaceZ.x;
+	m_LightView._23 = lightSpaceZ.y;
+	m_LightView._33 = lightSpaceZ.z;
 
 	D3DXMATRIX camInvViewProj;
 	float det = D3DXMatrixDeterminant(&m_ViewProj);
 	D3DXMatrixInverse(&camInvViewProj, &det, &m_ViewProj);
 
 	D3DXVECTOR3 f3ViewPosInLightSpace;
-	D3DXVec3TransformCoord(&f3ViewPosInLightSpace, &m_ViewPos, &lightView);
+	D3DXVec3TransformCoord(&f3ViewPosInLightSpace, &m_ViewPos, &m_LightView);
 
-	D3DXMATRIX camProjSpaceToLightSpace = camInvViewProj * lightView;
+	D3DXMATRIX camProjSpaceToLightSpace = camInvViewProj * m_LightView;
 
-	D3DXVECTOR3 f3MinXYZ(FLT_MAX, FLT_MAX, FLT_MAX);
-	D3DXVECTOR3 f3MaxXYZ(-FLT_MAX, -FLT_MAX, -FLT_MAX);
+	//D3DXVECTOR3 f3MinXYZ(FLT_MAX, FLT_MAX, FLT_MAX);
+	//D3DXVECTOR3 f3MaxXYZ(-FLT_MAX, -FLT_MAX, -FLT_MAX);
+	D3DXVECTOR3 f3MinXYZ(f3ViewPosInLightSpace);
+	D3DXVECTOR3 f3MaxXYZ(f3ViewPosInLightSpace);
 
 	for (int iClipPlaneCorner = 0; iClipPlaneCorner < 8; ++iClipPlaneCorner)
 	{
@@ -293,8 +294,8 @@ void Model::RenderShadowMap(ID3D11Device* pd3dDevice, ID3D11DeviceContext* pd3dI
 		D3DXVec3Minimize(&f3MinXYZ, &f3MinXYZ, &f3PlaneCornerLightSpace);
 		D3DXVec3Maximize(&f3MaxXYZ, &f3MaxXYZ, &f3PlaneCornerLightSpace);
 	}
-	//float fEarthRadius = 6360.f;
-	//f3MinXYZ.z -= fEarthRadius * sqrt(2.f);
+	float fEarthRadius = 6360.f;
+	f3MinXYZ.z -= fEarthRadius * sqrt(2.f);
 
 	//float fShadowMapDim = (float)shadowMapDim;
 	//float fXExt = (f3MaxXYZ.x - f3MinXYZ.x) * (1 + 1.f / fShadowMapDim);
@@ -330,9 +331,10 @@ void Model::RenderShadowMap(ID3D11Device* pd3dDevice, ID3D11DeviceContext* pd3dI
 	D3DXMatrixTranslation(&ScaledBiasMatrix, f3LightSpaceScaledBias.x, f3LightSpaceScaledBias.y, f3LightSpaceScaledBias.z);
 
 	// Note: bias is applied after scaling!
-	D3DXMATRIX lightProj = ScaleMatrix * ScaledBiasMatrix;
-	D3DXMATRIX lightViewProj = lightView * lightProj;
-	RenderModel(pd3dDevice, pd3dImmediateContext, lightViewProj, true);
+	m_LightProj = ScaleMatrix * ScaledBiasMatrix;
+	//D3DXMatrixOrthoOffCenterLH(&lightProj, f3MinXYZ.x, f3MaxXYZ.x, f3MinXYZ.y, f3MaxXYZ.y, f3MinXYZ.z, f3MaxXYZ.z);
+	m_LightViewProj = m_LightView * m_LightProj;
+	RenderModel(pd3dDevice, pd3dImmediateContext, m_LightViewProj, true);
 }
 
 void Model::Resize(const DXGI_SURFACE_DESC* pBackBufferSurfaceDesc)
@@ -361,4 +363,19 @@ void Model::SetViewPos(const D3DXVECTOR3& viewPos)
 void Model::SetLight(const DirectionalLight* l)
 {
 	m_DirectionalLight = *l;
+}
+
+D3DXMATRIX Model::GetLightView()const
+{
+	return m_LightView;
+}
+
+D3DXMATRIX Model::GetLightProj()const
+{
+	return m_LightProj;
+}
+
+D3DXMATRIX Model::GetLightViewProj()const
+{
+	return m_LightViewProj;
 }

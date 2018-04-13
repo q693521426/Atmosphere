@@ -276,6 +276,9 @@ void Atmosphere::SetCameraParams()
 	cameraParams.f3CameraDir = f3CamDir;
 	D3DXVec3Normalize(&cameraParams.f3CameraDir, &cameraParams.f3CameraDir);
 
+	cameraParams.fNearZ = fCamNear;
+	cameraParams.fFarZ = fCamFar;
+
 	VarMap["camera"]->SetRawValue(&cameraParams, 0, sizeof(CameraParams));
 }
 
@@ -283,13 +286,13 @@ void Atmosphere::SetCameraParams()
 void Atmosphere::SetLightParams()
 {
 	lightParams.f3LightDir = GetSunDir();
-	D3DXVECTOR4 f4LightScreenPos;
+	D3DXVECTOR3 f3LightScreenPos;
 	//D3DXMATRIX View = *m_FirstPersonCamera.GetViewMatrix();
 	//D3DXMATRIX Proj = *m_FirstPersonCamera.GetProjMatrix();
 	D3DXMATRIX camViewProj = camView * camProj;
-	D3DXVec3Transform(&f4LightScreenPos, &lightParams.f3LightDir, &camViewProj);
-	f4LightScreenPos /= f4LightScreenPos.w;
-	lightParams.f2LightScreenPos = D3DXVECTOR2(f4LightScreenPos.x, f4LightScreenPos.y);
+	D3DXVECTOR3 f3LightPos = lightParams.f3LightDir + f3CamPos;
+	D3DXVec3TransformCoord(&f3LightScreenPos, &f3LightPos, &camViewProj);
+	lightParams.f2LightScreenPos = D3DXVECTOR2(f3LightScreenPos.x, f3LightScreenPos.y);
 	float fDistLightToScreen = D3DXVec2Length(&lightParams.f2LightScreenPos);
 	float fMaxDist = 100;
 	if (fDistLightToScreen > 100)
@@ -344,35 +347,35 @@ void Atmosphere::Render(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, ID
 	VarMap["atmosphere"]->SetRawValue(&atmosphereParams, 0, sizeof(AtmosphereParameters));
 	VarMap["SHADOWMAP_TEXTURE_DIM"]->SetRawValue(&shadowMapResolution, 0, sizeof(UINT));
 
-	ID3DX11EffectTechnique* activeTech = TechMap["DrawGroundAndSkyTech"];
-	MiscDynamicParams misc;
-	misc.scatter_order = 2;
-	VarMap["misc"]->SetRawValue(&misc, 0, sizeof(MiscDynamicParams));
+	//ID3DX11EffectTechnique* activeTech = TechMap["DrawGroundAndSkyTech"];
+	//MiscDynamicParams misc;
+	//misc.scatter_order = 2;
+	//VarMap["misc"]->SetRawValue(&misc, 0, sizeof(MiscDynamicParams));
 
-	ShaderResourceVarMap["g_tex2DTransmittanceLUT"]->SetResource(pTransmittanceSRV);
-	ShaderResourceVarMap["g_tex2DOpticalLengthLUT"]->SetResource(pOpticalLengthSRV);
-	ShaderResourceVarMap["g_tex2DDirectIrradianceLUT"]->SetResource(pDirectIrradianceSRV);
-	ShaderResourceVarMap["g_tex2DIndirectIrradianceLUT"]->SetResource(pIndirectIrradianceSRV);
-	ShaderResourceVarMap["g_tex3DSingleScatteringLUT"]->SetResource(pSingleScatterSRV);
-	ShaderResourceVarMap["g_tex3DMultiScatteringLUT"]->SetResource(pMultiScatterSRV);
-	ShaderResourceVarMap["g_tex3DSingleMieScatteringLUT"]->SetResource(pSingleScatterMieSRV);
-	ShaderResourceVarMap["g_tex3DSingleScatteringCombinedLUT"]->SetResource(pSingleScatterCombinedSRV);
-	ShaderResourceVarMap["g_tex3DMultiScatteringCombinedLUT"]->SetResource(pMultiScatterCombinedSRV);
-	ShaderResourceVarMap["g_tex2DEarthGround"]->SetResource(pEarthGroundSRV);
+	//ShaderResourceVarMap["g_tex2DTransmittanceLUT"]->SetResource(pTransmittanceSRV);
+	//ShaderResourceVarMap["g_tex2DOpticalLengthLUT"]->SetResource(pOpticalLengthSRV);
+	//ShaderResourceVarMap["g_tex2DDirectIrradianceLUT"]->SetResource(pDirectIrradianceSRV);
+	//ShaderResourceVarMap["g_tex2DIndirectIrradianceLUT"]->SetResource(pIndirectIrradianceSRV);
+	//ShaderResourceVarMap["g_tex3DSingleScatteringLUT"]->SetResource(pSingleScatterSRV);
+	//ShaderResourceVarMap["g_tex3DMultiScatteringLUT"]->SetResource(pMultiScatterSRV);
+	//ShaderResourceVarMap["g_tex3DSingleMieScatteringLUT"]->SetResource(pSingleScatterMieSRV);
+	//ShaderResourceVarMap["g_tex3DSingleScatteringCombinedLUT"]->SetResource(pSingleScatterCombinedSRV);
+	//ShaderResourceVarMap["g_tex3DMultiScatteringCombinedLUT"]->SetResource(pMultiScatterCombinedSRV);
+	//ShaderResourceVarMap["g_tex2DEarthGround"]->SetResource(pEarthGroundSRV);
 
-	pContext->OMSetRenderTargets(1, &pRTV, nullptr);
-	RenderQuad(pContext, activeTech, screen_width, screen_height);
+	//pContext->OMSetRenderTargets(1, &pRTV, nullptr);
+	//RenderQuad(pContext, activeTech, screen_width, screen_height);
 
-	//ComputeSpaceLinearDepthTex2D(pDevice, pContext, pDepthSRV);
-	//ComputeSliceEndTex2D(pDevice, pContext);
-	//ComputeEpipolarCoordTex2D(pDevice, pContext);
-	//RefineSampleLocal(pDevice, pContext);
-	//ComputeSliceUVOrigDirTex2D(pDevice, pContext, pShadowMapSRV);
-	//Build1DMinMaxMipMap(pDevice, pContext, pShadowMapSRV, shadowMapResolution);
-	//MarkRayMarchSample(pDevice, pContext);
-	//DoRayMarch(pDevice, pContext, pShadowMapSRV);
-	//InterpolateScatter(pDevice, pContext);
-	//FixAndApplyInterpolateScatter(pDevice, pContext, pShadowMapSRV);
+	ComputeSpaceLinearDepthTex2D(pDevice, pContext, pDepthSRV);
+	ComputeSliceEndTex2D(pDevice, pContext);
+	ComputeEpipolarCoordTex2D(pDevice, pContext);
+	RefineSampleLocal(pDevice, pContext);
+	ComputeSliceUVOrigDirTex2D(pDevice, pContext, pShadowMapSRV);
+	Build1DMinMaxMipMap(pDevice, pContext, pShadowMapSRV, shadowMapResolution);
+	MarkRayMarchSample(pDevice, pContext);
+	DoRayMarch(pDevice, pContext, pShadowMapSRV);
+	InterpolateScatter(pDevice, pContext);
+	FixAndApplyInterpolateScatter(pDevice, pContext, pShadowMapSRV);
 }
 
 
@@ -977,14 +980,7 @@ HRESULT Atmosphere::MarkRayMarchSample(ID3D11Device* pDevice, ID3D11DeviceContex
 
 	ID3D11RenderTargetView *pDummyRTV = nullptr;
 	pContext->OMSetRenderTargets(1, &pDummyRTV, pEpipolarSampleDSV);
-	
-	D3DX11_TECHNIQUE_DESC techDesc;
-	activeTech->GetDesc(&techDesc);
-	for (UINT p = 0; p < techDesc.Passes; ++p)
-	{
-		CComPtr<ID3DX11EffectPass> pass = activeTech->GetPassByIndex(p);
-		pass->Apply(0, pContext);
-	}
+	RenderQuad(pContext, activeTech, EPIPOLAR_SAMPLE_NUM, EPIPOLAR_SLICE_NUM);
 	pContext->OMSetRenderTargets(1, &pDummyRTV, nullptr);
 	UnbindResources(pContext);
 	return hr;
@@ -1008,6 +1004,7 @@ HRESULT Atmosphere::DoRayMarch(ID3D11Device* pDevice, ID3D11DeviceContext* pCont
 	ShaderResourceVarMap["g_tex3DMultiScatteringCombinedLUT"]->SetResource(pMultiScatterCombinedSRV);
 
 	misc.uiMinMaxLevelMax = MaxMinMaxMapLevel;
+	misc.scatter_order = 2;
 	VarMap["misc"]->SetRawValue(&misc, 0, sizeof(MiscDynamicParams));
 
 	pContext->OMSetRenderTargets(1, &pSampleScatterRTV.p, pEpipolarSampleDSV);
@@ -1150,21 +1147,21 @@ D3DXVECTOR3 Atmosphere::GetSunDir()
 	return D3DXVECTOR3(sin_sun_z*cos_sun_a, cos_sun_z, sin_sun_z*sin_sun_a);
 }
 
-void Atmosphere::SetLightView(const D3DXMATRIX& lightView)
+void Atmosphere::SetLightParam(const D3DXMATRIX& lightView, 
+								const D3DXMATRIX& lightProj)
 {
 	this->lightView = lightView;
-}
-
-void Atmosphere::SetLightProj(const D3DXMATRIX& lightProj)
-{
 	this->lightProj = lightProj;
 }
 
 void Atmosphere::SetCamParam(const D3DXVECTOR3& f3CamPos, const D3DXVECTOR3& f3CamDir, 
-							const D3DXMATRIX& camView, const D3DXMATRIX& camProj)
+							const D3DXMATRIX& camView, const D3DXMATRIX& camProj,
+							float fCamNear,float fCamFar)
 {
 	this->f3CamPos = f3CamPos;
 	this->f3CamDir = f3CamDir;
 	this->camView = camView;
 	this->camProj = camProj;
+	this->fCamNear = fCamNear;
+	this->fCamFar = fCamFar;
 }

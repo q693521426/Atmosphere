@@ -1615,10 +1615,11 @@ float4 ComputeShadowInscatter(float2 f2ScreenXY,float fRayEndCamDepth,bool bIsUs
 
 float4 DoRayMarch(QuadVertexOut In) : SV_Target
 {
-    float2 f2XY = g_tex2DEpipolarSample.Load(uint3(In.m_f4Pos.xy, 0));
-    float fCamDepth = g_tex2DEpipolarSampleCamDepth.Load(uint3(In.m_f4Pos.xy, 0));
+    uint2 ui2XY = uint2(In.m_f4Pos.xy);
+    float2 f2XY = g_tex2DEpipolarSample.Load(uint3(ui2XY, 0));
+    float fCamDepth = g_tex2DEpipolarSampleCamDepth.Load(uint3(ui2XY, 0));
 
-    return ComputeShadowInscatter(f2XY, fCamDepth, true, In.m_f4Pos.y);
+    return ComputeShadowInscatter(f2XY, fCamDepth, true, uint(ui2XY.y));
 }
 
 technique11 DoRayMarchTech
@@ -1627,7 +1628,7 @@ technique11 DoRayMarchTech
     {
         SetBlendState(NoBlending, float4(0.0f, 0.0f, 0.0f, 0.0f), 0xFFFFFFFF);
         SetRasterizerState(RS_SolidFill_NoCull);
-        SetDepthStencilState(DSS_NoDepthTest_StEqual_IncrStencil, 2);
+        SetDepthStencilState(DSS_NoDepthTest_StEqual_KeepStencil, 2);
 
         SetVertexShader(CompileShader(vs_5_0, GenerateScreenSizeQuadVS()));
         SetGeometryShader(NULL);

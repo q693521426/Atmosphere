@@ -68,10 +68,8 @@ public:
 	void OnFrameMove(double fTime, float fElapsedTime);
 
 	D3DXVECTOR3 GetSunDir();
-	void SetLightView(const D3DXMATRIX&);
-	void SetLightProj(const D3DXMATRIX&);
-
-	void SetCamParam(const D3DXVECTOR3&, const D3DXVECTOR3&, const D3DXMATRIX&, const D3DXMATRIX&);
+	void SetLightParam(const D3DXMATRIX&, const D3DXMATRIX&);
+	void SetCamParam(const D3DXVECTOR3&, const D3DXVECTOR3&, const D3DXMATRIX&, const D3DXMATRIX&,float,float);
 private:
 	//CFirstPersonCamera					m_FirstPersonCamera;
 	Cloud*								m_pCloud;
@@ -95,13 +93,16 @@ private:
 	CameraParams cameraParams;
 	LightParams lightParams;
 
+	D3DXVECTOR3 f3LightDir;
 	D3DXMATRIX lightView;
 	D3DXMATRIX lightProj;
 
-	D3DXMATRIX camView;
-	D3DXMATRIX camProj;
 	D3DXVECTOR3 f3CamPos;
 	D3DXVECTOR3 f3CamDir;
+	D3DXMATRIX camView;
+	D3DXMATRIX camProj;
+	float fCamFar;
+	float fCamNear;
 
 	void SetTextureSize();
 	void SetCameraParams();
