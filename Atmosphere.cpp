@@ -1009,7 +1009,8 @@ HRESULT Atmosphere::DoRayMarch(ID3D11Device* pDevice, ID3D11DeviceContext* pCont
 
 	pContext->OMSetRenderTargets(1, &pSampleScatterRTV.p, pEpipolarSampleDSV);
 	RenderQuad(pContext, activeTech, EPIPOLAR_SAMPLE_NUM, EPIPOLAR_SLICE_NUM);
-	
+	ID3D11RenderTargetView *pDummyRTV = nullptr;
+	pContext->OMSetRenderTargets(1, &pDummyRTV, nullptr);
 	UnbindResources(pContext);
 
 	return hr;
@@ -1019,6 +1020,23 @@ HRESULT Atmosphere::DoRayMarch(ID3D11Device* pDevice, ID3D11DeviceContext* pCont
 HRESULT Atmosphere::InterpolateScatter(ID3D11Device* pDevice, ID3D11DeviceContext* pContext)
 {
 	HRESULT hr = S_OK;
+	DXGI_FORMAT format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+	pInterpolatedSampleScatterTex2D.Release();
+	pInterpolatedSampleScatterSRV.Release();
+	CComPtr<ID3D11RenderTargetView> pInterpolateSampleScatterRTV;
+	V_RETURN(CreateTexture2D(pDevice, pContext, EPIPOLAR_SAMPLE_NUM, EPIPOLAR_SLICE_NUM, format,
+							{ &pInterpolatedSampleScatterTex2D.p }, { &pInterpolatedSampleScatterSRV.p }, 
+							{ &pInterpolateSampleScatterRTV.p }));
+
+	ID3DX11EffectTechnique* activeTech = TechMap["InterpolateScatterTech"];
+	ShaderResourceVarMap["g_tex2DSampleScatter"]->SetResource(pSampleScatterSRV);
+	ShaderResourceVarMap["g_tex2DInterpolationSample"]->SetResource(pInterpolationSampleSRV);
+
+	pContext->OMSetRenderTargets(1, &pInterpolateSampleScatterRTV.p, nullptr);
+	RenderQuad(pContext, activeTech, EPIPOLAR_SAMPLE_NUM, EPIPOLAR_SLICE_NUM);
+	ID3D11RenderTargetView *pDummyRTV = nullptr;
+	pContext->OMSetRenderTargets(1, &pDummyRTV, nullptr);
+	UnbindResources(pContext);
 	return hr;
 }
 

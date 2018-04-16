@@ -228,7 +228,7 @@ private:
 		"MarkRayMarchSampleTech",
 		"DoRayMarchTech",
 		"InterpolateScatterTech",
-		"FixAndApplyInterpolateScatter"
+		"ApplyInterpolateScatterTech"
 	};
 
 	std::vector<std::string> VarStr
@@ -287,7 +287,7 @@ private:
 		"g_tex2DShadowMap",
 		"g_tex2DSliceUVOrigDir",
 		"g_tex2DMinMaxMipMap",
-		"g_tex2DScatter",
+		"g_tex2DSampleScatter",
 		"g_tex2DInterpolatedScatter"
 	};
 };

@@ -1209,7 +1209,7 @@ void RefineSampleCS(uint3 Gid : SV_GroupID,
     if (GTid.x > uiSampleLocalNum0 && GTid.x < uiSampleLocalNum1)
     {
         uint uiCamDepthDiffPackFlags[g_uiPackNum];
-        for (int i = 0; i < g_uiPackNum; i++)
+        for (uint i = 0; i < g_uiPackNum; i++)
         {
             uiCamDepthDiffPackFlags[i] = g_uiCamDepthDiffPackFlags[i];
         }
@@ -1222,9 +1222,9 @@ void RefineSampleCS(uint3 Gid : SV_GroupID,
         uint uiPackNum1 = uiSampleLocalNum1 / 32;
         uint uiNumInPack1 = uiSampleLocalNum1 % 32;
 
-        for (uint i = uiPackNum0; i <= uiPackNum1; i++)
+        for (uint j = uiPackNum0; j <= uiPackNum1; j++)
         {
-            if (uiCamDepthDiffPackFlags[i] != 0xFFFFFFFFU)
+            if (uiCamDepthDiffPackFlags[j] != 0xFFFFFFFFU)
             {
                 bNoBreak = false;
                 break;
@@ -1441,14 +1441,13 @@ technique11 MarkRayMarchSampleTech
     }
 }
 
-float4 GetRMuMuSNu(float3 f3Pos,float3 f3ViewRay)
+float3 GetRMuMuS(float3 f3Pos,float3 f3ViewRay)
 {
     float fHeight = length(f3Pos);
     float fCosZenithAngle = dot(f3Pos, f3ViewRay) / fHeight;
     float fCosSunZenithAngle = dot(f3Pos, light.f3LightDir) / fHeight;
-    float fCosViewSunAngle = dot(f3ViewRay, light.f3LightDir);
 
-    return float4(fHeight, fCosZenithAngle, fCosSunZenithAngle, fCosViewSunAngle);
+    return float3(fHeight, fCosZenithAngle, fCosSunZenithAngle);
 }
 
 float4 ComputeShadowInscatter(float2 f2ScreenXY,float fRayEndCamDepth,bool bIsUseMinMaxMap,uint uiSliceNum)
@@ -1460,10 +1459,12 @@ float4 ComputeShadowInscatter(float2 f2ScreenXY,float fRayEndCamDepth,bool bIsUs
     f3ViewRay /= fViewRayLenInWorldSpace;
 
     float3 f3EarthCenter = float3(0, -atmosphere.bottom_radius, 0);
-    float f3CameraPos = camera.f3CameraPos - f3EarthCenter;
+    float3 f3CameraPos = camera.f3CameraPos - f3EarthCenter;
     
-    float4 f4RMuMuSNu = GetRMuMuSNu(f3CameraPos, f3ViewRay);
- 
+    float4 f4RMuMuSNu = 0;
+    f4RMuMuSNu.xyz = GetRMuMuS(f3CameraPos, f3ViewRay);
+    f4RMuMuSNu.w = dot(f3ViewRay, light.f3LightDir);
+
     float fIntersectAtmosphereDiscriminant = f4RMuMuSNu.x * f4RMuMuSNu.x * (f4RMuMuSNu.y * f4RMuMuSNu.y - 1) + atmosphere.top_radius * atmosphere.top_radius;
     if (f4RMuMuSNu.x > atmosphere.top_radius &&
         (fIntersectAtmosphereDiscriminant < 0 || fIntersectAtmosphereDiscriminant >= 0 && f4RMuMuSNu.y > 0))
@@ -1476,21 +1477,26 @@ float4 ComputeShadowInscatter(float2 f2ScreenXY,float fRayEndCamDepth,bool bIsUs
     {
         f3CameraPos += fDistToAtmosphereNear * f3ViewRay;
         fDistToAtmosphereFar -= fDistToAtmosphereNear;
-        f4RMuMuSNu.x = atmosphere.top_radius;
-        f4RMuMuSNu.y = dot(f3CameraPos, f3ViewRay) / f4RMuMuSNu.x;
-        f4RMuMuSNu.z = dot(f3CameraPos, light.f3LightDir) / f4RMuMuSNu.x;
+        f4RMuMuSNu.xyz = GetRMuMuS(f3CameraPos, f3ViewRay);
     }
 
     float fIntersectEarthDiscriminant = f4RMuMuSNu.x * f4RMuMuSNu.x * (f4RMuMuSNu.y * f4RMuMuSNu.y - 1) + atmosphere.bottom_radius * atmosphere.bottom_radius;
-    float fDistToEarthNear = -f4RMuMuSNu.x * f4RMuMuSNu.y + SafeSqrt(fIntersectEarthDiscriminant);
+    float fDistToEarthNear = -f4RMuMuSNu.x * f4RMuMuSNu.y - SafeSqrt(fIntersectEarthDiscriminant);
     if (fRayEndCamDepth > camera.fFarZ * 0.999999f)
     {
         fViewRayLenInWorldSpace = fDistToAtmosphereFar;
     }
-    if(fIntersectEarthDiscriminant>=0)
+    if (fIntersectEarthDiscriminant >= 0 && f4RMuMuSNu.y < 0)
     {
         fViewRayLenInWorldSpace = min(fViewRayLenInWorldSpace, fDistToEarthNear);
     }
+    //if (fViewRayLenInWorldSpace == fDistToAtmosphereFar)
+    //    return float4(1, 0, 0, 1);
+    //else if (fViewRayLenInWorldSpace == fDistToEarthNear)
+    //    return float4(0, 1, 0, 0);
+    //else 
+    //    return float4(1, 1, 1, 1);
+    //return float4(fDistToAtmosphereFar, fDistToEarthNear, fViewRayLenInWorldSpace, 1);
 
     float3 f3StartPos = f3CameraPos;
     float3 f3EndPos = f3CameraPos + fViewRayLenInWorldSpace * f3ViewRay;
@@ -1513,7 +1519,7 @@ float4 ComputeShadowInscatter(float2 f2ScreenXY,float fRayEndCamDepth,bool bIsUs
     if (bIsUseMinMaxMap)
     {
         f4SliceUVOrigDir = g_tex2DSliceUVOrigDir.Load(uint3(uiSliceNum, 0, 0));
-        fStepLenInShadowMap = length(f4SliceUVOrigDir.wz);
+        fStepLenInShadowMap = length(f4SliceUVOrigDir.zw);
     }
     else
     {
@@ -1527,12 +1533,16 @@ float4 ComputeShadowInscatter(float2 f2ScreenXY,float fRayEndCamDepth,bool bIsUs
     float fTotalMarchLen = 0;
     float fDistToFirstLight = -1;
     uint uiCurrSamplePos = length(f3StartUVDepthInShadowMap.xy - f4SliceUVOrigDir.xy) / fStepLenInShadowMap + 0.5;
+    
     if (any(f3StartUVDepthInShadowMap.xy < 0) || any(f3StartUVDepthInShadowMap.xy > 1))
     {
         fDistToFirstLight = 0;
-        fTotalMarchLen = fTotalLightLen = uiCurrSamplePos * fStepLenInWorldSpace;
+        fTotalMarchLen = fTotalLightLen = min(uiCurrSamplePos * fStepLenInWorldSpace, fViewRayLenInWorldSpace);
         f3StartUVDepthInShadowMap += uiCurrSamplePos * f3StepInShadowMap;
+        uiCurrSamplePos = length(f3StartUVDepthInShadowMap.xy - f4SliceUVOrigDir.xy) / fStepLenInShadowMap + 0.5;
     }
+
+    //return float4(uiCurrSamplePos, fTotalMarchLen, fViewRayLenInWorldSpace, fStepLenInShadowMap);
 
     float3 f3CurrSampleUVDepthInShadowMap = f3StartUVDepthInShadowMap;
     uint uiCurrLevel = 0;
@@ -1595,21 +1605,34 @@ float4 ComputeShadowInscatter(float2 f2ScreenXY,float fRayEndCamDepth,bool bIsUs
                 fTotalMarchLen += fRemainDist;
                 fTotalLightLen += fRemainDist;
             }
+
         }
     }
+    float3 f3MultiScatter = 0;
     
-    f3StartPos = f3CameraPos + fDistToFirstLight * f3ViewRay;
-    f3EndPos = f3StartPos + fTotalLightLen * f3ViewRay;
-    
-    float4 f4StartRMuMuSNu = GetRMuMuSNu(f3StartPos, f3ViewRay);
-    float4 f4EndRMuMuSNu = GetRMuMuSNu(f3EndPos, f3ViewRay);
+    [branch]
+    if(fTotalLightLen>0)
+    {
+        f3StartPos = f3CameraPos + fDistToFirstLight * f3ViewRay;
+        f3EndPos = f3StartPos + fTotalLightLen * f3ViewRay;
 
-    float3 f3TransmittanceToStart = GetTransmittanceIntegralAnalytic(f4RMuMuSNu.x, f4RMuMuSNu.y, fDistToFirstLight);
-    float3 f3TransmittanceToEnd = GetTransmittanceIntegralAnalytic(f4RMuMuSNu.x, f4RMuMuSNu.y, fDistToFirstLight + fTotalLightLen);
+        //if (fViewRayLenInWorldSpace == fDistToAtmosphereFar)
+        //    return float4(fDistToAtmosphereFar, fTotalLightLen, 1, 1);
+        //else
+        //    return float4(1, 1, 1, 1);
+        //return float4(f3StartPos, fTotalLightLen);
 
-    float3 f3MultiScatter = f3TransmittanceToStart * GetSkyMultiScatter(f4StartRMuMuSNu.x, f4StartRMuMuSNu.y, f4StartRMuMuSNu.z, f4StartRMuMuSNu.w);
-    f3MultiScatter -= f3TransmittanceToEnd * GetSkyMultiScatter(f4EndRMuMuSNu.x, f4EndRMuMuSNu.y, f4EndRMuMuSNu.z, f4EndRMuMuSNu.w);
+        float3 f3StartRMuMuS = GetRMuMuS(f3StartPos, f3ViewRay);
+        float3 f3EndRMuMuS = GetRMuMuS(f3EndPos, f3ViewRay);
 
+        float3 f3TransmittanceToStart = fDistToFirstLight == 0 ? 1 : GetTransmittanceIntegralAnalytic(f4RMuMuSNu.x, f4RMuMuSNu.y, fDistToFirstLight);
+        float fDistToEnd = fDistToFirstLight + fTotalLightLen;
+        float3 f3TransmittanceToEnd = fDistToEnd == 0 ? 1 : GetTransmittanceIntegralAnalytic(f4RMuMuSNu.x, f4RMuMuSNu.y, fDistToEnd);
+
+        f3MultiScatter = f3TransmittanceToStart * GetSkyMultiScatter(f3StartRMuMuS.x, f3StartRMuMuS.y, f3StartRMuMuS.z, f4RMuMuSNu.w);
+
+        f3MultiScatter -= f3TransmittanceToEnd * GetSkyMultiScatter(f3EndRMuMuS.x, f3EndRMuMuS.y, f3EndRMuMuS.z, f4RMuMuSNu.w);
+    }
     return float4(f3MultiScatter, 1);
 }
 
@@ -1633,5 +1656,53 @@ technique11 DoRayMarchTech
         SetVertexShader(CompileShader(vs_5_0, GenerateScreenSizeQuadVS()));
         SetGeometryShader(NULL);
         SetPixelShader(CompileShader(ps_5_0, DoRayMarch()));
+    }
+}
+
+float4 InterpolateScatter(QuadVertexOut In) : SV_Target
+{
+    uint uiSampleNum = In.m_f4Pos.x;
+    uint uiSliceNum = In.m_f4Pos.y;
+    
+    uint2 ui2InterpolationSample = g_tex2DInterpolationSample.Load(uint3(uiSampleNum, uiSliceNum, 0.0));
+    float fInterpolated = float(uiSampleNum - ui2InterpolationSample.x) / max(float(ui2InterpolationSample.y - ui2InterpolationSample.x), 1.f);
+
+    float3 f3InterpolatedScatter0 = g_tex2DSampleScatter.Load(uint3(ui2InterpolationSample.x, uiSliceNum, 0.0));
+    float3 f3InterpolatedScatter1 = g_tex2DSampleScatter.Load(uint3(ui2InterpolationSample.y, uiSliceNum, 0.0));
+
+    float3 f3InterpolatedScatter = lerp(f3InterpolatedScatter0, f3InterpolatedScatter1, fInterpolated);
+    return float4(f3InterpolatedScatter, 1);
+}
+
+technique11 InterpolateScatterTech
+{
+    pass
+    {
+        SetBlendState(NoBlending, float4(0.0f, 0.0f, 0.0f, 0.0f), 0xFFFFFFFF);
+        SetRasterizerState(RS_SolidFill_NoCull);
+        SetDepthStencilState(DSS_NoDepthTest, 0);
+
+        SetVertexShader(CompileShader(vs_5_0, GenerateScreenSizeQuadVS()));
+        SetGeometryShader(NULL);
+        SetPixelShader(CompileShader(ps_5_0, InterpolateScatter()));
+    }
+}
+
+float4 ApplyInterpolateScatter(QuadVertexOut In) : SV_Target
+{
+
+}
+
+technique11 ApplyInterpolateScatterTech
+{
+    pass
+    {
+        SetBlendState(NoBlending, float4(0.0f, 0.0f, 0.0f, 0.0f), 0xFFFFFFFF);
+        SetRasterizerState(RS_SolidFill_NoCull);
+        SetDepthStencilState(DSS_NoDepthTest, 0);
+
+        SetVertexShader(CompileShader(vs_5_0, GenerateScreenSizeQuadVS()));
+        SetGeometryShader(NULL);
+        SetPixelShader(CompileShader(ps_5_0, ApplyInterpolateScatter()));
     }
 }

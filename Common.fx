@@ -252,7 +252,7 @@ Texture2D<float2> g_tex2DEpipolarSample;
 Texture2D<float> g_tex2DEpipolarSampleCamDepth;
 Texture2D<uint2> g_tex2DInterpolationSample;
 Texture2D<float4> g_tex2DSliceUVOrigDir;
-Texture2D<float4> g_tex2DScatter;
+Texture2D<float4> g_tex2DSampleScatter;
 Texture2D<float4> g_tex2DInterpolatedScatter;
 
 
