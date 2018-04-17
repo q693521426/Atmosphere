@@ -1633,6 +1633,8 @@ float4 ComputeShadowInscatter(float2 f2ScreenXY,float fRayEndCamDepth,bool bIsUs
 
         f3MultiScatter -= f3TransmittanceToEnd * GetSkyMultiScatter(f3EndRMuMuS.x, f3EndRMuMuS.y, f3EndRMuMuS.z, f4RMuMuSNu.w);
     }
+
+    f3MultiScatter *= 5;
     return float4(f3MultiScatter, 1);
 }
 
@@ -1690,6 +1692,37 @@ technique11 InterpolateScatterTech
 
 float4 ApplyInterpolateScatter(QuadVertexOut In) : SV_Target
 {
+    float2 f2UV = ProjToUV(In.m_f2PosPS);
+    float fCamDepth = g_tex2DSpaceLinearDepth.SampleLevel(samLinearClamp, f2UV, 0);
+    float2 f2RayDir = normalize(In.m_f2PosPS - light.f2LightScreenPos);
+
+    float2 f2ScreenDim = float2(SCREEN_WIDTH, SCREEN_HEIGHT);
+    float4 f4Boundary = float4(-1, -1, 1, 1) + float4(0.5, 0.5, -0.5, -0.5) * f2ScreenDim.xyxy;
+    
+    bool4 b4IsCorrectIntersectionFlag = abs(f2RayDir.xyxy) > 1e-5;
+    float4 f4DistToBoundary = (f4Boundary - f2UV.xyxy) / (f2RayDir.xyxy + !b4IsCorrectIntersectionFlag);
+    float4 f4InsecBoundary = f2UV.yxyx + f4DistToBoundary * f2RayDir.yxyx;
+    b4IsCorrectIntersectionFlag = b4IsCorrectIntersectionFlag && (f4InsecBoundary >= f4Boundary.yxyx) &&
+                                (f4InsecBoundary <= f4Boundary.wzwz);
+    float4 f4EpipolarSlice = float4(0, 0.25, 0.5, 0.75) + (f4InsecBoundary - f4Boundary.wxyz) * float4(-1, 1, 1, -1) / (f4Boundary.wzwz - f4Boundary.yxyx) / 4.f;
+    float fEpipolarSlice = dot(f4EpipolarSlice, b4IsCorrectIntersectionFlag);
+    
+    float fSliceNum = fEpipolarSlice * EPIPOLAR_SLICE_NUM;
+    float fSliceNum0 = min(floor(fSliceNum), EPIPOLAR_SLICE_NUM - 1);
+    
+    float fSliceNumInd[2];
+    fSliceNumInd[0] = (fSliceNum0 + 0.5) / EPIPOLAR_SLICE_NUM;
+    fSliceNumInd[1] = fSliceNumInd[0] + 1 / EPIPOLAR_SLICE_NUM;
+
+    float fSliceWeight[2];
+    fSliceWeight[1] = fSliceNum - fSliceNum0;
+    fSliceWeight[0] = 1 - fSliceWeight[1];
+
+    for (uint i = 0; i < 2; i++)
+    {
+        float4 f4SliceStartEnd = g_tex2DSliceEnd.SampleLevel(samLinearClamp, float2(fSliceNumInd[i], 0.5), 0);
+
+    }
 
 }
 
