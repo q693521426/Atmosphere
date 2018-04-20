@@ -200,7 +200,7 @@ void CALLBACK OnD3D11FrameRender( ID3D11Device* pd3dDevice, ID3D11DeviceContext*
 	}
 	m_pAtmosphere->SetCamParam(g_Eye, g_CamDir, g_View, g_Projection, fNear, fFar);
 	m_pAtmosphere->SetLightParam(g_LightView, g_LightProjection);
-	m_pAtmosphere->Render(pd3dDevice, pd3dImmediateContext, pRTV, 
+	m_pAtmosphere->Render(pd3dDevice, pd3dImmediateContext, pRTV, m_pFrameBuffer->GetFrameBufferSRV(),
 		m_pFrameBuffer->GetDepthSRV(), m_pShadowMapFrameBuffer->GetDepthSRV(),
 		m_shadowMapDim);
 }

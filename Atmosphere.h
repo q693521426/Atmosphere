@@ -61,7 +61,7 @@ public:
 	HRESULT OnD3D11CreateDevice(ID3D11Device*, ID3D11DeviceContext*);
 
 	HRESULT PreCompute(ID3D11Device*, ID3D11DeviceContext*, ID3D11RenderTargetView*);
-	void Render(ID3D11Device*, ID3D11DeviceContext*, ID3D11RenderTargetView*,ID3D11ShaderResourceView*, ID3D11ShaderResourceView*, UINT);
+	void Render(ID3D11Device*, ID3D11DeviceContext*, ID3D11RenderTargetView*, ID3D11ShaderResourceView*,ID3D11ShaderResourceView*, ID3D11ShaderResourceView*, UINT);
 
 	void MsgProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
@@ -124,7 +124,7 @@ private:
 	HRESULT MarkRayMarchSample(ID3D11Device*, ID3D11DeviceContext*);
 	HRESULT DoRayMarch(ID3D11Device*, ID3D11DeviceContext*, ID3D11ShaderResourceView*);
 	HRESULT InterpolateScatter(ID3D11Device*, ID3D11DeviceContext*);
-	HRESULT FixAndApplyInterpolateScatter(ID3D11Device*, ID3D11DeviceContext*, ID3D11ShaderResourceView*);
+	HRESULT ApplyAndFixInterpolateScatter(ID3D11Device*, ID3D11DeviceContext*, ID3D11RenderTargetView*,ID3D11ShaderResourceView*);
 
 	UINT TRANSMITTANCE_TEXTURE_WIDTH = 256;    //mu
 	UINT TRANSMITTANCE_TEXTURE_HEIGHT = 64;    //r
@@ -288,7 +288,8 @@ private:
 		"g_tex2DSliceUVOrigDir",
 		"g_tex2DMinMaxMipMap",
 		"g_tex2DSampleScatter",
-		"g_tex2DInterpolatedScatter"
+		"g_tex2DInterpolatedScatter",
+		"g_tex2DColorBuffer"
 	};
 };
 

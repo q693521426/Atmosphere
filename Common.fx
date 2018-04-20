@@ -255,6 +255,7 @@ Texture2D<float4> g_tex2DSliceUVOrigDir;
 Texture2D<float4> g_tex2DSampleScatter;
 Texture2D<float4> g_tex2DInterpolatedScatter;
 
+Texture2D<float3> g_tex2DColorBuffer;
 
 QuadVertexOut GenerateScreenSizeQuadVS(in uint VertexId : SV_VertexID,
                                                  in uint InstID : SV_InstanceID)

@@ -339,7 +339,7 @@ HRESULT Atmosphere::PreCompute(ID3D11Device* pDevice, ID3D11DeviceContext* pCont
 }
 
 
-void Atmosphere::Render(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, ID3D11RenderTargetView* pRTV,
+void Atmosphere::Render(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, ID3D11RenderTargetView* pRTV, ID3D11ShaderResourceView *pColorBufferSRV,
 						ID3D11ShaderResourceView* pDepthSRV,ID3D11ShaderResourceView* pShadowMapSRV,UINT shadowMapResolution)
 {
 	SetCameraParams();
@@ -375,7 +375,7 @@ void Atmosphere::Render(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, ID
 	MarkRayMarchSample(pDevice, pContext);
 	DoRayMarch(pDevice, pContext, pShadowMapSRV);
 	InterpolateScatter(pDevice, pContext);
-	FixAndApplyInterpolateScatter(pDevice, pContext, pShadowMapSRV);
+	ApplyAndFixInterpolateScatter(pDevice, pContext, pRTV, pColorBufferSRV);
 }
 
 
@@ -1041,9 +1041,20 @@ HRESULT Atmosphere::InterpolateScatter(ID3D11Device* pDevice, ID3D11DeviceContex
 }
 
 
-HRESULT Atmosphere::FixAndApplyInterpolateScatter(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, ID3D11ShaderResourceView* pShadowMapSRV)
+HRESULT Atmosphere::ApplyAndFixInterpolateScatter(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, 
+												ID3D11RenderTargetView* pRVT, ID3D11ShaderResourceView* pColorBufferSRV)
 {
 	HRESULT hr = S_OK;
+
+	ID3DX11EffectTechnique* activeTech = TechMap["ApplyInterpolateScatterTech"];
+	ShaderResourceVarMap["g_tex2DColorBuffer"]->SetResource(pColorBufferSRV);
+	ShaderResourceVarMap["g_tex2DSliceEnd"]->SetResource(pSliceEndSRV);
+	ShaderResourceVarMap["g_tex2DSpaceLinearDepth"]->SetResource(pSpaceLinearDepthSRV);
+	ShaderResourceVarMap["g_tex2DEpipolarSampleCamDepth"]->SetResource(pEpipolarSampleCamDepthSRV);
+	ShaderResourceVarMap["g_tex2DInterpolatedScatter"]->SetResource(pInterpolatedSampleScatterSRV);
+	pContext->OMSetRenderTargets(1, &pRVT, nullptr);
+	RenderQuad(pContext, activeTech, screen_width, screen_height);
+	UnbindResources(pContext);
 	return hr;
 }
 
