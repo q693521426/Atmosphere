@@ -179,7 +179,6 @@ void CALLBACK OnD3D11FrameRender( ID3D11Device* pd3dDevice, ID3D11DeviceContext*
 		D3DXMATRIX viewProj = g_View*g_Projection;
 		m_pModel->SetViewProj(viewProj);
 		m_pModel->SetViewPos(g_Eye);
-		m_pModel->SetModelHeight(g_Eye.y);
 		m_pModel->SetLight(&g_DirectionalLight);
 		m_pModel->Render(pd3dDevice, pd3dImmediateContext);
 

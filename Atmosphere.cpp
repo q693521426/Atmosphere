@@ -211,6 +211,8 @@ void Atmosphere::Release()
 
 	pInterpolatedSampleScatterTex2D.Release();
 	pInterpolatedSampleScatterSRV.Release();
+	
+	pApplyScatterDSV.Release();
 
 	GameObject::Release();
 }
@@ -277,7 +279,7 @@ void Atmosphere::SetCameraParams()
 	D3DXVec3Normalize(&cameraParams.f3CameraDir, &cameraParams.f3CameraDir);
 
 	cameraParams.fNearZ = fCamNear;
-	cameraParams.fFarZ = fCamFar;
+	cameraParams.fFarZ = fCamFar * 0.999999f;
 
 	VarMap["camera"]->SetRawValue(&cameraParams, 0, sizeof(CameraParams));
 }
@@ -960,7 +962,7 @@ HRESULT Atmosphere::Build1DMinMaxMipMap(ID3D11Device* pDevice, ID3D11DeviceConte
 			SrcBox.bottom = EPIPOLAR_SLICE_NUM;
 			SrcBox.front = 0;
 			SrcBox.back = 1;
-			pContext->CopySubresourceRegion(pDstResource, 0, offsetX, 0, 0, pSrcResource, 0, &SrcBox);
+			pContext->CopySubresourceRegion(pDstResource, 0, preOffsetX, 0, 0, pSrcResource, 0, &SrcBox);
 		}
 		pContext->OMSetRenderTargets(1, &pDummyRTV, nullptr);
 		UnbindResources(pContext);
@@ -1042,9 +1044,27 @@ HRESULT Atmosphere::InterpolateScatter(ID3D11Device* pDevice, ID3D11DeviceContex
 
 
 HRESULT Atmosphere::ApplyAndFixInterpolateScatter(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, 
-												ID3D11RenderTargetView* pRVT, ID3D11ShaderResourceView* pColorBufferSRV)
+												ID3D11RenderTargetView* pRTV, ID3D11ShaderResourceView* pColorBufferSRV)
 {
 	HRESULT hr = S_OK;
+
+	D3D11_TEXTURE2D_DESC TexDes;
+	ZeroMemory(&TexDes, sizeof(TexDes));
+	TexDes.Width = screen_width;
+	TexDes.Height = screen_height;
+	TexDes.MipLevels = 1;
+	TexDes.ArraySize = 1;
+	TexDes.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+	TexDes.SampleDesc.Count = 1;
+	TexDes.SampleDesc.Quality = 0;
+	TexDes.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+	TexDes.Usage = D3D11_USAGE_DEFAULT;
+	TexDes.CPUAccessFlags = 0;
+	TexDes.MiscFlags = 0;
+	CComPtr<ID3D11Texture2D> pStencilTex;
+	pApplyScatterDSV.Release();
+	V_RETURN(pDevice->CreateTexture2D(&TexDes, nullptr, &pStencilTex));
+	V_RETURN(pDevice->CreateDepthStencilView(pStencilTex, nullptr, &pApplyScatterDSV));
 
 	ID3DX11EffectTechnique* activeTech = TechMap["ApplyInterpolateScatterTech"];
 	ShaderResourceVarMap["g_tex2DColorBuffer"]->SetResource(pColorBufferSRV);
@@ -1052,8 +1072,13 @@ HRESULT Atmosphere::ApplyAndFixInterpolateScatter(ID3D11Device* pDevice, ID3D11D
 	ShaderResourceVarMap["g_tex2DSpaceLinearDepth"]->SetResource(pSpaceLinearDepthSRV);
 	ShaderResourceVarMap["g_tex2DEpipolarSampleCamDepth"]->SetResource(pEpipolarSampleCamDepthSRV);
 	ShaderResourceVarMap["g_tex2DInterpolatedScatter"]->SetResource(pInterpolatedSampleScatterSRV);
-	pContext->OMSetRenderTargets(1, &pRVT, nullptr);
+	pContext->ClearDepthStencilView(pApplyScatterDSV, D3D11_CLEAR_STENCIL, 1.0f, 0);
+	pContext->OMSetRenderTargets(1, &pRTV, pApplyScatterDSV);
 	RenderQuad(pContext, activeTech, screen_width, screen_height);
+
+	activeTech = TechMap["FixInterpolateScatterTech"];
+	RenderQuad(pContext, activeTech, screen_width, screen_height);
+
 	UnbindResources(pContext);
 	return hr;
 }

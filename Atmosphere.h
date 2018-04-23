@@ -208,6 +208,8 @@ private:
 	CComPtr<ID3D11Texture2D>							pInterpolatedSampleScatterTex2D;
 	CComPtr<ID3D11ShaderResourceView>					pInterpolatedSampleScatterSRV;
 
+	CComPtr<ID3D11DepthStencilView>						pApplyScatterDSV;
+
 	std::vector<std::string> TechStr
 	{
 		"ComputeTransmittanceTex2DTech",
@@ -228,7 +230,8 @@ private:
 		"MarkRayMarchSampleTech",
 		"DoRayMarchTech",
 		"InterpolateScatterTech",
-		"ApplyInterpolateScatterTech"
+		"ApplyInterpolateScatterTech",
+		"FixInterpolateScatterTech"
 	};
 
 	std::vector<std::string> VarStr
