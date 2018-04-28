@@ -22,9 +22,9 @@ public:
 	HRESULT OnD3D11CreateDevice(ID3D11Device*,ID3D11DeviceContext*);
 	void Release();
 
-	void Render(ID3D11Device*, ID3D11DeviceContext*);
+	void Render(ID3D11Device*, ID3D11DeviceContext*, ID3D11ShaderResourceView*);
 	void RenderShadowMap(ID3D11Device*, ID3D11DeviceContext*, const D3DXVECTOR3&, UINT);
-	void Model::RenderModel(ID3D11Device*, ID3D11DeviceContext*, const D3DXMATRIX&, bool);
+	void Model::RenderModel(ID3D11Device*, ID3D11DeviceContext*,ID3D11ShaderResourceView*, const D3DXMATRIX&, bool);
 
 	void Resize(const DXGI_SURFACE_DESC*);
 
@@ -37,6 +37,7 @@ public:
 	D3DXMATRIX GetLightViewProj()const;
 
 	void SetModelHeight(float h);
+	void SetModelScaling(float s);
 private:
 	float							ModelHeight;
 	float							ModelScaling;

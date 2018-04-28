@@ -12,7 +12,7 @@ Model::Model():
 	m_pTextureRV(nullptr),
 	m_pSamplerLinear(nullptr),
 	ModelHeight(1800.f),
-	ModelScaling(1.f)
+	ModelScaling(100.f)
 {
 }
 
@@ -156,14 +156,12 @@ HRESULT Model::OnD3D11CreateDevice(ID3D11Device* pd3dDevice, ID3D11DeviceContext
 	return hr;
 }
 
-void Model::RenderModel(ID3D11Device* pd3dDevice, ID3D11DeviceContext* pd3dImmediateContext,const D3DXMATRIX& viewProj,bool IsOnlyZPass)
+void Model::RenderModel(ID3D11Device* pd3dDevice, ID3D11DeviceContext* pd3dImmediateContext,ID3D11ShaderResourceView* pShadowMap,const D3DXMATRIX& viewProj,bool IsOnlyZPass)
 {
 #if LOAD_MODEL
 	for (DWORD i = 0; i < NUMBER_OF_MODELS; i++)
 	{
 		size_t nodeCount = m_pFbxDX11[i]->GetNodeCount();
-
-		pd3dImmediateContext->VSSetConstantBuffers(0, 1, &m_pCBChangesEveryFrame);
 
 		if(IsOnlyZPass)
 		{
@@ -182,6 +180,7 @@ void Model::RenderModel(ID3D11Device* pd3dDevice, ID3D11DeviceContext* pd3dImmed
 		V(pd3dImmediateContext->Map(m_pLightBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &MappedResource));
 		auto  LB = reinterpret_cast<DirectionalLight*>(MappedResource.pData);
 		*LB = m_DirectionalLight;
+		D3DXMatrixTranspose(&LB->mLightViewProj, &m_LightViewProj);
 		pd3dImmediateContext->Unmap(m_pLightBuffer, 0);
 
 		V(pd3dImmediateContext->Map(m_pFrustumBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &MappedResource));
@@ -191,6 +190,8 @@ void Model::RenderModel(ID3D11Device* pd3dDevice, ID3D11DeviceContext* pd3dImmed
 
 		pd3dImmediateContext->PSSetConstantBuffers(2, 1, &m_pLightBuffer);
 		pd3dImmediateContext->PSSetConstantBuffers(3, 1, &m_pFrustumBuffer);
+
+		pd3dImmediateContext->PSSetShaderResources(0, 1, &pShadowMap);
 
 		for (size_t j = 0; j < nodeCount; j++)
 		{
@@ -218,6 +219,8 @@ void Model::RenderModel(ID3D11Device* pd3dDevice, ID3D11DeviceContext* pd3dImmed
 			D3DXMatrixTranspose(&pCB->mWVP, &WVP);
 			pd3dImmediateContext->Unmap(m_pCBChangesEveryFrame, 0);
 
+			pd3dImmediateContext->VSSetConstantBuffers(0, 1, &m_pCBChangesEveryFrame);
+
 			//SetModelInstancingMatrix(pd3dImmediateContext);
 
 			FBX_LOADER::MATERIAL_DATA material = m_pFbxDX11[i]->GetNodeMaterial(j);
@@ -225,7 +228,7 @@ void Model::RenderModel(ID3D11Device* pd3dDevice, ID3D11DeviceContext* pd3dImmed
 			if (material.pMaterialCb)
 				pd3dImmediateContext->UpdateSubresource(material.pMaterialCb, 0, nullptr, &material.materialConstantData, 0, 0);
 
-			pd3dImmediateContext->PSSetShaderResources(0, 1, &material.pSRV);
+			pd3dImmediateContext->PSSetShaderResources(1, 1, &material.pSRV);
 			pd3dImmediateContext->PSSetConstantBuffers(1, 1, &material.pMaterialCb);
 			pd3dImmediateContext->PSSetSamplers(0, 1, &material.pSampler);
 
@@ -235,9 +238,9 @@ void Model::RenderModel(ID3D11Device* pd3dDevice, ID3D11DeviceContext* pd3dImmed
 #endif
 }
 
-void Model::Render(ID3D11Device* pd3dDevice, ID3D11DeviceContext* pd3dImmediateContext)
+void Model::Render(ID3D11Device* pd3dDevice, ID3D11DeviceContext* pd3dImmediateContext, ID3D11ShaderResourceView* pShadowMap)
 {
-	RenderModel(pd3dDevice, pd3dImmediateContext, m_ViewProj, false);
+	RenderModel(pd3dDevice, pd3dImmediateContext, pShadowMap,m_ViewProj, false);
 #if LIGHT_SPHERE
 	m_LightSphere->SetWVP(m_WVP);
 	m_LightSphere->Render(pd3dDevice, pd3dImmediateContext);
@@ -334,7 +337,7 @@ void Model::RenderShadowMap(ID3D11Device* pd3dDevice, ID3D11DeviceContext* pd3dI
 	m_LightProj = ScaleMatrix * ScaledBiasMatrix;
 	//D3DXMatrixOrthoOffCenterLH(&lightProj, f3MinXYZ.x, f3MaxXYZ.x, f3MinXYZ.y, f3MaxXYZ.y, f3MinXYZ.z, f3MaxXYZ.z);
 	m_LightViewProj = m_LightView * m_LightProj;
-	RenderModel(pd3dDevice, pd3dImmediateContext, m_LightViewProj, true);
+	RenderModel(pd3dDevice, pd3dImmediateContext, nullptr,m_LightViewProj, true);
 }
 
 void Model::Resize(const DXGI_SURFACE_DESC* pBackBufferSurfaceDesc)
@@ -347,6 +350,11 @@ void Model::Resize(const DXGI_SURFACE_DESC* pBackBufferSurfaceDesc)
 void Model::SetModelHeight(float h)
 {
 	ModelHeight = h;
+}
+
+void Model::SetModelScaling(float s)
+{
+	ModelScaling = s;
 }
 
 void Model::SetViewProj(const D3DXMATRIX& viewProj)

@@ -25,6 +25,9 @@ struct MiscDynamicParams
 	UINT uiSrcMinMaxOffsetY;
 	UINT uiDstMinMaxOffsetX;
 	UINT uiDstMinMaxOffsetY;
+
+	float fEnableLightShaft;
+	float padding[3];
 };
 
 struct CameraParams
@@ -46,8 +49,7 @@ struct LightParams
 	D3DXVECTOR3 f3LightDir;
 	float padding;
 
-	D3DXVECTOR2 f2LightScreenPos;
-	float padding2[2];
+	D3DXVECTOR4 f4LightScreenPos;
 
 	D3DXMATRIX View;
 	D3DXMATRIX Proj;
@@ -247,7 +249,6 @@ inline HRESULT CreateTexture2D(ID3D11Device* pDevice, ID3D11DeviceContext* pCont
 	PreCompute2DTexDesc.CPUAccessFlags = 0;
 	PreCompute2DTexDesc.MiscFlags = 0;
 
-	CComPtr<ID3D11RenderTargetView>	pDirectIrradianceRTV;
 	D3D11_RENDER_TARGET_VIEW_DESC PreComputeRTVDesc;
 	PreComputeRTVDesc.Format = PreCompute2DTexDesc.Format;
 	PreComputeRTVDesc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;

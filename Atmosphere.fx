@@ -874,7 +874,7 @@ float3 GetSkyMultiScatterToGround(float r, float mu, float mu_s,float r_d, float
     }
     else
     {
-        float d = max(d - shadow_length, 0.f);
+        d = max(d - shadow_length, 0.f);
         float r_d = sqrt(r * r + d * d + 2 * r * d * mu);
         float mu_d = (r * mu + d) / r_d;
         float mu_s_d = (r * mu_s + d * nu) / r_d;
@@ -882,10 +882,10 @@ float3 GetSkyMultiScatterToGround(float r, float mu, float mu_s,float r_d, float
         shadow_transmittance = GetTransmittance(r, mu,r_d,mu_d,true);
         //shadow_transmittance = GetTransmittanceIntegralAnalytic(r, mu, d);
     }
-    return scatter - shadow_length * scatter_d;
+    return scatter - shadow_transmittance * scatter_d;
 }
 
-float3 GetSkyMultiScatterToAtmosphere(float r, float mu, float mu_s, float nu, float shadow_length, float d)
+float3 GetSkyMultiScatterToAtmosphere(float r, float mu, float mu_s, float nu, float shadow_length)
 {
     // T(x,xs)S[L]xs=x+lv
     float3 scatter_d;
@@ -1003,7 +1003,7 @@ float4 DrawGroundAndSky(QuadVertexOut In) : SV_Target
         float3 transmittance = GetTransmittance(r, mu, r_d, mu_d, false);
         
         // T(x,xs)S[L]xs=x+lv
-        float3 scatter = GetSkyMultiScatterToAtmosphere(r, mu, mu_s, nu, 0, distance_to_atmosphere);
+        float3 scatter = GetSkyMultiScatterToAtmosphere(r, mu, mu_s, nu, 0);
         sky_radiance = scatter;
         
         return float4(ToneMap(sky_radiance + irradiance_from_sun), 1);
@@ -1056,11 +1056,14 @@ float4 ComputeSliceEndTex2D(QuadVertexOut In) : SV_Target
 
     float4 f4ScreenPixelCoord = float4(-1, -1, 1, 1) + float4(1, 1, -1, -1) / float2(SCREEN_WIDTH, SCREEN_HEIGHT).xyxy;
 
-	uint uiBoundary = clamp(floor(fEpipolarSlice * 4), 0, 3);
-	float fPosOnBoundary = frac(fEpipolarSlice * 4);
+    float fBoundary = fEpipolarSlice * 4;
+    uint uiBoundary = floor(fBoundary);
+    uiBoundary = uiBoundary & 3;
+
+    float fPosOnBoundary = frac(fBoundary);
     uint4 ui4BoundaryFlags = uint4(uiBoundary.xxxx == uint4(0, 1, 2, 3));
 
-    float4 f4LightXYDistToBoundary = (light.f2LightScreenPos.xyxy - f4ScreenPixelCoord) * float4(1, 1, -1, -1);
+    float4 f4LightXYDistToBoundary = (light.f4LightScreenPos.xyxy - f4ScreenPixelCoord) * float4(1, 1, -1, -1);
     uint4 ui4IsInvalidBoundary = uint4(f4LightXYDistToBoundary <= 0);
     if (dot(ui4BoundaryFlags, ui4IsInvalidBoundary))
         return INVALID_EPIPOLAR_LINE;
@@ -1073,16 +1076,16 @@ float4 ComputeSliceEndTex2D(QuadVertexOut In) : SV_Target
     float2 f2SliceStartPos;
     if (all(f4LightXYDistToBoundary >= 0))
     {
-        f2SliceStartPos = light.f2LightScreenPos;
+        f2SliceStartPos = light.f4LightScreenPos.xy;
     }
     else
     {
-        float2 f2RayDir = f2SliceEndPos - light.f2LightScreenPos;
+        float2 f2RayDir = f2SliceEndPos - light.f4LightScreenPos.xy;
         float fRayLength = length(f2RayDir);
         f2RayDir /= fRayLength;
         
         bool4 b4IsCorrectIntersectionFlag = abs(f2RayDir.xyxy) > 1e-5;
-        float4 f4DistToBoundary = (f4ScreenPixelCoord - light.f2LightScreenPos.xyxy) / (f2RayDir.xyxy + !b4IsCorrectIntersectionFlag);
+        float4 f4DistToBoundary = (f4ScreenPixelCoord - light.f4LightScreenPos.xyxy) / (f2RayDir.xyxy + !b4IsCorrectIntersectionFlag);
         b4IsCorrectIntersectionFlag = b4IsCorrectIntersectionFlag && (f4DistToBoundary < (fRayLength - 1e-5));
         f4DistToBoundary = b4IsCorrectIntersectionFlag * f4DistToBoundary +
                             !b4IsCorrectIntersectionFlag * float4(-FLT_MAX, -FLT_MAX, -FLT_MAX, -FLT_MAX);
@@ -1090,7 +1093,7 @@ float4 ComputeSliceEndTex2D(QuadVertexOut In) : SV_Target
         float2 f2FirstIntersecDist = max(f4DistToBoundary.xy, f4DistToBoundary.zw);
         float fFirstIntersecDist = max(f2FirstIntersecDist.x, f2FirstIntersecDist.y);
 
-        f2SliceStartPos = light.f2LightScreenPos + f2RayDir * fFirstIntersecDist;
+        f2SliceStartPos = light.f4LightScreenPos.xy + f2RayDir * fFirstIntersecDist;
     }
 
     if (IsValidScreenLocation(f2SliceStartPos))
@@ -1135,6 +1138,90 @@ void ComputeEpipolarCoordTex2D(QuadVertexOut In, out float2 f2XY : SV_Target0, o
     fCameraZ = g_tex2DSpaceLinearDepth.SampleLevel(samLinearClamp, ProjToUV(f2XY), 0);
 }
 
+float3 GetRMuMuS(float3 f3Pos, float3 f3ViewRay)
+{
+    float fHeight = length(f3Pos);
+    float fCosZenithAngle = dot(f3Pos, f3ViewRay) / fHeight;
+    float fCosSunZenithAngle = dot(f3Pos, light.f3LightDir) / fHeight;
+
+    return float3(fHeight, fCosZenithAngle, fCosSunZenithAngle);
+}
+
+static const float3 m_f4ExtraLight = float3(5.f, 5.f, 5.f);
+
+float4 ComputeUnshadowedSampleScatter(QuadVertexOut In) : SV_Target
+{
+    uint uiSampleNum = In.m_f4Pos.x;
+    uint uiSliceNum = In.m_f4Pos.y;
+    float2 f2ScreenXY = g_tex2DEpipolarSample.Load(uint3(uiSampleNum, uiSliceNum, 0));
+    float fCamDepth = g_tex2DEpipolarSampleCamDepth.Load(uint3(uiSampleNum, uiSliceNum, 0));
+    float fDepth = camera.Proj[2][2] + camera.Proj[3][2] / fCamDepth;
+    float4 f4RayEndInWorldSpace = mul(float4(f2ScreenXY, fDepth, 1), camera.InvViewProj);
+    float3 f3ViewRay = f4RayEndInWorldSpace.xyz / f4RayEndInWorldSpace.w - camera.f3CameraPos;
+    float fViewRayLen = length(f3ViewRay);
+    f3ViewRay /= fViewRayLen;
+    
+    float3 f3EarthCenter = float3(0, -atmosphere.bottom_radius, 0);
+    float3 f3CameraPos = camera.f3CameraPos - f3EarthCenter;
+
+    float4 f4RMuMuSNu;
+    f4RMuMuSNu.xyz = GetRMuMuS(f3CameraPos, f3ViewRay);
+    f4RMuMuSNu.w = dot(f3ViewRay, light.f3LightDir);
+    
+    float fRSqr = f4RMuMuSNu.x * f4RMuMuSNu.x;
+    float fRMu = f4RMuMuSNu.x * f4RMuMuSNu.y;
+    float fRMuSqr = fRMu * fRMu;
+    float fIntersectAtmosphereDiscriminant = fRMuSqr - fRSqr + atmosphere.top_radius * atmosphere.top_radius;
+
+    bool bNoScatter = f4RMuMuSNu.x > atmosphere.top_radius &&
+                      (fIntersectAtmosphereDiscriminant < 0 || (fIntersectAtmosphereDiscriminant >= 0 && f4RMuMuSNu.y > 0));
+    if (bNoScatter)
+    {
+        return 0;
+    }
+    float fIntersectAtmosphereSqrt = SafeSqrt(fIntersectAtmosphereDiscriminant);
+    float fDistToAtmosphereNear = -fRMu - fIntersectAtmosphereSqrt;
+    float fDistToAtmosphereFar = -fRMu + fIntersectAtmosphereSqrt;
+    float fIntersectEarthDiscriminant = fRMuSqr - fRSqr + atmosphere.bottom_radius * atmosphere.bottom_radius;
+    float fDistToEarth = -fRMu - SafeSqrt(fIntersectEarthDiscriminant);
+    float fViewRayLenInWorldSpace = fViewRayLen;
+
+    bool bIsMarchToAtmosphere = false;
+    if (fCamDepth > camera.fFarZ)
+    {
+        fViewRayLenInWorldSpace = fDistToAtmosphereFar;
+        bIsMarchToAtmosphere = true;
+    }
+    bool bIsMarchToEarth = false;
+    bool bIsIntersectEarth = fIntersectEarthDiscriminant >= 0 && f4RMuMuSNu.y < 0;
+    if (bIsIntersectEarth)
+    {
+        fViewRayLenInWorldSpace = min(fViewRayLenInWorldSpace, fDistToEarth);
+        bIsMarchToAtmosphere = false;
+        bIsMarchToEarth = fViewRayLenInWorldSpace == fDistToEarth;
+    }
+    
+    if (fDistToAtmosphereNear > 0)
+    {
+        float3 f3DistToAtmosphereNear = fDistToAtmosphereNear * f3ViewRay;
+        f3CameraPos += f3DistToAtmosphereNear;
+        fViewRayLenInWorldSpace -= fDistToAtmosphereNear;
+        f4RMuMuSNu.xyz = GetRMuMuS(f3CameraPos, f3ViewRay);
+    }
+    
+    if (bIsMarchToAtmosphere || bIsMarchToEarth)
+        return float4(m_f4ExtraLight * GetSkyMultiScatter(f4RMuMuSNu.x, f4RMuMuSNu.y, f4RMuMuSNu.z, f4RMuMuSNu.w), 1);
+    else
+    {
+        float3 f3EndPos = f3CameraPos + fViewRayLenInWorldSpace * f3ViewRay;
+        float3 f3EndRMuMuS = GetRMuMuS(f3EndPos, f3ViewRay);
+        float3 f3TransmittanceToEnd = bIsIntersectEarth ? 1 : GetTransmittanceIntegralAnalytic(f4RMuMuSNu.x, f4RMuMuSNu.y, fViewRayLenInWorldSpace);
+        float3 f3Inscatter = GetSkyMultiScatter(f4RMuMuSNu.x, f4RMuMuSNu.y, f4RMuMuSNu.z, f4RMuMuSNu.w);
+        f3Inscatter -= f3TransmittanceToEnd * GetSkyMultiScatter(f3EndRMuMuS.x, f3EndRMuMuS.y, f3EndRMuMuS.z, f4RMuMuSNu.w);
+        return float4(m_f4ExtraLight * f3Inscatter, 1);
+    }
+}
+
 technique11 ComputeEpipolarCoordTex2DTech
 {
     pass P0
@@ -1146,6 +1233,20 @@ technique11 ComputeEpipolarCoordTex2DTech
         SetVertexShader(CompileShader(vs_5_0, GenerateScreenSizeQuadVS()));
         SetGeometryShader(NULL);
         SetPixelShader(CompileShader(ps_5_0, ComputeEpipolarCoordTex2D()));
+    }
+}
+
+technique11 ComputeUnshadowedSampleScatterTech
+{
+    pass P0
+    {
+        SetBlendState(NoBlending, float4(0.0f, 0.0f, 0.0f, 0.0f), 0xFFFFFFFF);
+        SetRasterizerState(RS_SolidFill_NoCull);
+        SetDepthStencilState(DSS_NoDepthTest, 0);
+
+        SetVertexShader(CompileShader(vs_5_0, GenerateScreenSizeQuadVS()));
+        SetGeometryShader(NULL);
+        SetPixelShader(CompileShader(ps_5_0, ComputeUnshadowedSampleScatter()));
     }
 }
 
@@ -1170,19 +1271,30 @@ void RefineSampleCS(uint3 Gid : SV_GroupID,
 
     bool IsValidThread = all(abs(f2SampleScreenXY) < 1 + 1e-4);
 
-    if (Gid.x < g_uiPackNum)
-        g_uiCamDepthDiffPackFlags[Gid.x] = 0;
+    if (GTid.x < g_uiPackNum)
+        g_uiCamDepthDiffPackFlags[GTid.x] = 0;
     GroupMemoryBarrierWithGroupSync();
 
     [branch]
     if (IsValidThread)
     {
-        float fSampleCamDepth = g_tex2DEpipolarSampleCamDepth.Load(uint3(uiSampleGlobalNum, uiSliceNum, 0));
-        float fSampleCamDepthRight = g_tex2DEpipolarSampleCamDepth.Load(uint3(min(uiSampleGlobalNum + 1, EPIPOLAR_SAMPLE_NUM - 1), uiSliceNum, 0));
-        float fMax = max(fSampleCamDepth, fSampleCamDepthRight);
-        fMax = max(fMax, 1 - 1e-4) + 1e-4;
-        bool bFlag = abs(fSampleCamDepth - fSampleCamDepthRight) / fMax < 0.2 * m_fRefinementThreshold; // 1 No break
-                                                                                                      // 0 Depth break
+        //float fSampleCamDepth = g_tex2DEpipolarSampleCamDepth.Load(uint3(uiSampleGlobalNum, uiSliceNum, 0));
+        //float fSampleCamDepthRight = g_tex2DEpipolarSampleCamDepth.Load(uint3(min(uiSampleGlobalNum + 1, EPIPOLAR_SAMPLE_NUM - 1), uiSliceNum, 0));
+        //float fMax = max(fSampleCamDepth, fSampleCamDepthRight);
+        //fMax = max(fMax, 1);
+        //bool bFlag = abs(fSampleCamDepth - fSampleCamDepthRight) / fMax < 0.2 * m_fRefinementThreshold; // 1 No break
+        
+        float3 f3Insctr0 = g_tex2DUnshadowedSampleScatter.Load(uint3(uiSampleGlobalNum, uiSliceNum, 0));
+        float3 f3Insctr1 = g_tex2DUnshadowedSampleScatter.Load(uint3(uiSampleGlobalNum + 1, uiSliceNum, 0));
+        float3 f3MaxInsctr = max(f3Insctr0, f3Insctr1);
+
+        float fAveLogLum = 0.1;
+        const float middleGray = 1.03 - 2 / (2 + log10(fAveLogLum + 1));
+        float3 f3MinInsctrThreshold = (0.02f * fAveLogLum.xxx / RGB_TO_LUMINANCE.xyz) / middleGray;
+
+        f3MaxInsctr = max(f3MaxInsctr, f3MinInsctrThreshold);
+        bool bFlag = all((abs(f3Insctr0 - f3Insctr1) / f3MaxInsctr) < m_fRefinementThreshold);
+
         InterlockedOr(g_uiCamDepthDiffPackFlags[GTid.x / 32], bFlag << (GTid.x % 32));
     }
     GroupMemoryBarrierWithGroupSync();
@@ -1194,8 +1306,8 @@ void RefineSampleCS(uint3 Gid : SV_GroupID,
     uint uiSampleLocalNum0 = (GTid.x / uiSampleStep) * uiSampleStep;
     uint uiSampleGlobalNum0 = uiSampleLocalNum0 + uiSampleGroupStart;
     float2 f2SampleScreenXY0 = g_tex2DEpipolarSample.Load(uint3(uiSampleGlobalNum0, uiSliceNum, 0));
-    if (length(f2SampleScreenXY0 - light.f2LightScreenPos) < 0.1 &&
-        (float) uiSampleGlobalNum0 / EPIPOLAR_SAMPLE_NUM < 0.05)
+    if (length(f2SampleScreenXY0 - light.f4LightScreenPos.xy) < 0.1 &&
+        (float) uiSampleGlobalNum0 / (float) EPIPOLAR_SAMPLE_NUM < 0.05)
     {
         uiSampleStep = max(uiSampleStep / m_fSampleDense, 1);
         uiSampleLocalNum0 = (GTid.x / uiSampleStep) * uiSampleStep;
@@ -1205,8 +1317,7 @@ void RefineSampleCS(uint3 Gid : SV_GroupID,
         uiSampleLocalNum1 = min(uiSampleLocalNum1, THREAD_GROUP_SIZE - 1);
     uiSampleStep = uiSampleLocalNum1 - uiSampleLocalNum0;
 
-    uint uiSampleLeftBoundary = uiSampleLocalNum0;
-    uint uiSampleRightBoundary = uiSampleLocalNum1;
+    uint uiSampleLeftBoundary, uiSampleRightBoundary;
     if (GTid.x > uiSampleLocalNum0 && GTid.x < uiSampleLocalNum1)
     {
         uint uiCamDepthDiffPackFlags[g_uiPackNum];
@@ -1214,16 +1325,16 @@ void RefineSampleCS(uint3 Gid : SV_GroupID,
         {
             uiCamDepthDiffPackFlags[i] = g_uiCamDepthDiffPackFlags[i];
         }
-        
+    
         bool bNoBreak = true;
 
-        uint uiPackNum0 = uiSampleLocalNum0 / 32;
-        uint uiNumInPack0 = uiSampleLocalNum0 % 32;
-        
-        uint uiPackNum1 = uiSampleLocalNum1 / 32;
-        uint uiNumInPack1 = uiSampleLocalNum1 % 32;
+        int iPackNum0 = uiSampleLocalNum0 / 32;
+        int iNumInPack0 = uiSampleLocalNum0 % 32;
+    
+        int iPackNum1 = uiSampleLocalNum1 / 32;
+        int iNumInPack1 = uiSampleLocalNum1 % 32;
 
-        for (uint j = uiPackNum0; j <= uiPackNum1; j++)
+        for (int j = iPackNum0; j <= iPackNum1; j++)
         {
             if (uiCamDepthDiffPackFlags[j] != 0xFFFFFFFFU)
             {
@@ -1232,51 +1343,59 @@ void RefineSampleCS(uint3 Gid : SV_GroupID,
             }
         }
 
-        if (!bNoBreak)
+        if (bNoBreak)
         {
-            uint uiSampleLeft = GTid.x; 
-            uint uiSampleLeftPackNum = uiSampleLeft / 32;
+            uiSampleLeftBoundary = uiSampleLocalNum0;
+            uiSampleRightBoundary = uiSampleLocalNum1;
+        }
+        else
+        {
+            //uint uiSampleLeft = GTid.x;
+            int iSampleLeft = GTid.x - 1;
+            int iSampleLeftPackNum = uint(iSampleLeft) / 32;
 
             int iFirstBreakFlag = -1;
-            while (iFirstBreakFlag == -1 && uiSampleLeftPackNum >= uiPackNum0)
+            while (iFirstBreakFlag == -1 && iSampleLeftPackNum >= iPackNum0)
             {
-                uint uiFlag = uiCamDepthDiffPackFlags[uiSampleLeftPackNum];
-                uint uiNumInPackSampleLeft = uiSampleLeft % 32;
+                uint uiFlag = uiCamDepthDiffPackFlags[iSampleLeftPackNum];
+                int iNumInPackSampleLeft = uint(iSampleLeft) % 32;
 
-                if (uiNumInPackSampleLeft < 31)
+                if (iNumInPackSampleLeft < 31)
                 {
-                    uiFlag |= (uint(0x0FFFFFFFFU) << (uiNumInPackSampleLeft + 1));
+                    uiFlag |= (uint(0x0FFFFFFFFU) << uint(iNumInPackSampleLeft + 1));
                 }
                 iFirstBreakFlag = firstbithigh(uint(~uiFlag));
                 if (!(iFirstBreakFlag >= 0 && iFirstBreakFlag <= 31))
                     iFirstBreakFlag = -1;
-                uiSampleLeft -= uiNumInPackSampleLeft - iFirstBreakFlag;
-                uiSampleLeftPackNum--;
+                iSampleLeft -= iNumInPackSampleLeft - iFirstBreakFlag;
+                iSampleLeftPackNum--;
             }
-            uiSampleLeftBoundary = max(uiSampleLeftBoundary, uiSampleLeft + 1);
-            uiSampleLeftBoundary = min(uiSampleLeftBoundary, GTid.x);
+            uiSampleLeftBoundary = max(uiSampleLocalNum0, uint(iSampleLeft + 1));
 
-            uint uiSampleRight = GTid.x - 1; // if last break this right should be this
-            uint uiSampleRightPackNum = uiSampleRight / 32;
+            //uint uiSampleRight = GTid.x - 1; // if last break this right should be this
+            int iSampleRight = GTid.x;
+            int iSampleRightPackNum = uint(iSampleRight) / 32;
             iFirstBreakFlag = 32;
-            while (iFirstBreakFlag == 32 && uiSampleRightPackNum <= uiPackNum1)
+            while (iFirstBreakFlag == 32 && iSampleRightPackNum <= iPackNum1)
             {
-                uint uiFlag = uiCamDepthDiffPackFlags[uiSampleRightPackNum];
-                uint uiNumInPackSampleRight = uiSampleRight % 32;
+                uint uiFlag = uiCamDepthDiffPackFlags[iSampleRightPackNum];
+                int iNumInPackSampleRight = uint(iSampleRight) % 32;
 
-                if (uiNumInPackSampleRight > 0)
+                if (iNumInPackSampleRight > 0)
                 {
-                    uiFlag |= ((1 << uint(uiNumInPackSampleRight)) - 1);
+                    uiFlag |= ((1 << uint(iNumInPackSampleRight)) - 1);
                 }
                 iFirstBreakFlag = firstbitlow(uint(~uiFlag));
                 if (!(iFirstBreakFlag >= 0 && iFirstBreakFlag <= 31))
                     iFirstBreakFlag = 32;
-                uiSampleRight += iFirstBreakFlag - uiNumInPackSampleRight;
-                uiSampleRightPackNum++;
+                iSampleRight += iFirstBreakFlag - iNumInPackSampleRight;
+                iSampleRightPackNum++;
+            
             }
-            uiSampleRightBoundary = min(uiSampleRightBoundary, uiSampleRight);
-            uiSampleRightBoundary = max(uiSampleRightBoundary, GTid.x);
-            //g_rwtex2DInterpolationSource[uint2(uiSampleGlobalNum, uiSliceNum)] = uint4(1,1, 1, 1);
+            uiSampleRightBoundary = min(uiSampleLocalNum1, uint(iSampleRight));
+
+            if (uiSampleLeftBoundary == GTid.x || uiSampleRightBoundary == GTid.x)
+                uiSampleLeftBoundary = uiSampleRightBoundary = GTid.x;
         }
         //else
             //g_rwtex2DInterpolationSource[uint2(uiSampleGlobalNum, uiSliceNum)] = uint4(uiSampleGroupStart + iSampleLeftBoundary, uiSampleGroupStart + iSampleRightBoundary, 0, 1);
@@ -1286,7 +1405,6 @@ void RefineSampleCS(uint3 Gid : SV_GroupID,
         uiSampleLeftBoundary = uiSampleRightBoundary = GTid.x;
         //g_rwtex2DInterpolationSource[uint2(uiSampleGlobalNum, uiSliceNum)] = uint4(0,0,0,1);
     }
-
     g_rwtex2DInterpolationSource[uint2(uiSampleGlobalNum, uiSliceNum)] = uint2(uiSampleGroupStart + uiSampleLeftBoundary, uiSampleGroupStart + uiSampleRightBoundary);
 }
 
@@ -1331,11 +1449,10 @@ float4 ComputeSliceUVOrigDirTex2D(QuadVertexOut In) : SV_Target
         float4 f4DirDistToBoundary = (f4Boundary - f2SliceUVOrig.xyxy) / (f2SliceDir.xyxy + !b4IsCorrectIntersectionFlag);
 
         float4 f4InsecBoundary = f2SliceUVOrig.yxyx + f2SliceDir.yxyx * f4DirDistToBoundary;
-        //b4IsCorrectIntersectionFlag = b4IsCorrectIntersectionFlag && (f4DirDistToBoundary < (fSliceDirLength - 1e-5));
         b4IsCorrectIntersectionFlag = b4IsCorrectIntersectionFlag && 
                                         (f4InsecBoundary >= f4Boundary.yxyx) && 
                                         (f4InsecBoundary <= f4Boundary.wzwz) &&
-                                        (f4DirDistToBoundary > 0);
+                                        (f4DirDistToBoundary >= 0);
 
         f4DirDistToBoundary = f4DirDistToBoundary * b4IsCorrectIntersectionFlag + 
                                 float4(+FLT_MAX, +FLT_MAX, +FLT_MAX, +FLT_MAX) * !b4IsCorrectIntersectionFlag;
@@ -1371,7 +1488,14 @@ float2 Initial1DMinMaxMipMap(QuadVertexOut In) : SV_Target
     for (int i = 0; i <= 1; i++)
     {
         float4 f4Depths = g_tex2DShadowMap.Gather(samLinearBorder0, f2CurrUV + i * f4SliceUVOrigDir.zw);
-        f4MinDepth = min(f4MinDepth, f4Depths);
+        if (any(f4Depths == 0))
+        {
+            uint4 ui4IsCorrect = f4Depths == float4(0, 0, 0, 0);
+            float4 f4DepthsNew = f4Depths * !ui4IsCorrect + ui4IsCorrect;
+            f4MinDepth = min(f4MinDepth, f4DepthsNew);
+        }
+        else
+            f4MinDepth = min(f4MinDepth, f4Depths);
         f4MaxDepth = max(f4MaxDepth, f4Depths);
     }
     float2 f2MinDepth = min(f4MinDepth.xy, f4MinDepth.zw);
@@ -1446,20 +1570,8 @@ technique11 MarkRayMarchSampleTech
     }
 }
 
-float3 GetRMuMuS(float3 f3Pos,float3 f3ViewRay)
+float4 ComputeShadowInscatter(float2 f2ScreenXY,float fRayEndCamDepth,float fDepth,bool bIsUseMinMaxMap,uint uiSliceNum)
 {
-    float fHeight = length(f3Pos);
-    float fCosZenithAngle = dot(f3Pos, f3ViewRay) / fHeight;
-    float fCosSunZenithAngle = dot(f3Pos, light.f3LightDir) / fHeight;
-
-    return float3(fHeight, fCosZenithAngle, fCosSunZenithAngle);
-}
-
-static const float3 m_f4ExtraLight = float3(5.f, 5.f, 5.f);
-
-float4 ComputeShadowInscatter(float2 f2ScreenXY,float fRayEndCamDepth,bool bIsUseMinMaxMap,uint uiSliceNum)
-{
-    float fDepth = camera.Proj[2][2] + camera.Proj[3][2] / fRayEndCamDepth;
     float4 f4ViewRayEndPos = mul(float4(f2ScreenXY, fDepth, 1.f), camera.InvViewProj);
     float3 f3ViewRay = f4ViewRayEndPos.xyz / f4ViewRayEndPos.w - camera.f3CameraPos;
     float fViewRayLenInWorldSpace = length(f3ViewRay);
@@ -1476,28 +1588,39 @@ float4 ComputeShadowInscatter(float2 f2ScreenXY,float fRayEndCamDepth,bool bIsUs
     float fRSqr = f4RMuMuSNu.x * f4RMuMuSNu.x;
     float fRMuSqr = fRMu * fRMu;
 
-    //float fIntersectAtmosphereDiscriminant = fRMuSqr - fRSqr + atmosphere.top_radius * atmosphere.top_radius;
-    float fIntersectAtmosphereDiscriminant = f4RMuMuSNu.x * f4RMuMuSNu.x * (f4RMuMuSNu.y * f4RMuMuSNu.y - 1) + atmosphere.top_radius * atmosphere.top_radius;
-    if (f4RMuMuSNu.x > atmosphere.top_radius &&
-        (fIntersectAtmosphereDiscriminant < 0 || fIntersectAtmosphereDiscriminant >= 0 && f4RMuMuSNu.y > 0))
-    {
-        return 0;
-    }
+    float fIntersectAtmosphereDiscriminant = fRMuSqr - fRSqr + atmosphere.top_radius * atmosphere.top_radius;
+    //float fIntersectAtmosphereDiscriminant = f4RMuMuSNu.x * f4RMuMuSNu.x * (f4RMuMuSNu.y * f4RMuMuSNu.y - 1) + atmosphere.top_radius * atmosphere.top_radius;
+    //bool bNoScatter = f4RMuMuSNu.x > atmosphere.top_radius && 
+    //                  (fIntersectAtmosphereDiscriminant < 0 || (fIntersectAtmosphereDiscriminant >= 0 && f4RMuMuSNu.y > 0));
+    //if (bNoScatter)
+    //{
+    //    return 0;
+    //}
 
     float fIntersectAtmosphereSqrt = SafeSqrt(fIntersectAtmosphereDiscriminant);
-    float fDistToAtmosphereNear = -f4RMuMuSNu.x * f4RMuMuSNu.y - fIntersectAtmosphereSqrt;
-    float fDistToAtmosphereFar = -f4RMuMuSNu.x * f4RMuMuSNu.y + fIntersectAtmosphereSqrt;
+    //float fDistToAtmosphereNear = -f4RMuMuSNu.x * f4RMuMuSNu.y - fIntersectAtmosphereSqrt;
+    //float fDistToAtmosphereFar = -f4RMuMuSNu.x * f4RMuMuSNu.y + fIntersectAtmosphereSqrt;
+    float fDistToAtmosphereNear = -fRMu - fIntersectAtmosphereSqrt;
+    float fDistToAtmosphereFar = -fRMu + fIntersectAtmosphereSqrt;
 
-    //float fIntersectEarthDiscriminant = fRMuSqr - fRSqr + atmosphere.bottom_radius * atmosphere.bottom_radius;
-    float fIntersectEarthDiscriminant = f4RMuMuSNu.x * f4RMuMuSNu.x * (f4RMuMuSNu.y * f4RMuMuSNu.y - 1) + atmosphere.bottom_radius * atmosphere.bottom_radius;
-    float fDistToEarthNear = -f4RMuMuSNu.x * f4RMuMuSNu.y - SafeSqrt(fIntersectEarthDiscriminant);
+    float fIntersectEarthDiscriminant = fRMuSqr - fRSqr + atmosphere.bottom_radius * atmosphere.bottom_radius;
+    float fDistToEarthNear = -fRMu - SafeSqrt(fIntersectEarthDiscriminant);
+    //float fIntersectEarthDiscriminant = f4RMuMuSNu.x * f4RMuMuSNu.x * (f4RMuMuSNu.y * f4RMuMuSNu.y - 1) + atmosphere.bottom_radius * atmosphere.bottom_radius;
+    //float fDistToEarthNear = -f4RMuMuSNu.x * f4RMuMuSNu.y - SafeSqrt(fIntersectEarthDiscriminant);
+
+    bool bIsMarchToAtmosphere = false;
     if (fRayEndCamDepth > camera.fFarZ)
     {
         fViewRayLenInWorldSpace = fDistToAtmosphereFar;
+        bIsMarchToAtmosphere = true;
     }
+    bool bIsMarchToEarth = false;
+    bool bIsIntersectEarth = fIntersectEarthDiscriminant >= 0 && f4RMuMuSNu.y < 0;
     if (fIntersectEarthDiscriminant >= 0 && f4RMuMuSNu.y < 0)
     {
         fViewRayLenInWorldSpace = min(fViewRayLenInWorldSpace, fDistToEarthNear);
+        bIsMarchToAtmosphere = false;
+        bIsMarchToEarth = (fViewRayLenInWorldSpace == fDistToEarthNear);
     }
 
     float3 f3StartPos = camera.f3CameraPos;
@@ -1508,6 +1631,9 @@ float4 ComputeShadowInscatter(float2 f2ScreenXY,float fRayEndCamDepth,bool bIsUs
         f3CameraPos += f3DistToAtmosphereNear;
         f3StartPos += f3DistToAtmosphereNear;
         fViewRayLenInWorldSpace -= fDistToAtmosphereNear;
+        fDistToAtmosphereFar -= fDistToAtmosphereNear;
+        if (bIsIntersectEarth)
+            fDistToEarthNear -= fDistToAtmosphereNear;
         f4RMuMuSNu.xyz = GetRMuMuS(f3CameraPos, f3ViewRay);
     }
 
@@ -1538,12 +1664,7 @@ float4 ComputeShadowInscatter(float2 f2ScreenXY,float fRayEndCamDepth,bool bIsUs
             // Take into account maximum number of steps specified by the g_MiscParams.fMaxStepsAlongRay
         fStepLenInShadowMap = max(fViewRayLenInShadowMap / 256, fStepLenInShadowMap);
     }
-
-    float fMaxTraceDirDim = max(abs(f3ViewRayInShadowMap.x), abs(f3ViewRayInShadowMap.y));
-    fStepLenInShadowMap = (fMaxTraceDirDim > 0) ? (1 / (float) SHADOWMAP_TEXTURE_DIM / fMaxTraceDirDim) : 0;
-            // Take into account maximum number of steps specified by the g_MiscParams.fMaxStepsAlongRay
-    fStepLenInShadowMap = max(fViewRayLenInShadowMap / 256, fStepLenInShadowMap);
-
+    
     float fStepLenInWorldSpace = fViewRayLenInWorldSpace * (fStepLenInShadowMap / fViewRayLenInShadowMap);
     float3 f3StepInShadowMap = f3ViewRayInShadowMap * fStepLenInShadowMap;
     
@@ -1568,6 +1689,7 @@ float4 ComputeShadowInscatter(float2 f2ScreenXY,float fRayEndCamDepth,bool bIsUs
     int iCurrLevelOffsetX = -(int)(MIN_MAX_TEXTURE_DIM);
     float fScale = 1.f;
 
+    float fStepNum = 0;
     [loop]
     while (fTotalMarchLen < fViewRayLenInWorldSpace)
     {
@@ -1580,7 +1702,7 @@ float4 ComputeShadowInscatter(float2 f2ScreenXY,float fRayEndCamDepth,bool bIsUs
                 fScale *= 2.f;
                 uiCurrLevel++;
             }
-            
+          
             while(uiCurrLevel > 0)
             {
                 float fEndDepthInLevel = f3CurrSampleUVDepthInShadowMap.z + f3StepInShadowMap.z * (fScale - 1);
@@ -1590,8 +1712,8 @@ float4 ComputeShadowInscatter(float2 f2ScreenXY,float fRayEndCamDepth,bool bIsUs
                 //    return float4(fStepLenInWorldSpace, fViewRayLenInWorldSpace, fStepLenInShadowMap, fViewRayLenInShadowMap);
 
                 float2 f2MinMaxDepth = g_tex2DMinMaxMipMap.Load(uint3(iCurrLevelOffsetX + (uiCurrSamplePos >> uiCurrLevel), uiSliceNum, 0));
-                bIsLight = all(f2StartEndDepthInLevel < f2MinMaxDepth.xx);
-                bool bIsShadow = all(f2StartEndDepthInLevel >= f2MinMaxDepth.yy);
+                bIsLight = all(f2StartEndDepthInLevel <= f2MinMaxDepth.xx);
+                bool bIsShadow = all(f2StartEndDepthInLevel > f2MinMaxDepth.yy);
                 if(bIsLight || bIsShadow)
                     break;
                 uiCurrLevel--;
@@ -1601,7 +1723,7 @@ float4 ComputeShadowInscatter(float2 f2ScreenXY,float fRayEndCamDepth,bool bIsUs
 
             if (uiCurrLevel == 0)
             {
-                bIsLight = g_tex2DShadowMap.SampleLevel(samLinearBorder0, f3CurrSampleUVDepthInShadowMap.xy, 0) > max(f3CurrSampleUVDepthInShadowMap.z, 1e-7);
+                bIsLight = g_tex2DShadowMap.SampleLevel(samLinearBorder1, f3CurrSampleUVDepthInShadowMap.xy, 0) >= max(f3CurrSampleUVDepthInShadowMap.z, 1e-7);
             }
 
             if (fDistToFirstLight < 0 && bIsLight > 0)
@@ -1613,7 +1735,7 @@ float4 ComputeShadowInscatter(float2 f2ScreenXY,float fRayEndCamDepth,bool bIsUs
         }
         else
         {
-            bIsLight = g_tex2DShadowMap.SampleLevel(samLinearBorder0, f3CurrSampleUVDepthInShadowMap.xy, 0) > max(f3CurrSampleUVDepthInShadowMap.z, 1e-7);
+            bIsLight = g_tex2DShadowMap.SampleLevel(samLinearBorder1, f3CurrSampleUVDepthInShadowMap.xy, 0) > max(f3CurrSampleUVDepthInShadowMap.z, 1e-7);
         }
         f3CurrSampleUVDepthInShadowMap += (fScale * f3StepInShadowMap);
 
@@ -1622,8 +1744,12 @@ float4 ComputeShadowInscatter(float2 f2ScreenXY,float fRayEndCamDepth,bool bIsUs
 
         fTotalMarchLen += fMarchLenInWorldSpace;
         fTotalLightLen += (fMarchLenInWorldSpace * bIsLight);
-            
-        if (any(f3CurrSampleUVDepthInShadowMap.xy) < 0 || any(f3CurrSampleUVDepthInShadowMap.xy) > 1)
+        fStepNum++;
+
+        if (any(f3CurrSampleUVDepthInShadowMap.xy) < 0 || 
+            any(f3CurrSampleUVDepthInShadowMap.xy) > 1 || 
+            uiCurrSamplePos >= SHADOWMAP_TEXTURE_DIM ||
+            fStepNum>=1024)
         {
             fRemainDist = max(fViewRayLenInWorldSpace - fTotalMarchLen, 0);
             if (fDistToFirstLight < 0)
@@ -1633,32 +1759,69 @@ float4 ComputeShadowInscatter(float2 f2ScreenXY,float fRayEndCamDepth,bool bIsUs
         }
     }
     float3 f3MultiScatter = 0;
-    
+    float3 f3GroundRadiance = 0;
+
+    //return float4(fTotalMarchLen, fTotalLightLen, fViewRayLenInWorldSpace, 1);
+
     [branch]
     if(fTotalLightLen>0)
     {
-        f3StartPos = f3CameraPos + fDistToFirstLight * f3ViewRay;
-        f3EndPos = f3StartPos + fTotalLightLen * f3ViewRay;
+        //if (bIsMarchToEarth)
+        ////if (fViewRayLenInWorldSpace == fDistToEarthNear)
+        //{
+        //    float3 f3EarthNormal = f3CameraPos + f3ViewRay * fDistToEarthNear;
+        //    float3 f3EarthRMuMuS = GetRMuMuS(f3EarthNormal, f3ViewRay);
+        //    f3EarthNormal /= f3EarthRMuMuS.x;
 
-        //if (fViewRayLenInWorldSpace == fDistToAtmosphereFar)
-        //    return float4(fDistToAtmosphereFar, fTotalLightLen, 1, 1);
+        //    float2 f2EarthCoords = float2(f3EarthNormal.x == 0 ? 0 : atan2(f3EarthNormal.z, f3EarthNormal.x), acos(f3EarthNormal.y)) * float2(0.5, 1.0) / PI + float2(0.5, 0.0);
+        //    float4 f4Reflentance = g_tex2DEarthGround.SampleLevel(samLinearClamp, f2EarthCoords, 0); //* float4(0.2, 0.2, 0.2, 1.0);
+        
+        //    float2 f2IrradianceUV = GetIrradianceUVFromRMuS(f3EarthRMuMuS.x, f3EarthRMuMuS.z);
+
+        //     // R[L0] + R[L*]
+        //    float3 f3SunColor = g_tex2DDirectIrradianceLUT.SampleLevel(samLinearClamp, f2IrradianceUV,0) * max(f3EarthRMuMuS.z, 0);
+        //    float3 f3SkyColor = g_tex2DIndirectIrradianceLUT.SampleLevel(samLinearClamp, f2IrradianceUV,0) * (1.0 + dot(f3EarthNormal, f3CameraPos) / f4RMuMuSNu.x) * 0.5;
+          
+        //    // S[L]x - T(x,xs)S[L]xs=x0-lv
+        //    //float fShadowLength = fDistToEarthNear - fTotalLightLen;
+        //    float fShadowLength = 0;
+        //    float3 f3TransmittanceToEarth = 1;
+        //    f3MultiScatter = GetSkyMultiScatterToGround(f4RMuMuSNu.x, f4RMuMuSNu.y, f4RMuMuSNu.z,
+        //                                                f3EarthRMuMuS.x, f3EarthRMuMuS.y, f3EarthRMuMuS.z,
+        //                                                f4RMuMuSNu.w, fShadowLength, fDistToEarthNear,f3TransmittanceToEarth);
+        //    //f3MultiScatter = GetSkyMultiScatter(f4RMuMuSNu.x, f4RMuMuSNu.y, f4RMuMuSNu.z, f4RMuMuSNu.w);
+        //    f3MultiScatter *= m_f4ExtraLight;
+        //    //f3GroundRadiance = f4Reflentance.rgb * atmosphere.ground_albedo * (1.0 / PI) * (f3SunColor + f3SkyColor) * f3TransmittanceToEarth;        
+        //}
+        //else if (bIsMarchToAtmosphere)
+        ////else if(fViewRayLenInWorldSpace == fDistToAtmosphereFar)
+        //{
+        //    // T(x,xs)S[L]xs=x+lv
+        //    float fShadowLength = fDistToAtmosphereFar - fTotalLightLen;
+        //    f3MultiScatter = GetSkyMultiScatterToAtmosphere(f4RMuMuSNu.x, f4RMuMuSNu.y, f4RMuMuSNu.z, f4RMuMuSNu.w,
+        //                                                    fShadowLength);
+        //    f3MultiScatter *= m_f4ExtraLight;
+        //}
         //else
-        //    return float4(1, 1, 1, 1);
-        //return float4(f3StartPos, fTotalLightLen);
+        //{
+            f3StartPos = f3CameraPos + fDistToFirstLight * f3ViewRay;
+            f3EndPos = f3StartPos + fTotalLightLen * f3ViewRay;
+            
+            float3 f3StartRMuMuS = GetRMuMuS(f3StartPos, f3ViewRay);
+            float3 f3EndRMuMuS = GetRMuMuS(f3EndPos, f3ViewRay);
+        
+            float3 f3TransmittanceToStart = (fDistToFirstLight == 0) ? 1 :
+                                         GetTransmittanceIntegralAnalytic(f4RMuMuSNu.x, f4RMuMuSNu.y, fDistToFirstLight);
+            float fDistToEnd = fDistToFirstLight + fTotalLightLen;
+            float3 f3TransmittanceToEnd = (fDistToEnd == 0) ? 1 :
+                                        GetTransmittanceIntegralAnalytic(f4RMuMuSNu.x, f4RMuMuSNu.y, fDistToEnd);
 
-        float3 f3StartRMuMuS = GetRMuMuS(f3StartPos, f3ViewRay);
-        float3 f3EndRMuMuS = GetRMuMuS(f3EndPos, f3ViewRay);
+            f3MultiScatter = f3TransmittanceToStart * GetSkyMultiScatter(f3StartRMuMuS.x, f3StartRMuMuS.y, f3StartRMuMuS.z, f4RMuMuSNu.w);
 
-        float3 f3TransmittanceToStart = fDistToFirstLight == 0 ? 1 : GetTransmittanceIntegralAnalytic(f4RMuMuSNu.x, f4RMuMuSNu.y, fDistToFirstLight);
-        float fDistToEnd = fDistToFirstLight + fTotalLightLen;
-        float3 f3TransmittanceToEnd = fDistToEnd == 0 ? 1 : GetTransmittanceIntegralAnalytic(f4RMuMuSNu.x, f4RMuMuSNu.y, fDistToEnd);
-
-        f3MultiScatter = f3TransmittanceToStart * GetSkyMultiScatter(f3StartRMuMuS.x, f3StartRMuMuS.y, f3StartRMuMuS.z, f4RMuMuSNu.w);
-
-        f3MultiScatter -= f3TransmittanceToEnd * GetSkyMultiScatter(f3EndRMuMuS.x, f3EndRMuMuS.y, f3EndRMuMuS.z, f4RMuMuSNu.w);
+            f3MultiScatter -= f3TransmittanceToEnd * GetSkyMultiScatter(f3EndRMuMuS.x, f3EndRMuMuS.y, f3EndRMuMuS.z, f4RMuMuSNu.w);
+            f3MultiScatter *= m_f4ExtraLight;
+        //}
     }
-
-    f3MultiScatter *= m_f4ExtraLight; 
     return float4(f3MultiScatter, 1);
 }
 
@@ -1667,8 +1830,8 @@ float4 DoRayMarch(QuadVertexOut In) : SV_Target
     uint2 ui2XY = uint2(In.m_f4Pos.xy);
     float2 f2XY = g_tex2DEpipolarSample.Load(uint3(ui2XY, 0));
     float fCamDepth = g_tex2DEpipolarSampleCamDepth.Load(uint3(ui2XY, 0));
-
-    return ComputeShadowInscatter(f2XY, fCamDepth, true, ui2XY.y);
+    float fDepth = camera.Proj[2][2] + camera.Proj[3][2] / fCamDepth;
+    return ComputeShadowInscatter(f2XY, fCamDepth, fDepth,true, ui2XY.y);
 }
 
 technique11 DoRayMarchTech
@@ -1692,10 +1855,18 @@ float4 InterpolateScatter(QuadVertexOut In) : SV_Target
     
     uint2 ui2InterpolationSample = g_tex2DInterpolationSample.Load(uint3(uiSampleNum, uiSliceNum, 0.0));
     float fInterpolated = float(uiSampleNum - ui2InterpolationSample.x) / max(float(ui2InterpolationSample.y - ui2InterpolationSample.x), 1.f);
-
-    float3 f3InterpolatedScatter0 = g_tex2DSampleScatter.Load(uint3(ui2InterpolationSample.x, uiSliceNum, 0.0));
-    float3 f3InterpolatedScatter1 = g_tex2DSampleScatter.Load(uint3(ui2InterpolationSample.y, uiSliceNum, 0.0));
-
+    
+    float3 f3InterpolatedScatter0, f3InterpolatedScatter1;
+    if(misc.fEnableLightShaft)
+    {
+        f3InterpolatedScatter0 = g_tex2DSampleScatter.Load(uint3(ui2InterpolationSample.x, uiSliceNum, 0.0));
+        f3InterpolatedScatter1 = g_tex2DSampleScatter.Load(uint3(ui2InterpolationSample.y, uiSliceNum, 0.0));
+    }
+    else
+    {
+        f3InterpolatedScatter0 = g_tex2DUnshadowedSampleScatter.Load(uint3(ui2InterpolationSample.x, uiSliceNum, 0.0));
+        f3InterpolatedScatter1 = g_tex2DUnshadowedSampleScatter.Load(uint3(ui2InterpolationSample.y, uiSliceNum, 0.0));
+    }
     float3 f3InterpolatedScatter = lerp(f3InterpolatedScatter0, f3InterpolatedScatter1, fInterpolated);
 
     return float4(f3InterpolatedScatter, 1);
@@ -1707,7 +1878,7 @@ technique11 InterpolateScatterTech
     {
         SetBlendState(NoBlending, float4(0.0f, 0.0f, 0.0f, 0.0f), 0xFFFFFFFF);
         SetRasterizerState(RS_SolidFill_NoCull);
-        SetDepthStencilState(DSS_NoDepthTest, 0);
+        SetDepthStencilState(DSS_NoDepthTest_StEqual_KeepStencil, 1);
 
         SetVertexShader(CompileShader(vs_5_0, GenerateScreenSizeQuadVS()));
         SetGeometryShader(NULL);
@@ -1719,34 +1890,39 @@ float4 ApplyInterpolateScatter(QuadVertexOut In) : SV_Target
 {
     float2 f2UV = ProjToUV(In.m_f2PosPS);
     float fCamDepth = g_tex2DSpaceLinearDepth.SampleLevel(samLinearClamp, f2UV, 0);
-    float2 f2RayDir = normalize(In.m_f2PosPS - light.f2LightScreenPos);
+    float fDepth = camera.Proj[2][2] + camera.Proj[3][2] / fCamDepth;
+    float2 f2RayDir = normalize(In.m_f2PosPS - light.f4LightScreenPos.xy);
 
     float2 f2ScreenDim = float2(SCREEN_WIDTH, SCREEN_HEIGHT);
     float4 f4Boundary = float4(-1, -1, 1, 1) + float4(1, 1, -1, -1) / f2ScreenDim.xyxy;
     
-    //bool4 b4IsCorrectIntersectionFlag = abs(f2RayDir.xyxy) > 1e-5;
-    //float4 f4DistToBoundary = (f4Boundary - In.m_f2PosPS.xyxy) / (f2RayDir.xyxy + !b4IsCorrectIntersectionFlag);
-    //float4 f4InsecBoundary = In.m_f2PosPS.yxyx + f4DistToBoundary * f2RayDir.yxyx;
-    //b4IsCorrectIntersectionFlag = b4IsCorrectIntersectionFlag && (f4InsecBoundary >= f4Boundary.yxyx) &&
-    //                            (f4InsecBoundary <= f4Boundary.wzwz);
-    //float4 f4EpipolarSlice = float4(0, 0.25, 0.5, 0.75) + (f4InsecBoundary - f4Boundary.wxyz) * float4(-1, 1, 1, -1) / (f4Boundary.wzwz - f4Boundary.yxyx) / 4.f;
-    //float fEpipolarSlice = dot(f4EpipolarSlice, b4IsCorrectIntersectionFlag);
-
-    float4 f4HalfSpaceEquationTerms = (In.m_f2PosPS.xxyy - f4Boundary.xzyw/*float4(-1,1,-1,1)*/) * f2RayDir.yyxx;
-    bool4 b4HalfSpaceFlags = f4HalfSpaceEquationTerms.xyyx < f4HalfSpaceEquationTerms.zzww;
+    bool4 b4IsCorrectIntersectionFlag = abs(f2RayDir.xyxy) > 1e-5;
+    float4 f4DistToBoundary = (f4Boundary - In.m_f2PosPS.xyxy) / (f2RayDir.xyxy + !b4IsCorrectIntersectionFlag);
+    float4 f4InsecBoundary = In.m_f2PosPS.yxyx + f4DistToBoundary * f2RayDir.yxyx;
+    b4IsCorrectIntersectionFlag = b4IsCorrectIntersectionFlag && 
+                                (f4DistToBoundary > 0) &&
+                                (f4InsecBoundary >= f4Boundary.yxyx) &&
+                                (f4InsecBoundary <= f4Boundary.wzwz);
     
-    bool4 b4SectorFlags = b4HalfSpaceFlags.wxyz && !b4HalfSpaceFlags.xyzw;
 
-    float4 f4DistToBoundaries = (f4Boundary - light.f2LightScreenPos.xyxy) / (f2RayDir.xyxy + float4(abs(f2RayDir.xyxy) < 1e-6));
-    // Select distance to the exit boundary:
-    float fDistToExitBoundary = dot(b4SectorFlags, f4DistToBoundaries);
-    // Compute exit point on the boundary:
-    float2 f2ExitPoint = light.f2LightScreenPos.xy + f2RayDir * fDistToExitBoundary;
+    float4 f4EpipolarSlice = float4(0, 0.25, 0.5, 0.75) + (f4InsecBoundary - f4Boundary.wxyz) * float4(-1, 1, 1, -1) / (f4Boundary.wzwz - f4Boundary.yxyx) / 4.f;
+    float fEpipolarSlice = frac(dot(f4EpipolarSlice, b4IsCorrectIntersectionFlag));
+
+    //float4 f4HalfSpaceEquationTerms = (In.m_f2PosPS.xxyy - f4Boundary.xzyw/*float4(-1,1,-1,1)*/) * f2RayDir.yyxx;
+    //bool4 b4HalfSpaceFlags = f4HalfSpaceEquationTerms.xyyx < f4HalfSpaceEquationTerms.zzww;
+    //
+    //bool4 b4SectorFlags = b4HalfSpaceFlags.wxyz && !b4HalfSpaceFlags.xyzw;
+    //
+    //float4 f4DistToBoundaries = (f4Boundary - light.f4LightScreenPos.xyxy) / (f2RayDir.xyxy + float4(abs(f2RayDir.xyxy) < 1e-6));
+    //// Select distance to the exit boundary:
+    //float fDistToExitBoundary = dot(b4SectorFlags, f4DistToBoundaries);
+    //// Compute exit point on the boundary:
+    //float2 f2ExitPoint = light.f4LightScreenPos.xy + f2RayDir * fDistToExitBoundary;
     
-    float4 f4EpipolarSlice = float4(0, 0.25, 0.5, 0.75) +
-        saturate((f2ExitPoint.yxyx - f4Boundary.wxyz) * float4(-1, +1, +1, -1) / (f4Boundary.wzwz - f4Boundary.yxyx)) / 4.0;
-    // Select the right value:
-    float fEpipolarSlice = frac(dot(b4SectorFlags, f4EpipolarSlice));
+    //float4 f4EpipolarSlice = float4(0, 0.25, 0.5, 0.75) +
+    //    saturate((f2ExitPoint.yxyx - f4Boundary.wxyz) * float4(-1, +1, +1, -1) / (f4Boundary.wzwz - f4Boundary.yxyx)) / 4.0;
+    //// Select the right value:
+    //float fEpipolarSlice = frac(dot(b4SectorFlags, f4EpipolarSlice));
 
     float fSliceNum = fEpipolarSlice * ((float) EPIPOLAR_SLICE_NUM - 1.f);
     float fSliceNum0 = floor(fSliceNum);
@@ -1778,19 +1954,38 @@ float4 ApplyInterpolateScatter(QuadVertexOut In) : SV_Target
 
         float2 f2EpipolarDim = float2(EPIPOLAR_SAMPLE_NUM, EPIPOLAR_SLICE_NUM);
         float2 f2LocalCamDepth = g_tex2DEpipolarSampleCamDepth.Gather(samLinearClamp,f2PreEpipolarUV + float2(0.5, 0.5f) / f2EpipolarDim.xy).wz;
-
         float2 f2MaxDepth = max(f2LocalCamDepth, max(fCamDepth, 1));
-        float2 f2DepthWeight = m_fRefinementThreshold / max(abs(fCamDepth - f2LocalCamDepth) / f2MaxDepth, m_fRefinementThreshold);
+        float2 f2DepthWeight = m_fRefinementThreshold * 0.2 / max(abs(fCamDepth - f2LocalCamDepth) / f2MaxDepth, m_fRefinementThreshold * 0.2);
         f2DepthWeight = pow(saturate(f2DepthWeight), 4);
+        
+        //float3 f3Insctr0 = g_tex2DUnshadowedSampleScatter.SampleLevel(samPointClamp, f2PreEpipolarUV, 0, int2(1, 0));
+        //float3 f3Insctr1 = g_tex2DUnshadowedSampleScatter.SampleLevel(samPointClamp, f2PreEpipolarUV, 0, int2(1, 1));
+        //float3 f3Insctr2 = g_tex2DUnshadowedSampleScatter.SampleLevel(samPointClamp, f2PreEpipolarUV, 0, int2(0, 0));
+        //float3 f3Insctr3 = g_tex2DUnshadowedSampleScatter.SampleLevel(samPointClamp, f2PreEpipolarUV, 0, int2(0, 1));
+        //float3 f3MaxInsctr0 = max(f3Insctr0, f3Insctr2);
+        //float3 f3MaxInsctr1 = max(f3Insctr1, f3Insctr3);
 
+        //float fAveLogLum = 0.1;
+        //const float middleGray = 1.03 - 2 / (2 + log10(fAveLogLum + 1));
+        //float3 f3MinInsctrThreshold = (0.02f * fAveLogLum.xxx / RGB_TO_LUMINANCE.xyz) / middleGray;
+
+        //f3MaxInsctr0 = max(f3MaxInsctr0, f3MinInsctrThreshold);
+        //f3MaxInsctr1 = max(f3MaxInsctr1, f3MinInsctrThreshold);
+        //float3 f3InsctrWeight0 = m_fRefinementThreshold / max((abs(f3Insctr0 - f3Insctr2) / f3MaxInsctr0), m_fRefinementThreshold);
+        //float fInsctrWeight0 = pow(saturate(f3InsctrWeight0.x * f3InsctrWeight0.y * f3InsctrWeight0.z), 1);
+        //float3 f3InsctrWeight1 = m_fRefinementThreshold / max((abs(f3Insctr1 - f3Insctr3) / f3MaxInsctr1), m_fRefinementThreshold);
+        //float fInsctrWeight1 = pow(saturate(f3InsctrWeight1.x * f3InsctrWeight1.y * f3InsctrWeight1.z), 1);
+
+        //float2 f2BilateralWeight = float2(fInsctrWeight0, fInsctrWeight1) * f2DepthWeight * float2(1 - fSampleWeight, fSampleWeight) * fSliceWeight[i];
         float2 f2BilateralWeight = f2DepthWeight * float2(1 - fSampleWeight, fSampleWeight) * fSliceWeight[i];
         f2BilateralWeight *= (abs(fEpipolarInSlice - 0.5) < 0.5 + 0.5 * f2EpipolarDim.x);
 
         float fCurrTotalWeight = f2BilateralWeight.x + f2BilateralWeight.y;
-        float fOffsetU = f2BilateralWeight.y / fCurrTotalWeight / f2EpipolarDim.x;
+        float fOffsetU = f2BilateralWeight.y / max(fCurrTotalWeight, 0.001) / f2EpipolarDim.x;
         float2 f2SampleUV = f2PreEpipolarUV + float2(fOffsetU, 0);
         
         f3TotalInscatter += fCurrTotalWeight * g_tex2DInterpolatedScatter.SampleLevel(samLinearClamp, f2SampleUV, 0);
+        //f3TotalInscatter += float3(1,0,0);
         fTotalWeight += fCurrTotalWeight;
     }
     if (fTotalWeight < 1e-2)
@@ -1805,7 +2000,7 @@ float4 ApplyInterpolateScatter(QuadVertexOut In) : SV_Target
     float3 f3BackColor = g_tex2DColorBuffer.SampleLevel(samLinearClamp, f2UV, 0);
     f3BackColor *= (fCamDepth > camera.fFarZ) ? m_f4ExtraLight : 1;
 
-    float4 f4PosInWorld = mul(float4(In.m_f2PosPS, fCamDepth,1), camera.InvViewProj);
+    float4 f4PosInWorld = mul(float4(In.m_f2PosPS, fDepth,1), camera.InvViewProj);
     f4PosInWorld /= f4PosInWorld.w;
     float3 f3RayInWorld = f4PosInWorld.xyz - camera.f3CameraPos;
     float f3RayLenInWorld = length(f3RayInWorld);
@@ -1817,8 +2012,16 @@ float4 ApplyInterpolateScatter(QuadVertexOut In) : SV_Target
     float fCosZenithAngle = dot(f3CameraPos, f3RayInWorld) / fHeight;
     float3 f3Transmittance = f3RayLenInWorld == 0 ? 1:GetTransmittanceIntegralAnalytic(fHeight, fCosZenithAngle, f3RayLenInWorld);
     f3BackColor *= f3Transmittance;
+    
+    float3 f3Irradiance = 0;
+    if(fCamDepth>camera.fFarZ)
+    {
+        float fCosSunAngle = dot(f3CameraPos, light.f3LightDir) / fHeight;
+        float fSunViewAngle = dot(f3RayInWorld, light.f3LightDir);
+        f3Irradiance = GetIrradianceDirectFromSun(fHeight, fCosSunAngle, fSunViewAngle);
+    }
 
-    return float4(ToneMap(f3BackColor + f3Inscatter), 1);
+    return float4(ToneMap(f3BackColor + f3Inscatter + f3Irradiance), 1);
 
 }
 
@@ -1841,13 +2044,22 @@ float4 FixInterpolateScatter(QuadVertexOut In) : SV_Target
 {
     float2 f2UV = ProjToUV(In.m_f2PosPS);
     float fCamDepth = g_tex2DSpaceLinearDepth.SampleLevel(samLinearClamp, f2UV, 0);
-    
-    float3 f3Inscatter = ComputeShadowInscatter(In.m_f2PosPS, fCamDepth, false, 0);
+    float fDepth = camera.Proj[2][2] + camera.Proj[3][2] / fCamDepth;
+
+    float3 f3Inscatter = 0;
+    if(misc.fEnableLightShaft)
+    {
+        f3Inscatter = ComputeShadowInscatter(In.m_f2PosPS, fCamDepth, fDepth,false, 0).xyz;
+    }
+    else
+    {
+        f3Inscatter = ComputeUnshadowedSampleScatter(In).xyz;
+    }
 
     float3 f3BackColor = g_tex2DColorBuffer.SampleLevel(samLinearClamp, f2UV, 0);
     f3BackColor *= (fCamDepth > camera.fFarZ) ? m_f4ExtraLight : 1;
 
-    float4 f4PosInWorld = mul(float4(In.m_f2PosPS, fCamDepth, 1), camera.InvViewProj);
+    float4 f4PosInWorld = mul(float4(In.m_f2PosPS, fDepth, 1), camera.InvViewProj);
     f4PosInWorld /= f4PosInWorld.w;
     float3 f3RayInWorld = f4PosInWorld.xyz - camera.f3CameraPos;
     float f3RayLenInWorld = length(f3RayInWorld);
@@ -1860,7 +2072,15 @@ float4 FixInterpolateScatter(QuadVertexOut In) : SV_Target
     float3 f3Transmittance = f3RayLenInWorld == 0 ? 1 : GetTransmittanceIntegralAnalytic(fHeight, fCosZenithAngle, f3RayLenInWorld);
     f3BackColor *= f3Transmittance;
 
-    return float4(ToneMap(f3BackColor + f3Inscatter), 1);
+    float3 f3Irradiance = 0;
+    if (fCamDepth > camera.fFarZ)
+    {
+        float fCosSunAngle = dot(f3CameraPos, light.f3LightDir) / fHeight;
+        float fSunViewAngle = dot(f3RayInWorld, light.f3LightDir);
+        f3Irradiance = GetIrradianceDirectFromSun(fHeight, fCosSunAngle, fSunViewAngle);
+    }
+
+    return float4(ToneMap(f3BackColor + f3Inscatter + f3Irradiance), 1);
 
 }
 
@@ -1875,5 +2095,49 @@ technique11 FixInterpolateScatterTech
         SetVertexShader(CompileShader(vs_5_0, GenerateScreenSizeQuadVS()));
         SetGeometryShader(NULL);
         SetPixelShader(CompileShader(ps_5_0, FixInterpolateScatter()));
+    }
+}
+
+static const float fSunAngularRadius = 32.f / 2.f / 60.f * ((2.f * PI) / 180); // Sun angular DIAMETER is 32 arc minutes
+static const float fTanSunAngularRadius = tan(fSunAngularRadius);
+
+QuadVertexOut RenderSunVS(in uint VertexId : SV_VertexID,
+                          in uint InstID : SV_InstanceID)
+{
+    float2 fCotanHalfFOV = float2(camera.Proj[0][0], camera.Proj[1][1]);
+    float2 f2SunScreenPos = light.f4LightScreenPos.xy;
+    float2 f2SunScreenSize = fTanSunAngularRadius * fCotanHalfFOV;
+    float4 MinMaxUV = f2SunScreenPos.xyxy + float4(-1, -1, 1, 1) * f2SunScreenSize.xyxy;
+ 
+    QuadVertexOut Verts[4] =
+    {
+        { float4(MinMaxUV.xy, 1.0, 1.0), MinMaxUV.xy, InstID },
+        { float4(MinMaxUV.xw, 1.0, 1.0), MinMaxUV.xw, InstID },
+        { float4(MinMaxUV.zy, 1.0, 1.0), MinMaxUV.zy, InstID },
+        { float4(MinMaxUV.zw, 1.0, 1.0), MinMaxUV.zw, InstID }
+    };
+
+    return Verts[VertexId];
+}
+
+float4 RenderSunPS(QuadVertexOut In) : SV_Target
+{
+    float2 fCotanHalfFOV = float2(camera.Proj[0][0], camera.Proj[1][1]);
+    float2 f2SunScreenSize = fTanSunAngularRadius * fCotanHalfFOV;
+    float2 f2dXY = (In.m_f2PosPS - light.f4LightScreenPos.xy) / f2SunScreenSize;
+    return sqrt(saturate(1 - dot(f2dXY, f2dXY)));
+}
+
+technique11 RenderSunTech
+{
+    pass
+    {
+        SetBlendState(NoBlending, float4(0.0f, 0.0f, 0.0f, 0.0f), 0xFFFFFFFF);
+        SetRasterizerState(RS_SolidFill_NoCull);
+        SetDepthStencilState(DSS_EnableDepthEqTest, 0);
+
+        SetVertexShader(CompileShader(vs_5_0, RenderSunVS()));
+        SetGeometryShader(NULL);
+        SetPixelShader(CompileShader(ps_5_0, RenderSunPS()));
     }
 }

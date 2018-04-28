@@ -96,7 +96,7 @@ void Atmosphere::Initialize()
 	}
 	
 	atmosphereParams.mu_s_min = cos(102.0*D3DX_PI/180.0);
-	atmosphereParams.sun_angular_radius = 0.2678 * D3DX_PI / 180.0;
+	atmosphereParams.sun_angular_radius = 32.f / 2.f / 60.f * ((2.f * D3DX_PI) / 180); //0.2678 * D3DX_PI / 180.0;
 	atmosphereParams.bottom_radius = 6360.f;
 	atmosphereParams.top_radius = 6420.f;
 	atmosphereParams.mie_g = 0.8f;
@@ -193,6 +193,9 @@ void Atmosphere::Release()
 	pEpipolarSampleCamDepthTex2D.Release();
 	pEpipolarSampleCamDepthSRV.Release();
 
+	pUnshadowedSampleScatterTex2D.Release();
+	pUnshadowedSampleScatterSRV.Release();
+
 	pInterpolationSampleTex2D.Release();
 	pInterpolationSampleSRV.Release();
 	pInterpolationSampleUAV.Release();
@@ -288,17 +291,25 @@ void Atmosphere::SetCameraParams()
 void Atmosphere::SetLightParams()
 {
 	lightParams.f3LightDir = GetSunDir();
-	D3DXVECTOR3 f3LightScreenPos;
 	//D3DXMATRIX View = *m_FirstPersonCamera.GetViewMatrix();
 	//D3DXMATRIX Proj = *m_FirstPersonCamera.GetProjMatrix();
 	D3DXMATRIX camViewProj = camView * camProj;
-	D3DXVECTOR3 f3LightPos = lightParams.f3LightDir + f3CamPos;
-	D3DXVec3TransformCoord(&f3LightScreenPos, &f3LightPos, &camViewProj);
-	lightParams.f2LightScreenPos = D3DXVECTOR2(f3LightScreenPos.x, f3LightScreenPos.y);
-	float fDistLightToScreen = D3DXVec2Length(&lightParams.f2LightScreenPos);
+	D3DXVECTOR4 f4LightPos = D3DXVECTOR4(lightParams.f3LightDir + f3CamPos,1);
+	D3DXVec4Transform(&lightParams.f4LightScreenPos, &f4LightPos, &camViewProj);
+	lightParams.f4LightScreenPos /= lightParams.f4LightScreenPos.w;
+	if (lightParams.f4LightScreenPos.w < 0 || 
+		lightParams.f4LightScreenPos.z < 0 || 
+		lightParams.f4LightScreenPos.z > 1)
+	{
+		fIsLightInSpace = 0;
+	}
+	else
+		fIsLightInSpace = 1;
+
+	float fDistLightToScreen = D3DXVec2Length((D3DXVECTOR2*)(&lightParams.f4LightScreenPos));
 	float fMaxDist = 100;
 	if (fDistLightToScreen > 100)
-		lightParams.f2LightScreenPos *= fMaxDist / fDistLightToScreen;
+		lightParams.f4LightScreenPos *= fMaxDist / fDistLightToScreen;
 
 	lightParams.View = lightView;
 	lightParams.Proj = lightProj;
@@ -312,6 +323,8 @@ void Atmosphere::SetLightParams()
 	D3DXMatrixTranspose(&lightParams.InvViewProj, &lightParams.InvViewProj);
 
 	VarMap["light"]->SetRawValue(&lightParams, 0, sizeof(LightParams));
+
+	fEnableLightShaft = 1;
 }
 
 
@@ -341,8 +354,12 @@ HRESULT Atmosphere::PreCompute(ID3D11Device* pDevice, ID3D11DeviceContext* pCont
 }
 
 
-void Atmosphere::Render(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, ID3D11RenderTargetView* pRTV, ID3D11ShaderResourceView *pColorBufferSRV,
-						ID3D11ShaderResourceView* pDepthSRV,ID3D11ShaderResourceView* pShadowMapSRV,UINT shadowMapResolution)
+void Atmosphere::Render(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, 
+						ID3D11RenderTargetView* pRTV,
+						ID3D11ShaderResourceView *pColorBufferSRV,
+						ID3D11ShaderResourceView* pDepthSRV,
+						ID3D11ShaderResourceView* pShadowMapSRV,
+						UINT shadowMapResolution)
 {
 	SetCameraParams();
 	SetLightParams();
@@ -371,11 +388,13 @@ void Atmosphere::Render(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, ID
 	ComputeSpaceLinearDepthTex2D(pDevice, pContext, pDepthSRV);
 	ComputeSliceEndTex2D(pDevice, pContext);
 	ComputeEpipolarCoordTex2D(pDevice, pContext);
+	ComputeUnshadowedSampleScatter(pDevice, pContext);
 	RefineSampleLocal(pDevice, pContext);
 	ComputeSliceUVOrigDirTex2D(pDevice, pContext, pShadowMapSRV);
 	Build1DMinMaxMipMap(pDevice, pContext, pShadowMapSRV, shadowMapResolution);
 	MarkRayMarchSample(pDevice, pContext);
-	DoRayMarch(pDevice, pContext, pShadowMapSRV);
+	if(fEnableLightShaft)
+		DoRayMarch(pDevice, pContext, pShadowMapSRV);
 	InterpolateScatter(pDevice, pContext);
 	ApplyAndFixInterpolateScatter(pDevice, pContext, pRTV, pColorBufferSRV);
 }
@@ -692,6 +711,16 @@ HRESULT Atmosphere::PreComputeMultiSctrTex3D(ID3D11Device* pDevice, ID3D11Device
 }
 
 
+void Atmosphere::RenderSun(ID3D11Device* pDevice, ID3D11DeviceContext* pContext)
+{
+	if (fEnableLightShaft)
+	{
+		ID3DX11EffectTechnique* activeTech = TechMap["RenderSunTech"];
+		RenderQuad(pContext, activeTech, screen_width, screen_height);
+	}
+}
+
+
 HRESULT Atmosphere::ComputeSpaceLinearDepthTex2D(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, ID3D11ShaderResourceView* depthSRV)
 {
 	HRESULT hr = S_OK;
@@ -804,6 +833,32 @@ HRESULT Atmosphere::ComputeEpipolarCoordTex2D(ID3D11Device* pDevice, ID3D11Devic
 }
 
 
+HRESULT Atmosphere::ComputeUnshadowedSampleScatter(ID3D11Device* pDevice, ID3D11DeviceContext* pContext)
+{
+	HRESULT hr = S_OK;
+	DXGI_FORMAT format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+	pUnshadowedSampleScatterTex2D.Release();
+	pUnshadowedSampleScatterSRV.Release();
+	CComPtr<ID3D11RenderTargetView> pUnshadowedSampleScatterRTV;
+	V_RETURN(CreateTexture2D(pDevice, pContext, EPIPOLAR_SAMPLE_NUM, EPIPOLAR_SLICE_NUM, format,
+			{ &pUnshadowedSampleScatterTex2D.p },
+			{ &pUnshadowedSampleScatterSRV.p },
+			{ &pUnshadowedSampleScatterRTV.p }));
+	misc.scatter_order = 2;
+	VarMap["misc"]->SetRawValue(&misc, 0, sizeof(MiscDynamicParams));
+	ShaderResourceVarMap["g_tex2DEpipolarSample"]->SetResource(pEpipolarSampleSRV);
+	ShaderResourceVarMap["g_tex2DEpipolarSampleCamDepth"]->SetResource(pEpipolarSampleCamDepthSRV);
+	ShaderResourceVarMap["g_tex2DOpticalLengthLUT"]->SetResource(pOpticalLengthSRV);
+	ShaderResourceVarMap["g_tex3DMultiScatteringCombinedLUT"]->SetResource(pMultiScatterCombinedSRV);
+
+	ID3DX11EffectTechnique* activeTech = TechMap["ComputeUnshadowedSampleScatterTech"];
+	pContext->OMSetRenderTargets(1, &pUnshadowedSampleScatterRTV.p, nullptr);
+	RenderQuad(pContext, activeTech, EPIPOLAR_SAMPLE_NUM, EPIPOLAR_SLICE_NUM);
+	UnbindResources(pContext);
+	return hr;
+}
+
+
 HRESULT Atmosphere::RefineSampleLocal(ID3D11Device* pDevice, ID3D11DeviceContext* pContext)
 {
 	HRESULT hr = S_OK;
@@ -855,6 +910,7 @@ HRESULT Atmosphere::RefineSampleLocal(ID3D11Device* pDevice, ID3D11DeviceContext
 
 	ShaderResourceVarMap["g_tex2DEpipolarSample"]->SetResource(pEpipolarSampleSRV);
 	ShaderResourceVarMap["g_tex2DEpipolarSampleCamDepth"]->SetResource(pEpipolarSampleCamDepthSRV);
+	ShaderResourceVarMap["g_tex2DUnshadowedSampleScatter"]->SetResource(pUnshadowedSampleScatterSRV);
 	//ShaderResourceVarMap["g_rwtex2DInterpolationSource"]->SetResource(pInterpolationSampleUAV);
 	CComPtr<ID3DX11EffectUnorderedAccessViewVariable> pUAV = pEffect->GetVariableByName("g_rwtex2DInterpolationSource")->AsUnorderedAccessView();
 	pUAV->SetUnorderedAccessView(pInterpolationSampleUAV);
@@ -1034,6 +1090,10 @@ HRESULT Atmosphere::InterpolateScatter(ID3D11Device* pDevice, ID3D11DeviceContex
 	ShaderResourceVarMap["g_tex2DSampleScatter"]->SetResource(pSampleScatterSRV);
 	ShaderResourceVarMap["g_tex2DInterpolationSample"]->SetResource(pInterpolationSampleSRV);
 
+	MiscDynamicParams misc;
+	misc.fEnableLightShaft = fEnableLightShaft;
+	VarMap["misc"]->SetRawValue(&misc, 0, sizeof(MiscDynamicParams));
+
 	pContext->OMSetRenderTargets(1, &pInterpolateSampleScatterRTV.p, nullptr);
 	RenderQuad(pContext, activeTech, EPIPOLAR_SAMPLE_NUM, EPIPOLAR_SLICE_NUM);
 	ID3D11RenderTargetView *pDummyRTV = nullptr;
@@ -1072,6 +1132,14 @@ HRESULT Atmosphere::ApplyAndFixInterpolateScatter(ID3D11Device* pDevice, ID3D11D
 	ShaderResourceVarMap["g_tex2DSpaceLinearDepth"]->SetResource(pSpaceLinearDepthSRV);
 	ShaderResourceVarMap["g_tex2DEpipolarSampleCamDepth"]->SetResource(pEpipolarSampleCamDepthSRV);
 	ShaderResourceVarMap["g_tex2DInterpolatedScatter"]->SetResource(pInterpolatedSampleScatterSRV);
+	ShaderResourceVarMap["g_tex2DEarthGround"]->SetResource(pEarthGroundSRV);
+	ShaderResourceVarMap["g_tex2DDirectIrradianceLUT"]->SetResource(pDirectIrradianceSRV);
+	ShaderResourceVarMap["g_tex2DIndirectIrradianceLUT"]->SetResource(pIndirectIrradianceSRV);
+
+	MiscDynamicParams misc;
+	misc.fEnableLightShaft = fEnableLightShaft;
+	VarMap["misc"]->SetRawValue(&misc, 0, sizeof(MiscDynamicParams));
+
 	pContext->ClearDepthStencilView(pApplyScatterDSV, D3D11_CLEAR_STENCIL, 1.0f, 0);
 	pContext->OMSetRenderTargets(1, &pRTV, pApplyScatterDSV);
 	RenderQuad(pContext, activeTech, screen_width, screen_height);
@@ -1158,24 +1226,24 @@ void Atmosphere::MsgProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 }
 
 
-void Atmosphere::OnFrameMove(double fTime, float fElapsedTime)
+void Atmosphere::OnFrameMove(double fTime, float fElapsedTime, float fScale)
 {
 	//m_FirstPersonCamera.FrameMove(fElapsedTime);
 	if(GetAsyncKeyState('I') & 0x8000)
 	{
-		sun_zenith_angle_radians -= fElapsedTime / 10;
+		sun_zenith_angle_radians -= fElapsedTime / fScale;
 	}
 	if (GetAsyncKeyState('K') & 0x8000)
 	{
-		sun_zenith_angle_radians += fElapsedTime / 10;
+		sun_zenith_angle_radians += fElapsedTime / fScale;
 	}
 	if (GetAsyncKeyState('J') & 0x8000)
 	{
-		sun_azimuth_angle_radians += fElapsedTime / 10;
+		sun_azimuth_angle_radians += fElapsedTime / fScale;
 	}
 	if (GetAsyncKeyState('L') & 0x8000)
 	{
-		sun_azimuth_angle_radians -= fElapsedTime / 10;
+		sun_azimuth_angle_radians -= fElapsedTime / fScale;
 	}
 }
 
@@ -1206,16 +1274,34 @@ void Atmosphere::SetLightParam(const D3DXMATRIX& lightView,
 {
 	this->lightView = lightView;
 	this->lightProj = lightProj;
+	this->lightProj.m[0][0] *= 1000;
+	this->lightProj.m[1][1] *= 1000;
+	this->lightProj.m[2][2] *= 1000;
 }
 
 void Atmosphere::SetCamParam(const D3DXVECTOR3& f3CamPos, const D3DXVECTOR3& f3CamDir, 
 							const D3DXMATRIX& camView, const D3DXMATRIX& camProj,
 							float fCamNear,float fCamFar)
 {
-	this->f3CamPos = f3CamPos;
+	this->f3CamPos = f3CamPos / 1000;
 	this->f3CamDir = f3CamDir;
 	this->camView = camView;
+	D3DXVECTOR3* pos = (D3DXVECTOR3*)(&this->camView.m[3][0]);
+	*pos = *pos / 1000;
+
 	this->camProj = camProj;
-	this->fCamNear = fCamNear;
-	this->fCamFar = fCamFar;
+	this->camProj.m[3][2] = this->camProj.m[3][2] / 1000;
+
+	this->fCamNear = fCamNear / 1000;
+	this->fCamFar = fCamFar / 1000;
+
+	//this->f3CamPos = f3CamPos;
+	//this->f3CamDir = f3CamDir;
+	//this->camView = camView;
+
+	//this->camProj = camProj;
+	//this->camProj.m[3][2] = this->camProj.m[3][2];
+
+	//this->fCamNear = fCamNear;
+	//this->fCamFar = fCamFar;
 }

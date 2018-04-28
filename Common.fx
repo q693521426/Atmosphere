@@ -15,6 +15,14 @@ SamplerState samLinearClamp
     AddressV = Clamp;
 };
 
+SamplerState samPointClamp
+{
+    Filter = MIN_MAG_MIP_POINT;
+    AddressU = Clamp;
+    AddressV = Clamp;
+};
+
+
 SamplerState samLinearBorder0
 {
     Filter = MIN_MAG_MIP_LINEAR;
@@ -23,12 +31,27 @@ SamplerState samLinearBorder0
     BorderColor = float4(0, 0, 0, 0);
 };
 
+SamplerState samLinearBorder1
+{
+    Filter = MIN_MAG_MIP_LINEAR;
+    AddressU = Border;
+    AddressV = Border;
+    BorderColor = float4(1, 1, 1, 1);
+};
+
 SamplerState samComparison
 {
     Filter = COMPARISON_MIN_MAG_LINEAR_MIP_POINT;
     AddressU = Border;
     AddressV = Border;
     ComparisonFunc = GREATER;
+};
+
+DepthStencilState DSS_EnableDepthEqTest
+{
+    DepthEnable = true;
+    DepthWriteMask = ZERO;
+    DepthFunc = EQUAL;
 };
 
 // Depth stencil state disabling depth test
@@ -135,6 +158,9 @@ struct MiscDynamicParams
     uint uiMinMaxLevelMax;
 
     uint4 ui4SrcDstMinMaxOffset;
+
+    float fEnableLightShaft;
+    float3 padding;
 };
 
 cbuffer cbMiscDynamicParams
@@ -166,8 +192,7 @@ struct LightParams
     float3 f3LightDir;
     float padding;
 
-    float2 f2LightScreenPos;
-    float2 padding2;
+    float4 f4LightScreenPos;
 
     matrix View;
     matrix Proj;
@@ -246,11 +271,16 @@ Texture2D<float4> g_tex2DEarthGround;
 Texture2D<float>  g_tex2DSpaceDepth;
 Texture2D<float>  g_tex2DShadowMap;
 Texture2D<float>  g_tex2DSpaceLinearDepth;
-Texture2D<float2>  g_tex2DMinMaxMipMap;
-Texture2D<float4> g_tex2DSliceEnd;
-Texture2D<float2> g_tex2DEpipolarSample;
 Texture2D<float> g_tex2DEpipolarSampleCamDepth;
+
+Texture2D<float2>  g_tex2DMinMaxMipMap;
+Texture2D<float2> g_tex2DEpipolarSample;
+
 Texture2D<uint2> g_tex2DInterpolationSample;
+
+Texture2D<float4> g_tex2DUnshadowedSampleScatter;
+
+Texture2D<float4> g_tex2DSliceEnd;
 Texture2D<float4> g_tex2DSliceUVOrigDir;
 Texture2D<float4> g_tex2DSampleScatter;
 Texture2D<float4> g_tex2DInterpolatedScatter;

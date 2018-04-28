@@ -36,6 +36,8 @@ struct DirectionalLight
 	D3DXVECTOR4 Specular;
 	D3DXVECTOR3 Direction;
 	float Pad;
+
+	D3DXMATRIX mLightViewProj;
 };
 
 struct PointLight

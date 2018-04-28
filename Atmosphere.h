@@ -61,11 +61,14 @@ public:
 	HRESULT OnD3D11CreateDevice(ID3D11Device*, ID3D11DeviceContext*);
 
 	HRESULT PreCompute(ID3D11Device*, ID3D11DeviceContext*, ID3D11RenderTargetView*);
-	void Render(ID3D11Device*, ID3D11DeviceContext*, ID3D11RenderTargetView*, ID3D11ShaderResourceView*,ID3D11ShaderResourceView*, ID3D11ShaderResourceView*, UINT);
+	void Render(ID3D11Device*, ID3D11DeviceContext*, ID3D11RenderTargetView*,
+				ID3D11ShaderResourceView*,ID3D11ShaderResourceView*, ID3D11ShaderResourceView*, UINT);
+
+	void RenderSun(ID3D11Device*, ID3D11DeviceContext*);
 
 	void MsgProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
-	void OnFrameMove(double fTime, float fElapsedTime);
+	void OnFrameMove(double fTime, float fElapsedTime,float fScale);
 
 	D3DXVECTOR3 GetSunDir();
 	void SetLightParam(const D3DXMATRIX&, const D3DXMATRIX&);
@@ -97,6 +100,9 @@ private:
 	D3DXMATRIX lightView;
 	D3DXMATRIX lightProj;
 
+	float fEnableLightShaft;
+	float fIsLightInSpace;
+
 	D3DXVECTOR3 f3CamPos;
 	D3DXVECTOR3 f3CamDir;
 	D3DXMATRIX camView;
@@ -118,6 +124,7 @@ private:
 	HRESULT ComputeSpaceLinearDepthTex2D(ID3D11Device*, ID3D11DeviceContext*, ID3D11ShaderResourceView*);
 	HRESULT ComputeSliceEndTex2D(ID3D11Device*, ID3D11DeviceContext*);
 	HRESULT ComputeEpipolarCoordTex2D(ID3D11Device*, ID3D11DeviceContext*);
+	HRESULT ComputeUnshadowedSampleScatter(ID3D11Device*, ID3D11DeviceContext*);
 	HRESULT RefineSampleLocal(ID3D11Device*, ID3D11DeviceContext*);
 	HRESULT ComputeSliceUVOrigDirTex2D(ID3D11Device*, ID3D11DeviceContext*, ID3D11ShaderResourceView*);
 	HRESULT Build1DMinMaxMipMap(ID3D11Device*, ID3D11DeviceContext*, ID3D11ShaderResourceView*,UINT);
@@ -202,6 +209,9 @@ private:
 	CComPtr<ID3D11Texture2D>							pMinMaxMinMapTex2D[2];
 	CComPtr<ID3D11ShaderResourceView>					pMinMaxMinMapTexSRV[2];
 
+	CComPtr<ID3D11Texture2D>							pUnshadowedSampleScatterTex2D;
+	CComPtr<ID3D11ShaderResourceView>					pUnshadowedSampleScatterSRV;
+
 	CComPtr<ID3D11Texture2D>							pSampleScatterTex2D;
 	CComPtr<ID3D11ShaderResourceView>					pSampleScatterSRV;
 
@@ -223,6 +233,7 @@ private:
 		"ComputeSpaceLinearDepthTex2DTech",
 		"ComputeSliceEndTex2DTech",
 		"ComputeEpipolarCoordTex2DTech",
+		"ComputeUnshadowedSampleScatterTech",
 		"RefineSampleTech",
 		"ComputeSliceUVOrigDirTex2DTech",
 		"Initial1DMinMaxMipMapTech",
@@ -231,7 +242,9 @@ private:
 		"DoRayMarchTech",
 		"InterpolateScatterTech",
 		"ApplyInterpolateScatterTech",
-		"FixInterpolateScatterTech"
+		"FixInterpolateScatterTech",
+
+		"RenderSunTech"
 	};
 
 	std::vector<std::string> VarStr
@@ -286,6 +299,7 @@ private:
 		"g_tex2DSliceEnd",
 		"g_tex2DEpipolarSample",
 		"g_tex2DEpipolarSampleCamDepth",
+		"g_tex2DUnshadowedSampleScatter",
 		"g_tex2DInterpolationSample",
 		"g_tex2DShadowMap",
 		"g_tex2DSliceUVOrigDir",
