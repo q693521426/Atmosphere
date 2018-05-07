@@ -47,7 +47,7 @@ HRESULT Cloud::PreCompute(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, 
 
 	V_RETURN(PreComputePerlinWorleyTex3D(pDevice, pContext));
 	V_RETURN(PreComputeWorleyTex3D(pDevice, pContext));
-
+	
 	return hr;
 }
 

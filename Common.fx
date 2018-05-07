@@ -5,6 +5,8 @@ static const float PI = 3.141592654f;
 #define USE_OZONE_DENSITY 1
 #define USE_SCATTER_COMBINED    1
 #define USE_OPTICAL_LUT    0
+#define USE_DEPTH_WEIGHT 0
+#define USE_SHADOW_OBJECT_TO_EARTH 0
 #define FLT_MAX 3.402823466e+38f
 
 
@@ -160,7 +162,8 @@ struct MiscDynamicParams
     uint4 ui4SrcDstMinMaxOffset;
 
     float fEnableLightShaft;
-    float3 padding;
+    float fIsLightInSpaceCorrect;
+    float2 padding;
 };
 
 cbuffer cbMiscDynamicParams
@@ -379,4 +382,9 @@ bool IsValidScreenLocation(in float2 f2XY)
 {
     const float SAFETY_EPSILON = 0.2f;
     return all(abs(f2XY) <= 1.f - (1.f - SAFETY_EPSILON) / float2(SCREEN_WIDTH, SCREEN_HEIGHT));
+}
+
+float ReMap(float fVal,float fMin_old,float fMax_old,float fMin_new,float fMax_new)
+{
+    return (fVal - fMin_old) / (fMax_old - fMin_old) * (fMax_new - fMin_new) + fMin_new;
 }

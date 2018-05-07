@@ -297,7 +297,7 @@ void Model::RenderShadowMap(ID3D11Device* pd3dDevice, ID3D11DeviceContext* pd3dI
 		D3DXVec3Minimize(&f3MinXYZ, &f3MinXYZ, &f3PlaneCornerLightSpace);
 		D3DXVec3Maximize(&f3MaxXYZ, &f3MaxXYZ, &f3PlaneCornerLightSpace);
 	}
-	float fEarthRadius = 6360.f;
+	float fEarthRadius = 6360000.f;
 	f3MinXYZ.z -= fEarthRadius * sqrt(2.f);
 
 	//float fShadowMapDim = (float)shadowMapDim;

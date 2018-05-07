@@ -104,6 +104,7 @@ float PerlinfBm(float3 uvw, int octaves, float persistence)
     float result = 0;
     float total = 0;
     float amplitude = 1;
+   
     for (int i = 0; i < octaves; ++i)
     {
         uvw /= amplitude;
@@ -136,7 +137,7 @@ float4 ComputePerlinWorleyNoiseTexture(QuadVertexOut In) : SV_Target
     float3 f3UVW = float3(ProjToUV(In.m_f2PosPS), misc.f2WQ.x);
     float4 result;
     
-    result.x = (saturate(PerlinfBm(f3UVW * 32, 4, 0.5) * 0.5 + 0.5) + WorleyfBm(f3UVW, 4, 0.5, 8, 1)) / 2;
+    result.x = (saturate(PerlinfBm(f3UVW * 32, 4, 0.5).x * 0.5 + 0.5) + WorleyfBm(f3UVW, 4, 0.5, 8, 1)) / 2;
     result.y = WorleyfBm(f3UVW, 4, 0.5, 8, 2);
     result.z = WorleyfBm(f3UVW, 4, 0.5, 16, 1);
     result.w = WorleyfBm(f3UVW, 4, 0.5, 32, 1);
@@ -187,4 +188,62 @@ technique11 ComputeWorleyNoiseTex3DTech
         SetGeometryShader(NULL);
         SetPixelShader(CompileShader(ps_5_0, ComputeWorleyNoiseTexture()));
     }
+}
+
+float SampleNoise(Texture3D<float4> tex3DNoiseTex,float3 f3UVW,float fMipLevel)
+{
+    float4 f4Noise = tex3DNoiseTex.SampleLevel(samLinearClamp, f3UVW, fMipLevel);
+    float fLowFreqFBM = f4Noise.y * 0.625 + f4Noise.z * 0.25 + f4Noise.w * 0.125;
+    float fMin = fLowFreqFBM - 1; //[-1,0]  
+    float fNoise = (f4Noise.x - fMin) / (1 - fMin);
+    return fNoise;
+}
+
+
+float GetHumidity(float fHeight, float fBaseLayer, float fTransition, float fUpperDensity)
+{
+    float fInterpolate = pow(saturate((fHeight - fBaseLayer) / fTransition), 0.5);
+    float fHumdity = lerp(1, fUpperDensity, fInterpolate); // BaseLayerDensity = 1;
+    fHumdity *= pow(saturate((1.0 - fHeight) / fTransition), 0.5); // UpperHeight = 1;
+    return fHumdity;
+}
+
+float GetCloudDensity(Texture3D<float4> tex3DNoiseTex, float3 f3UVW, float fMipLevel,
+                        float fHeight, float fBaseLayer, float fTransition, float fUpperDensity)
+{
+    float fNoise = SampleNoise(tex3DNoiseTex, f3UVW, fMipLevel);
+    float fHumidity = GetHumidity(fHeight, fBaseLayer, fTransition, fUpperDensity);
+    float fDiffusivity;
+    float fDensity = saturate((fNoise + fHumidity - 1) / fDiffusivity);
+    
+    return fDensity;
+}
+
+float GetCloudType(float fHeight,int type)
+{
+    if(0 == type)
+    {
+        return ReMap(fHeight, 0.0, 0.1, 0.0, 1.0) * ReMap(fHeight, 0.2, 0.3, 1.0, 0.0); // Stratus
+    }
+    else if(1 == type)
+    {
+        return ReMap(fHeight, 0.0, 0.3, 0.0, 1.0) * ReMap(fHeight, 0.4, 0.6, 1.0, 0.0); // Stratuscumulus
+    }
+    else
+    {
+        return ReMap(fHeight, 0.5, 0.7, 0.0, 1.0) * ReMap(fHeight, 0.9, 1.0, 1.0, 0.0); // Cumulus
+    }
+
+
+}
+
+float4 DrawCloud(QuadVertexOut In) : SV_Target
+{
+    uint2 ui2XY = In.m_f4Pos.xy;
+    float fCamDepth = g_tex2DSpaceDepth.Load(uint3(ui2XY, 0));
+    float fDepth = camera.Proj[2][2] + camera.Proj[3][2] / fCamDepth;
+
+    float4 f4RayEndPos = mul(float4(In.m_f2PosPS, fDepth, 1), camera.InvViewProj);
+    float3 f3ViewRay = f4RayEndPos.xyz / f4RayEndPos.w - camera.f3CameraPos;
+
 }

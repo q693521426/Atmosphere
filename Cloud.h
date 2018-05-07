@@ -29,6 +29,9 @@ private:
 	const int WORLEY_TEXTURE_DIM = 32;
 	const int CURL_TEXTURE_DIM = 128;
 
+	float fLowerLayer = 1500;
+	float fUpperLayer = 8000;
+
 	CComPtr<ID3D11Texture3D>				pPerlinWorleyTex3D;
 	CComPtr<ID3D11ShaderResourceView>		pPerlinWorleySRV;
 

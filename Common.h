@@ -27,7 +27,8 @@ struct MiscDynamicParams
 	UINT uiDstMinMaxOffsetY;
 
 	float fEnableLightShaft;
-	float padding[3];
+	float fIsLightInSpaceCorrect;
+	float padding[2];
 };
 
 struct CameraParams

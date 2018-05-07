@@ -31,7 +31,7 @@ D3DXMATRIX							g_View;
 D3DXMATRIX							g_Projection;
 D3DXMATRIX							g_LightView;
 D3DXMATRIX							g_LightProjection;
-float								m_EyeHeight = 1000.f;	// Unit:m 
+float								m_EyeHeight = 2000.f;	// Unit:m 
 //float								m_EyeHeight = 9.f;	// Unit:km 
 float								m_ModelScaling = 1000;
 D3DXVECTOR3							g_Eye(10 * m_ModelScaling, m_EyeHeight, 20 * m_ModelScaling);
@@ -44,7 +44,7 @@ ID3D11DeviceContext*				g_pd3dImmediateContext = nullptr;
 ID3D11RenderTargetView*				g_pRenderTargetView = nullptr;
 ID3D11DepthStencilView*				g_pDepthStencilView = nullptr;
 
-float fNear = 1, fFar = 20 * m_ModelScaling;// Unit:m
+float fNear = 1 * m_ModelScaling, fFar = 20 * m_ModelScaling;// Unit:m
 
 void UpdateMatrix()
 {
@@ -54,6 +54,7 @@ void UpdateMatrix()
 	g_Eye = *(m_Camera.GetEyePt());
 	g_At = *(m_Camera.GetLookAtPt());
 	g_CamDir = g_At - g_Eye;
+	D3DXVec3Normalize(&g_CamDir, &g_CamDir);
 }
 
 //--------------------------------------------------------------------------------------
@@ -154,6 +155,7 @@ void CALLBACK OnFrameMove( double fTime, float fElapsedTime, void* pUserContext 
 {
 	m_pAtmosphere->OnFrameMove(fTime,fElapsedTime,15);
 	m_Camera.FrameMove(fElapsedTime * m_ModelScaling);
+	
 }
 
 

@@ -66,6 +66,8 @@ public:
 
 	void RenderSun(ID3D11Device*, ID3D11DeviceContext*);
 
+	void RenderBackGround(ID3D11Device*, ID3D11DeviceContext*, ID3D11RenderTargetView*, ID3D11ShaderResourceView*,ID3D11ShaderResourceView*);
+
 	void MsgProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
 	void OnFrameMove(double fTime, float fElapsedTime,float fScale);
@@ -101,7 +103,7 @@ private:
 	D3DXMATRIX lightProj;
 
 	float fEnableLightShaft;
-	float fIsLightInSpace;
+	float fIsLightInSpaceCorrect;
 
 	D3DXVECTOR3 f3CamPos;
 	D3DXVECTOR3 f3CamDir;
