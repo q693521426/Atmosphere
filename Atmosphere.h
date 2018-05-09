@@ -9,6 +9,7 @@
 #include "Cloud.h"
 
 #define CREATE_TEXTURE_DDS_TEST 0
+#define USE_LUT_DDS 1
 
 struct DensityProfileLayer
 {

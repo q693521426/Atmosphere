@@ -345,6 +345,24 @@ inline void RenderQuad(ID3D11DeviceContext* pContext,
 	}
 }
 
+inline HRESULT SaveTextureToDDS(ID3D11DeviceContext* pContext,const char* path, ID3D11Texture2D* pTex2D)
+{
+	HRESULT hr = S_OK;
+	std::wstringstream ss;
+	ss << path;
+	V_RETURN(D3DX11SaveTextureToFile(pContext, pTex2D, D3DX11_IFF_DDS, ss.str().c_str()));
+	return hr;
+}
+
+inline HRESULT SaveTextureToDDS(ID3D11DeviceContext* pContext, const char* path, ID3D11Texture3D* pTex2D)
+{
+	HRESULT hr = S_OK;
+	std::wstringstream ss;
+	ss << path;
+	V_RETURN(D3DX11SaveTextureToFile(pContext, pTex2D, D3DX11_IFF_DDS, ss.str().c_str()));
+	return hr;
+}
+
 template<typename T1,typename T2>
 void MapRelease(std::unordered_map<T1,CComPtr<T2>>& m)
 {

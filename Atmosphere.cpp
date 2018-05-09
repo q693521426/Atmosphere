@@ -228,6 +228,16 @@ HRESULT Atmosphere::OnD3D11CreateDevice(ID3D11Device* pDevice, ID3D11DeviceConte
 	V_RETURN(GameObject::OnD3D11CreateDevice(pDevice, pContext, L"Atmosphere.fx", TechStr, VarStr, ShaderResourceVarStr));
 	V_RETURN(D3DX11CreateShaderResourceViewFromFile(pDevice, L"Texture/earth.tiff", nullptr, nullptr, &pEarthGroundSRV.p, nullptr));
 
+#if USE_LUT_DDS
+	V_RETURN(D3DX11CreateShaderResourceViewFromFile(pDevice, L"Texture/OpticalLength.dds", nullptr, nullptr, &pOpticalLengthSRV.p, nullptr));
+	V_RETURN(D3DX11CreateShaderResourceViewFromFile(pDevice, L"Texture/DirectIrradiance.dds", nullptr, nullptr, &pDirectIrradianceSRV.p, nullptr));
+	V_RETURN(D3DX11CreateShaderResourceViewFromFile(pDevice, L"Texture/SingleScatterCombined.dds", nullptr, nullptr, &pSingleScatterCombinedSRV.p, nullptr));
+	V_RETURN(D3DX11CreateShaderResourceViewFromFile(pDevice, L"Texture/IndirectIrradiance.dds", nullptr, nullptr, &pIndirectIrradianceSRV.p, nullptr));
+	V_RETURN(D3DX11CreateShaderResourceViewFromFile(pDevice, L"Texture/MultiScatterCombined.dds", nullptr, nullptr, &pMultiScatterCombinedSRV.p, nullptr));
+
+	IsPreComputed = true;
+#endif
+
 	SetTextureSize();
 
 	m_pCloud->OnD3D11CreateDevice(pDevice, pContext);
@@ -334,20 +344,26 @@ HRESULT Atmosphere::PreCompute(ID3D11Device* pDevice, ID3D11DeviceContext* pCont
 
 	if(!IsPreComputed)
 	{
-		//V_RETURN(PreComputeOpticalLengthTex2D(pDevice, pContext));
-		////V_RETURN(PreComputeTransmittanceTex2D(pDevice, pContext));
-		//V_RETURN(PreComputeDirectIrradianceTex2D(pDevice, pContext));
-		//V_RETURN(PreComputeSingleSctrTex3D(pDevice, pContext));
+		V_RETURN(PreComputeOpticalLengthTex2D(pDevice, pContext));
+		//V_RETURN(PreComputeTransmittanceTex2D(pDevice, pContext));
+		V_RETURN(PreComputeDirectIrradianceTex2D(pDevice, pContext));
+		V_RETURN(PreComputeSingleSctrTex3D(pDevice, pContext));
 
-		//for (int scatter_order = 2; scatter_order <= scatter_order_num; ++scatter_order)
-		//{
-		//	V_RETURN(PreComputeInDirectIrradianceTex2D(pDevice, pContext, scatter_order - 1));
-		//	V_RETURN(PreComputeMultiSctrTex3D(pDevice, pContext, scatter_order));
-		//}
+		for (int scatter_order = 2; scatter_order <= scatter_order_num; ++scatter_order)
+		{
+			V_RETURN(PreComputeInDirectIrradianceTex2D(pDevice, pContext, scatter_order - 1));
+			V_RETURN(PreComputeMultiSctrTex3D(pDevice, pContext, scatter_order));
+		}
 		//pContext->CopyResource(pMultiScatterTex3D, pSingleScatterTex3D);
 
-		m_pCloud->PreCompute(pDevice, pContext, pRTV);
-		
+		//m_pCloud->PreCompute(pDevice, pContext, pRTV);
+		{
+			V_RETURN(SaveTextureToDDS(pContext, "Texture/OpticalLength.dds", pOpticalLengthTex2D));
+			V_RETURN(SaveTextureToDDS(pContext, "Texture/DirectIrradiance.dds", pDirectIrradianceTex2D));
+			V_RETURN(SaveTextureToDDS(pContext, "Texture/SingleScatterCombined.dds", pSingleScatterCombinedTex3D));
+			V_RETURN(SaveTextureToDDS(pContext, "Texture/IndirectIrradiance.dds", pIndirectIrradianceTex2D));
+			V_RETURN(SaveTextureToDDS(pContext, "Texture/MultiScatterCombined.dds", pMultiScatterCombinedTex3D));
+		}
 		IsPreComputed = true;
 	}
 	return hr;
@@ -367,18 +383,18 @@ void Atmosphere::Render(ID3D11Device* pDevice, ID3D11DeviceContext* pContext,
 	VarMap["SHADOWMAP_TEXTURE_DIM"]->SetRawValue(&shadowMapResolution, 0, sizeof(UINT));
 
 	//RenderBackGround(pDevice, pContext, pRTV, pColorBufferSRV,pDepthSRV);
-	//ComputeSpaceLinearDepthTex2D(pDevice, pContext, pDepthSRV);
-	//ComputeSliceEndTex2D(pDevice, pContext);
-	//ComputeEpipolarCoordTex2D(pDevice, pContext);
-	//ComputeUnshadowedSampleScatter(pDevice, pContext);
-	//RefineSampleLocal(pDevice, pContext);
-	//ComputeSliceUVOrigDirTex2D(pDevice, pContext, pShadowMapSRV);
-	//Build1DMinMaxMipMap(pDevice, pContext, pShadowMapSRV, shadowMapResolution);
-	//MarkRayMarchSample(pDevice, pContext);
-	//if(fEnableLightShaft)
-	//	DoRayMarch(pDevice, pContext, pShadowMapSRV);
-	//InterpolateScatter(pDevice, pContext);
-	//ApplyAndFixInterpolateScatter(pDevice, pContext, pRTV, pColorBufferSRV);
+	ComputeSpaceLinearDepthTex2D(pDevice, pContext, pDepthSRV);
+	ComputeSliceEndTex2D(pDevice, pContext);
+	ComputeEpipolarCoordTex2D(pDevice, pContext);
+	ComputeUnshadowedSampleScatter(pDevice, pContext);
+	RefineSampleLocal(pDevice, pContext);
+	ComputeSliceUVOrigDirTex2D(pDevice, pContext, pShadowMapSRV);
+	Build1DMinMaxMipMap(pDevice, pContext, pShadowMapSRV, shadowMapResolution);
+	MarkRayMarchSample(pDevice, pContext);
+	if(fEnableLightShaft)
+		DoRayMarch(pDevice, pContext, pShadowMapSRV);
+	InterpolateScatter(pDevice, pContext);
+	ApplyAndFixInterpolateScatter(pDevice, pContext, pRTV, pColorBufferSRV);
 }
 
 
