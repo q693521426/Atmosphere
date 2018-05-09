@@ -200,7 +200,6 @@ void CALLBACK OnD3D11FrameRender( ID3D11Device* pd3dDevice, ID3D11DeviceContext*
 		m_pFrameBuffer->ActivateDepth(true);
 		pd3dImmediateContext->RSSetState(RenderStates::CullClockWiseRS);
 		m_pModel->Render(pd3dDevice, pd3dImmediateContext, m_pShadowMapFrameBuffer->GetDepthSRV());
-		//m_pAtmosphere->RenderSun(pd3dDevice, pd3dImmediateContext);
 		pd3dImmediateContext->RSSetState(RenderStates::CullCounterClockWiseRS);
 
 		m_pFrameBuffer->DeactivateDepth();

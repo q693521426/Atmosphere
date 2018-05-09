@@ -8,8 +8,9 @@ float RayleighPhaseFunction(float w)
 
 float MiePhaseFunction(float g, float w)
 {
-    float k = 3.0 / (8.0 * PI) * (1.0 - g * g) / (2.0 + g * g);
-    return k * (1.0 + w * w) / pow(max(1.0 + g * g - 2.0 * g * w, 1e-20), 1.5);
+    float g2 = g * g;
+    float k = 3.0 / (8.0 * PI) * (1.0 - g2) / (2.0 + g2);
+    return k * (1.0 + w * w) / pow(max(1.0 + g2 - 2.0 * g * w, 1e-20), 1.5);
 }
 
 float GetLayerDensity(DensityProfileLayer layer, float altitude)
@@ -1145,15 +1146,6 @@ void ComputeEpipolarCoordTex2D(QuadVertexOut In, out float2 f2XY : SV_Target0, o
     fCameraZ = g_tex2DSpaceLinearDepth.SampleLevel(samLinearClamp, ProjToUV(f2XY), 0);
 }
 
-float3 GetRMuMuS(float3 f3Pos, float3 f3ViewRay)
-{
-    float fHeight = length(f3Pos);
-    float fCosZenithAngle = dot(f3Pos, f3ViewRay) / fHeight;
-    float fCosSunZenithAngle = dot(f3Pos, light.f3LightDir) / fHeight;
-
-    return float3(fHeight, fCosZenithAngle, fCosSunZenithAngle);
-}
-
 static const float3 m_f4ExtraLight = float3(5.f, 5.f, 5.f);
 
 float4 ComputeUnshadowedSampleScatter(float2 f2ScreenXY, float fCamDepth, float fDepth)
@@ -1170,38 +1162,11 @@ float4 ComputeUnshadowedSampleScatter(float2 f2ScreenXY, float fCamDepth, float 
     f4RMuMuSNu.xyz = GetRMuMuS(f3CameraPos, f3ViewRay);
     f4RMuMuSNu.w = dot(f3ViewRay, light.f3LightDir);
     
-    float fRSqr = f4RMuMuSNu.x * f4RMuMuSNu.x;
-    float fRMu = f4RMuMuSNu.x * f4RMuMuSNu.y;
-    float fRMuSqr = fRMu * fRMu;
-    float fIntersectAtmosphereDiscriminant = fRMuSqr - fRSqr + atmosphere.top_radius * atmosphere.top_radius;
-
-    bool bNoScatter = f4RMuMuSNu.x > atmosphere.top_radius &&
-                      (fIntersectAtmosphereDiscriminant < 0 || (fIntersectAtmosphereDiscriminant >= 0 && f4RMuMuSNu.y > 0));
-    if (bNoScatter)
-    {
-        return 0;
-    }
-    float fIntersectAtmosphereSqrt = SafeSqrt(fIntersectAtmosphereDiscriminant);
-    float fDistToAtmosphereNear = -fRMu - fIntersectAtmosphereSqrt;
-    float fDistToAtmosphereFar = -fRMu + fIntersectAtmosphereSqrt;
-    float fIntersectEarthDiscriminant = fRMuSqr - fRSqr + atmosphere.bottom_radius * atmosphere.bottom_radius;
-    float fDistToEarth = -fRMu - SafeSqrt(fIntersectEarthDiscriminant);
-    float fViewRayLenInWorldSpace = fViewRayLen;
-
-    bool bIsMarchToAtmosphere = false;
-    if (fCamDepth > camera.fFarZ)
-    {
-        fViewRayLenInWorldSpace = fDistToAtmosphereFar;
-        bIsMarchToAtmosphere = true;
-    }
-    bool bIsMarchToEarth = false;
-    bool bIsIntersectEarth = fIntersectEarthDiscriminant >= 0 && f4RMuMuSNu.y < 0;
-    if (bIsIntersectEarth)
-    {
-        fViewRayLenInWorldSpace = min(fViewRayLenInWorldSpace, fDistToEarth);
-        bIsMarchToAtmosphere = false;
-        bIsMarchToEarth = fViewRayLenInWorldSpace == fDistToEarth;
-    }
+    bool bIsNoScatter, bIsMarchToAtmosphere, bIsMarchToEarth, bIsIntersectEarth;
+    float fDistToAtmosphereNear, fDistToAtmosphereFar, fDistToEarthNear;
+    float fViewRayLenInWorldSpace = GetRayMarchLen(f4RMuMuSNu, fCamDepth, fViewRayLen,
+                                            bIsNoScatter, bIsMarchToAtmosphere, bIsMarchToEarth, bIsIntersectEarth,
+                                            fDistToAtmosphereNear, fDistToAtmosphereFar, fDistToEarthNear);
     
     if (fDistToAtmosphereNear > 0)
     {
@@ -1597,44 +1562,12 @@ float4 ComputeShadowInscatter(float2 f2ScreenXY,float fRayEndCamDepth,float fDep
     f4RMuMuSNu.xyz = GetRMuMuS(f3CameraPos, f3ViewRay);
     f4RMuMuSNu.w = dot(f3ViewRay, light.f3LightDir);
 
-    float fRMu = f4RMuMuSNu.x * f4RMuMuSNu.y;
-    float fRSqr = f4RMuMuSNu.x * f4RMuMuSNu.x;
-    float fRMuSqr = fRMu * fRMu;
-
-    float fIntersectAtmosphereDiscriminant = fRMuSqr - fRSqr + atmosphere.top_radius * atmosphere.top_radius;
-    //float fIntersectAtmosphereDiscriminant = f4RMuMuSNu.x * f4RMuMuSNu.x * (f4RMuMuSNu.y * f4RMuMuSNu.y - 1) + atmosphere.top_radius * atmosphere.top_radius;
-    //bool bNoScatter = f4RMuMuSNu.x > atmosphere.top_radius && 
-    //                  (fIntersectAtmosphereDiscriminant < 0 || (fIntersectAtmosphereDiscriminant >= 0 && f4RMuMuSNu.y > 0));
-    //if (bNoScatter)
-    //{
-    //    return 0;
-    //}
-
-    float fIntersectAtmosphereSqrt = SafeSqrt(fIntersectAtmosphereDiscriminant);
-    //float fDistToAtmosphereNear = -f4RMuMuSNu.x * f4RMuMuSNu.y - fIntersectAtmosphereSqrt;
-    //float fDistToAtmosphereFar = -f4RMuMuSNu.x * f4RMuMuSNu.y + fIntersectAtmosphereSqrt;
-    float fDistToAtmosphereNear = -fRMu - fIntersectAtmosphereSqrt;
-    float fDistToAtmosphereFar = -fRMu + fIntersectAtmosphereSqrt;
-
-    float fIntersectEarthDiscriminant = fRMuSqr - fRSqr + atmosphere.bottom_radius * atmosphere.bottom_radius;
-    float fDistToEarthNear = -fRMu - SafeSqrt(fIntersectEarthDiscriminant);
-    //float fIntersectEarthDiscriminant = f4RMuMuSNu.x * f4RMuMuSNu.x * (f4RMuMuSNu.y * f4RMuMuSNu.y - 1) + atmosphere.bottom_radius * atmosphere.bottom_radius;
-    //float fDistToEarthNear = -f4RMuMuSNu.x * f4RMuMuSNu.y - SafeSqrt(fIntersectEarthDiscriminant);
-
-    bool bIsMarchToAtmosphere = false;
-    if (fRayEndCamDepth > camera.fFarZ)
-    {
-        fViewRayLenInWorldSpace = fDistToAtmosphereFar;
-        bIsMarchToAtmosphere = true;
-    }
-    bool bIsMarchToEarth = false;
-    bool bIsIntersectEarth = fIntersectEarthDiscriminant >= 0 && f4RMuMuSNu.y < 0;
-    if (fIntersectEarthDiscriminant >= 0 && f4RMuMuSNu.y < 0)
-    {
-        fViewRayLenInWorldSpace = min(fViewRayLenInWorldSpace, fDistToEarthNear);
-        bIsMarchToAtmosphere = false;
-        bIsMarchToEarth = (fViewRayLenInWorldSpace == fDistToEarthNear);
-    }
+    bool bIsNoScatter, bIsMarchToAtmosphere, bIsMarchToEarth, bIsIntersectEarth;
+    float fDistToAtmosphereNear, fDistToAtmosphereFar, fDistToEarthNear;
+    fViewRayLenInWorldSpace = GetRayMarchLen(f4RMuMuSNu, fRayEndCamDepth, fViewRayLenInWorldSpace,
+                                            bIsNoScatter, bIsMarchToAtmosphere, bIsMarchToEarth, bIsIntersectEarth,
+                                            fDistToAtmosphereNear, fDistToAtmosphereFar, fDistToEarthNear);
+    
 #if USE_SHADOW_OBJECT_TO_EARTH
     if (bIsMarchToAtmosphere && f4RMuMuSNu.w <= 0)
 #else 
@@ -1653,7 +1586,7 @@ float4 ComputeShadowInscatter(float2 f2ScreenXY,float fRayEndCamDepth,float fDep
         f3StartPos += f3DistToAtmosphereNear;
         fViewRayLenInWorldSpace -= fDistToAtmosphereNear;
         fDistToAtmosphereFar -= fDistToAtmosphereNear;
-        if (bIsIntersectEarth)
+        if (bIsMarchToEarth)
             fDistToEarthNear -= fDistToAtmosphereNear;
         f4RMuMuSNu.xyz = GetRMuMuS(f3CameraPos, f3ViewRay);
     }

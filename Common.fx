@@ -290,6 +290,9 @@ Texture2D<float4> g_tex2DInterpolatedScatter;
 
 Texture2D<float3> g_tex2DColorBuffer;
 
+Texture3D<float4> g_tex3DCloudBaseNoise;
+Texture3D<float3> g_tex3DCloudDetailNoise;
+
 QuadVertexOut GenerateScreenSizeQuadVS(in uint VertexId : SV_VertexID,
                                                  in uint InstID : SV_InstanceID)
 {
@@ -387,4 +390,63 @@ bool IsValidScreenLocation(in float2 f2XY)
 float ReMap(float fVal,float fMin_old,float fMax_old,float fMin_new,float fMax_new)
 {
     return (fVal - fMin_old) / (fMax_old - fMin_old) * (fMax_new - fMin_new) + fMin_new;
+}
+
+float3 GetRMuMuS(float3 f3Pos, float3 f3ViewRay)
+{
+    float fHeight = length(f3Pos);
+    float fCosZenithAngle = dot(f3Pos, f3ViewRay) / fHeight;
+    float fCosSunZenithAngle = dot(f3Pos, light.f3LightDir) / fHeight;
+
+    return float3(fHeight, fCosZenithAngle, fCosSunZenithAngle);
+}
+
+float GetRayMarchLen(float4 f4RMuMuSNu,
+                        float fRayEndCamDepth,
+                        float fViewRayLenInWorldSpace,
+                        out bool bIsNoScatter, 
+                        out bool bIsMarchToAtmosphere,
+                        out bool bIsMarchToEarth,
+                        out bool bIsIntersectEarth,
+                        out float fDistToAtmosphereNear,
+                        out float fDistToAtmosphereFar,
+                        out float fDistToEarthNear)
+{
+    float fRayMarchLen = fViewRayLenInWorldSpace;
+    float fRMu = f4RMuMuSNu.x * f4RMuMuSNu.y;
+    float fRSqr = f4RMuMuSNu.x * f4RMuMuSNu.x;
+    float fRMuSqr = fRMu * fRMu;
+
+    float fIntersectAtmosphereDiscriminant = fRMuSqr - fRSqr + atmosphere.top_radius * atmosphere.top_radius;
+    bIsNoScatter = f4RMuMuSNu.x > atmosphere.top_radius &&
+                      (fIntersectAtmosphereDiscriminant < 0 || (fIntersectAtmosphereDiscriminant >= 0 && f4RMuMuSNu.y > 0));
+    if (bIsNoScatter)
+    {
+        return fRayMarchLen;
+    }
+
+    float fIntersectAtmosphereSqrt = SafeSqrt(fIntersectAtmosphereDiscriminant);
+    fDistToAtmosphereNear = -fRMu - fIntersectAtmosphereSqrt;
+    fDistToAtmosphereFar = -fRMu + fIntersectAtmosphereSqrt;
+
+    float fIntersectEarthDiscriminant = fRMuSqr - fRSqr + atmosphere.bottom_radius * atmosphere.bottom_radius;
+    fDistToEarthNear = -fRMu - SafeSqrt(fIntersectEarthDiscriminant);
+
+    bool bIsMarchToAtmosphere = false;
+    if (fRayEndCamDepth > camera.fFarZ)
+    {
+        fRayMarchLen = fDistToAtmosphereFar;
+        bIsMarchToAtmosphere = true;
+    }
+    bIsMarchToEarth = false;
+    bIsIntersectEarth = fIntersectEarthDiscriminant >= 0 && f4RMuMuSNu.y < 0;
+    if (bIsIntersectEarth)
+    {
+        fRayMarchLen = min(fRayMarchLen, fDistToEarthNear);
+        bIsMarchToAtmosphere = false;
+        bIsMarchToEarth = (fViewRayLenInWorldSpace == fDistToEarthNear);
+    }
+
+    return fRayMarchLen;
+
 }

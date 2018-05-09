@@ -125,25 +125,6 @@ void Atmosphere::Initialize()
 	
 	m_pCloud = new Cloud();
 
-#if CREATE_TEXTURE_DDS_TEST
-
-	//V_RETURN(D3DX11CreateShaderResourceViewFromFile(pDevice, L"Texture/Transmittance.dds", nullptr, nullptr, &pTransmittanceSRV.p, nullptr));
-	//V_RETURN(D3DX11CreateShaderResourceViewFromFile(pDevice, L"Texture/", nullptr, nullptr, &pSingleScatterCombinedSRV.p, nullptr));
-	//V_RETURN(D3DX11CreateShaderResourceViewFromFile(pDevice, L"", nullptr, nullptr, &pSingleScatterMieSRV.p, nullptr));
-	//V_RETURN(D3DX11CreateShaderResourceViewFromFile(pDevice, L"", nullptr, nullptr, &pDirectIrradianceSRV.p, nullptr));
-	//V_RETURN(D3DX11CreateShaderResourceViewFromFile(pDevice, L"", nullptr, nullptr, &pMultiScatterCombinedSRV.p, nullptr));
-
-	CreateDirectory(L"Texture", nullptr);
-	CreateDirectory(L"Texture/SingleScatter", nullptr);
-	CreateDirectory(L"Texture/MultiScatter", nullptr);
-	CreateDirectory(L"Texture/Irradiance", nullptr);
-	for(UINT order =2;order<= scatter_order_num;order++)
-	{
-		std::wstringstream ss;
-		ss << "Texture/MultiScatter/scatter_order_" << order;
-		CreateDirectory(ss.str().c_str(), nullptr);
-	}
-#endif
 	SetView(9000.0, 1.47, -0.1, 1.3, 2.9, 10.0);
 }	
 
@@ -229,13 +210,12 @@ HRESULT Atmosphere::OnD3D11CreateDevice(ID3D11Device* pDevice, ID3D11DeviceConte
 	V_RETURN(D3DX11CreateShaderResourceViewFromFile(pDevice, L"Texture/earth.tiff", nullptr, nullptr, &pEarthGroundSRV.p, nullptr));
 
 #if USE_LUT_DDS
-	V_RETURN(D3DX11CreateShaderResourceViewFromFile(pDevice, L"Texture/OpticalLength.dds", nullptr, nullptr, &pOpticalLengthSRV.p, nullptr));
-	V_RETURN(D3DX11CreateShaderResourceViewFromFile(pDevice, L"Texture/DirectIrradiance.dds", nullptr, nullptr, &pDirectIrradianceSRV.p, nullptr));
-	V_RETURN(D3DX11CreateShaderResourceViewFromFile(pDevice, L"Texture/SingleScatterCombined.dds", nullptr, nullptr, &pSingleScatterCombinedSRV.p, nullptr));
-	V_RETURN(D3DX11CreateShaderResourceViewFromFile(pDevice, L"Texture/IndirectIrradiance.dds", nullptr, nullptr, &pIndirectIrradianceSRV.p, nullptr));
-	V_RETURN(D3DX11CreateShaderResourceViewFromFile(pDevice, L"Texture/MultiScatterCombined.dds", nullptr, nullptr, &pMultiScatterCombinedSRV.p, nullptr));
-
 	IsPreComputed = true;
+	READ_LUT(D3DX11CreateShaderResourceViewFromFile(pDevice, L"Texture/OpticalLength.dds", nullptr, nullptr, &pOpticalLengthSRV.p, nullptr), IsPreComputed);
+	READ_LUT(D3DX11CreateShaderResourceViewFromFile(pDevice, L"Texture/DirectIrradiance.dds", nullptr, nullptr, &pDirectIrradianceSRV.p, nullptr), IsPreComputed);
+	READ_LUT(D3DX11CreateShaderResourceViewFromFile(pDevice, L"Texture/SingleScatterCombined.dds", nullptr, nullptr, &pSingleScatterCombinedSRV.p, nullptr), IsPreComputed);
+	READ_LUT(D3DX11CreateShaderResourceViewFromFile(pDevice, L"Texture/IndirectIrradiance.dds", nullptr, nullptr, &pIndirectIrradianceSRV.p, nullptr), IsPreComputed);
+	READ_LUT(D3DX11CreateShaderResourceViewFromFile(pDevice, L"Texture/MultiScatterCombined.dds", nullptr, nullptr, &pMultiScatterCombinedSRV.p, nullptr), IsPreComputed);
 #endif
 
 	SetTextureSize();

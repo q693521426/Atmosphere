@@ -3,6 +3,7 @@
 
 namespace FBX_LOADER
 {
+FbxManager* CFBXLoader::mSdkManager = nullptr;
 
 CFBXLoader::CFBXLoader()
 {
@@ -32,11 +33,11 @@ void CFBXLoader::Release()
 		mScene = nullptr;
 	}
 
-	if( mSdkManager )
-	{
-		mSdkManager->Destroy();
-		mSdkManager = nullptr;
-	}
+	//if( mSdkManager )
+	//{
+	//	mSdkManager->Destroy();
+	//	mSdkManager = nullptr;
+	//}
 }
 
 HRESULT CFBXLoader::LoadFBX(const char* filename, const eAXIS_SYSTEM axis)
@@ -103,7 +104,10 @@ HRESULT CFBXLoader::LoadFBX(const char* filename, const eAXIS_SYSTEM axis)
 void CFBXLoader::InitializeSdkObjects(FbxManager*& pManager, FbxScene*& pScene)
 {
     //The first thing to do is to create the FBX Manager which is the object allocator for almost all the classes in the SDK
-    pManager = FbxManager::Create();
+	if (pManager == nullptr)
+	{
+		pManager = FbxManager::Create();
+	}
     if( !pManager )
     {
         FBXSDK_printf("Error: Unable to create FBX Manager!\n");

@@ -139,7 +139,7 @@ public:
 
 protected:
 	// FBX SDK
-	FbxManager* mSdkManager;
+	static FbxManager* mSdkManager;
 	FbxScene*	mScene;
 	FbxImporter * mImporter;
     FbxAnimLayer * mCurrentAnimLayer;

@@ -59,7 +59,6 @@ void Model::Release()
 			delete m_pFbxDX11[i];
 			m_pFbxDX11[i] = nullptr;
 		}
-
 	}
 #endif
 }
