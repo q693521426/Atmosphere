@@ -322,6 +322,7 @@ HRESULT Atmosphere::PreCompute(ID3D11Device* pDevice, ID3D11DeviceContext* pCont
 {
 	HRESULT hr = S_OK;
 
+	m_pCloud->PreCompute(pDevice, pContext, pRTV);
 	if(!IsPreComputed)
 	{
 		V_RETURN(PreComputeOpticalLengthTex2D(pDevice, pContext));
@@ -336,7 +337,6 @@ HRESULT Atmosphere::PreCompute(ID3D11Device* pDevice, ID3D11DeviceContext* pCont
 		}
 		//pContext->CopyResource(pMultiScatterTex3D, pSingleScatterTex3D);
 
-		//m_pCloud->PreCompute(pDevice, pContext, pRTV);
 		{
 			V_RETURN(SaveTextureToDDS(pContext, "Texture/OpticalLength.dds", pOpticalLengthTex2D));
 			V_RETURN(SaveTextureToDDS(pContext, "Texture/DirectIrradiance.dds", pDirectIrradianceTex2D));

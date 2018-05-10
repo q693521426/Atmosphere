@@ -8,9 +8,6 @@
 #include "Common.h"
 #include "Cloud.h"
 
-#define CREATE_TEXTURE_DDS_TEST 0
-#define USE_LUT_DDS 1
-#define READ_LUT(x,res) { if(res) { hr = (x); if( FAILED(hr) ) { res = false; } } }
 
 struct DensityProfileLayer
 {

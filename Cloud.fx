@@ -255,16 +255,23 @@ float GetCloudHeightGradientType(float fHeightScale,int type)
 
 }
 
+float3 GetNoiseUVW(float3 f3Pos, float fHeightScale)
+{
+	float2 f2XZ = saturate((f3Pos.xz - camera.f3CameraPos.xz) / 60);
+	return float3(f2XZ.x, fHeightScale, f2XZ.y);
+}
+
 float GetBaseCloudDensity(float3 f3Pos, float fMipLevel, out float fType)
 {
     float fHeightScale = ReMap(f3Pos.y, atmosphere.bottom_radius, atmosphere.top_radius, 0.0, 1.0);
-    float f3UVW;
-    float fNoise = SampleNoise(g_tex3DCloudBaseNoise, f3UVW, fMipLevel);
-    float fHumidity = GetHumidity(fHeightScale);
-    float fDiffusivity;
-    float fDensity = saturate((fNoise + fHumidity - 1) / fDiffusivity);
+    float3 f3UVW = GetNoiseUVW(f3Pos, fHeightScale);
+    float fNoise = SampleNoise(g_tex3DPerlinWorleyNoise, f3UVW, fMipLevel);
+    //float fHumidity = GetHumidity(fHeightScale);
+    //float fDiffusivity = 1;
+    //float fDensity = saturate((fNoise + fHumidity - 1) / fDiffusivity);
+	float fDensity = fNoise;
     
-    float fCoverage;
+    float fCoverage = 1;  // cloudmap.r
 
     float fBaseCloud = fDensity * GetCloudHeightGradientType(fHeightScale, fType);
     float fBaseCloudWithCoverage = ReMap(fBaseCloud, fCoverage, 1.0, 0.0, 1.0);
@@ -293,9 +300,6 @@ float GetCloudDensityToLight(float3 f3Pos,float fType)
 {
     float fDensity;
     float fCloudMaxHeight;
-fCloudMaxHeight = 
-
-    }
 
     return fDensity;
 
@@ -361,8 +365,9 @@ float4 DrawCloud(QuadVertexOut In) : SV_Target
             {
                 fDensityToCam += fSampleDensity;
                 float fDensityToLight = GetCloudDensityToLight(f3Pos,fType);
-                float fTransmittance = GetCloudTransmittance(fDensityToCam) * GetCloudTransmittance(fDensityToLight);
-                f3Inscatter += fTransmittance;
+                //float fTransmittance = GetCloudTransmittance(fDensityToCam) * GetCloudTransmittance(fDensityToLight);
+				float fTransmittance = GetCloudTransmittance(fDensityToCam);
+				f3Inscatter += fTransmittance;
             }
             else
             {
@@ -383,4 +388,19 @@ float4 DrawCloud(QuadVertexOut In) : SV_Target
     f3Inscatter *= HGPhaseFunction(f4RMuMuSNu.w, atmosphere.mie_g);
 
     return float4(f3Inscatter, 1);
+}
+
+
+technique11 DrawCloudTech
+{
+	pass
+	{
+		SetBlendState(NoBlending, float4(0.0f, 0.0f, 0.0f, 0.0f), 0xFFFFFFFF);
+		SetRasterizerState(RS_SolidFill_NoCull);
+		SetDepthStencilState(DSS_NoDepthTest, 0);
+
+		SetVertexShader(CompileShader(vs_5_0, GenerateScreenSizeQuadVS()));
+		SetGeometryShader(NULL);
+		SetPixelShader(CompileShader(ps_5_0, DrawCloud()));
+	}
 }

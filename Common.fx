@@ -290,8 +290,8 @@ Texture2D<float4> g_tex2DInterpolatedScatter;
 
 Texture2D<float3> g_tex2DColorBuffer;
 
-Texture3D<float4> g_tex3DCloudBaseNoise;
-Texture3D<float3> g_tex3DCloudDetailNoise;
+Texture3D<float4> g_tex3DPerlinWorleyNoise;
+Texture3D<float3> g_tex3DWorleyNoise;
 
 QuadVertexOut GenerateScreenSizeQuadVS(in uint VertexId : SV_VertexID,
                                                  in uint InstID : SV_InstanceID)
@@ -420,10 +420,10 @@ float GetRayMarchLen(float4 f4RMuMuSNu,
     float fIntersectAtmosphereDiscriminant = fRMuSqr - fRSqr + atmosphere.top_radius * atmosphere.top_radius;
     bIsNoScatter = f4RMuMuSNu.x > atmosphere.top_radius &&
                       (fIntersectAtmosphereDiscriminant < 0 || (fIntersectAtmosphereDiscriminant >= 0 && f4RMuMuSNu.y > 0));
-    if (bIsNoScatter)
-    {
-        return fRayMarchLen;
-    }
+    //if (bIsNoScatter)
+    //{
+    //    return fRayMarchLen;
+    //}
 
     float fIntersectAtmosphereSqrt = SafeSqrt(fIntersectAtmosphereDiscriminant);
     fDistToAtmosphereNear = -fRMu - fIntersectAtmosphereSqrt;
@@ -432,7 +432,7 @@ float GetRayMarchLen(float4 f4RMuMuSNu,
     float fIntersectEarthDiscriminant = fRMuSqr - fRSqr + atmosphere.bottom_radius * atmosphere.bottom_radius;
     fDistToEarthNear = -fRMu - SafeSqrt(fIntersectEarthDiscriminant);
 
-    bool bIsMarchToAtmosphere = false;
+    bIsMarchToAtmosphere = false;
     if (fRayEndCamDepth > camera.fFarZ)
     {
         fRayMarchLen = fDistToAtmosphereFar;

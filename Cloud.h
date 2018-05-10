@@ -5,7 +5,20 @@
 #include "DXUT.h"
 #include "Common.h"
 
-#define CREATE_TEXTURE_DDS_TEST 1
+struct CloudTypeLayer
+{
+	D3DXVECTOR2 f2LayerHeightScale;
+	D3DXVECTOR2 f2LayerDensityPoint;
+};
+
+struct CloudParameters
+{
+	CloudTypeLayer mCloudTypeLayer[3];
+
+	D3DXVECTOR2 f2CloudLayerHeightScale;
+	float fTransition;
+	float fUpperDensity;
+};
 
 class Cloud : public GameObject
 {
@@ -32,6 +45,7 @@ private:
 	float fLowerLayer = 1500;
 	float fUpperLayer = 8000;
 
+	bool IsPreComputed = true;
 	CComPtr<ID3D11Texture3D>				pPerlinWorleyTex3D;
 	CComPtr<ID3D11ShaderResourceView>		pPerlinWorleySRV;
 
@@ -44,16 +58,20 @@ private:
 	std::vector<std::string> TechStr
 	{
 		"ComputePerlinWorleyNoiseTex3DTech",
-		"ComputeWorleyNoiseTex3DTech"
+		"ComputeWorleyNoiseTex3DTech",
+		"DrawCloudTech"
 	};
 
 	std::vector<std::string> VarStr
 	{
-		"misc"
+		"misc",
+		"cloud"
 	};
 
 	std::vector<std::string> ShaderResourceVarStr
 	{
+		"g_tex3DPerlinWorleyNoise",
+		"g_tex3DWorleyNoise"
 	};
 };
 

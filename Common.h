@@ -13,6 +13,9 @@
 #include <sstream>
 #include <set>
 
+#define CREATE_TEXTURE_DDS_TEST 0
+#define USE_LUT_DDS 1
+#define READ_LUT(x,res) { if(res) { hr = (x); if( FAILED(hr) ) { res = false; } } }
 #define D3D_COMPILE_STANDARD_FILE_INCLUDE ((ID3DInclude*)(UINT_PTR)1)
 
 struct MiscDynamicParams

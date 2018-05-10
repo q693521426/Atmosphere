@@ -36,7 +36,11 @@ HRESULT Cloud::OnD3D11CreateDevice(ID3D11Device* pDevice, ID3D11DeviceContext* p
 	HRESULT hr = S_OK;
 
 	V_RETURN(GameObject::OnD3D11CreateDevice(pDevice, pContext, L"Cloud.fx", TechStr, VarStr, ShaderResourceVarStr));
-
+#if USE_LUT_DDS
+	IsPreComputed = true;
+	READ_LUT(D3DX11CreateShaderResourceViewFromFile(pDevice, L"Texture/PerlinWorley.dds", nullptr, nullptr, &pPerlinWorleySRV.p, nullptr), IsPreComputed);
+	READ_LUT(D3DX11CreateShaderResourceViewFromFile(pDevice, L"Texture/Worley.dds", nullptr, nullptr, &pWorleySRV.p, nullptr), IsPreComputed);
+#endif
 	return hr;
 }
 
@@ -44,9 +48,15 @@ HRESULT Cloud::OnD3D11CreateDevice(ID3D11Device* pDevice, ID3D11DeviceContext* p
 HRESULT Cloud::PreCompute(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, ID3D11RenderTargetView* pRTV)
 {
 	HRESULT hr = S_OK;
+	if (IsPreComputed)
+	{
+		V_RETURN(PreComputePerlinWorleyTex3D(pDevice, pContext));
+		V_RETURN(PreComputeWorleyTex3D(pDevice, pContext));
+		IsPreComputed = false;
 
-	V_RETURN(PreComputePerlinWorleyTex3D(pDevice, pContext));
-	V_RETURN(PreComputeWorleyTex3D(pDevice, pContext));
+		V_RETURN(D3DX11SaveTextureToFile(pContext, pPerlinWorleyTex3D, D3DX11_IFF_DDS, L"Texture/PerlinWorley.dds"));
+		V_RETURN(D3DX11SaveTextureToFile(pContext, pWorleyTex3D, D3DX11_IFF_DDS, L"Texture/Worley.dds"));
+	}
 	
 	return hr;
 }
@@ -160,7 +170,7 @@ HRESULT Cloud::PreComputeWorleyTex3D(ID3D11Device* pDevice, ID3D11DeviceContext*
 }
 
 
-void Cloud::Render(ID3D11Device*, ID3D11DeviceContext*, ID3D11RenderTargetView*)
+void Cloud::Render(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, ID3D11RenderTargetView* pRTV)
 {
 	
 }
