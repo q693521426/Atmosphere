@@ -31,7 +31,7 @@ D3DXMATRIX							g_View;
 D3DXMATRIX							g_Projection;
 D3DXMATRIX							g_LightView;
 D3DXMATRIX							g_LightProjection;
-float								m_EyeHeight = 2000.f;	// Unit:m 
+float								m_EyeHeight = 1000.f;	// Unit:m 
 //float								m_EyeHeight = 9.f;	// Unit:km 
 float								m_ModelScaling = 1000;
 D3DXVECTOR3							g_Eye(10 * m_ModelScaling, m_EyeHeight, 20 * m_ModelScaling);

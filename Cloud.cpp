@@ -14,7 +14,16 @@ Cloud::~Cloud()
 
 void Cloud::Initialize()
 {
-	
+	float fAtmosphereScale = 6420.f - 6360.f;
+	cloudParams.f2CloudLayerHeightScale = D3DXVECTOR2(1.5, 8.0) / fAtmosphereScale;
+	cloudParams.mCloudTypeLayer[0].f2LayerHeightScale = D3DXVECTOR2(1.5, 4.0) / fAtmosphereScale;
+	cloudParams.mCloudTypeLayer[0].f2LayerDensityPoint = D3DXVECTOR2(2.0, 3.0) / fAtmosphereScale;
+
+	cloudParams.mCloudTypeLayer[1].f2LayerHeightScale = D3DXVECTOR2(1.5, 6.0) / fAtmosphereScale;
+	cloudParams.mCloudTypeLayer[1].f2LayerDensityPoint = D3DXVECTOR2(4.0, 5.0) / fAtmosphereScale;
+
+	cloudParams.mCloudTypeLayer[2].f2LayerHeightScale = D3DXVECTOR2(6.0, 8.0) / fAtmosphereScale;
+	cloudParams.mCloudTypeLayer[2].f2LayerDensityPoint = D3DXVECTOR2(6.5, 7.5) / fAtmosphereScale;
 }
 
 
@@ -41,6 +50,7 @@ HRESULT Cloud::OnD3D11CreateDevice(ID3D11Device* pDevice, ID3D11DeviceContext* p
 	READ_LUT(D3DX11CreateShaderResourceViewFromFile(pDevice, L"Texture/PerlinWorley.dds", nullptr, nullptr, &pPerlinWorleySRV.p, nullptr), IsPreComputed);
 	READ_LUT(D3DX11CreateShaderResourceViewFromFile(pDevice, L"Texture/Worley.dds", nullptr, nullptr, &pWorleySRV.p, nullptr), IsPreComputed);
 #endif
+
 	return hr;
 }
 
@@ -48,11 +58,11 @@ HRESULT Cloud::OnD3D11CreateDevice(ID3D11Device* pDevice, ID3D11DeviceContext* p
 HRESULT Cloud::PreCompute(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, ID3D11RenderTargetView* pRTV)
 {
 	HRESULT hr = S_OK;
-	if (IsPreComputed)
+	if (!IsPreComputed)
 	{
 		V_RETURN(PreComputePerlinWorleyTex3D(pDevice, pContext));
 		V_RETURN(PreComputeWorleyTex3D(pDevice, pContext));
-		IsPreComputed = false;
+		IsPreComputed = true;
 
 		V_RETURN(D3DX11SaveTextureToFile(pContext, pPerlinWorleyTex3D, D3DX11_IFF_DDS, L"Texture/PerlinWorley.dds"));
 		V_RETURN(D3DX11SaveTextureToFile(pContext, pWorleyTex3D, D3DX11_IFF_DDS, L"Texture/Worley.dds"));
@@ -170,8 +180,47 @@ HRESULT Cloud::PreComputeWorleyTex3D(ID3D11Device* pDevice, ID3D11DeviceContext*
 }
 
 
-void Cloud::Render(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, ID3D11RenderTargetView* pRTV)
+void Cloud::Render(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, ID3D11RenderTargetView* pRTV, ID3D11ShaderResourceView* pColorBufferSRV,ID3D11ShaderResourceView* pSpaceLinearDepthSRV)
 {
-	
+	VarMap["cloud"]->SetRawValue(&cloudParams, 0, sizeof(CloudParams));
+
+	ID3DX11EffectTechnique* activeTech = TechMap["DrawCloudTech"];
+
+	ShaderResourceVarMap["g_tex3DPerlinWorleyNoise"]->SetResource(pPerlinWorleySRV);
+	ShaderResourceVarMap["g_tex3DWorleyNoise"]->SetResource(pWorleySRV);
+	ShaderResourceVarMap["g_tex2DSpaceDepth"]->SetResource(pSpaceLinearDepthSRV);
+	ShaderResourceVarMap["g_tex2DColorBuffer"]->SetResource(pColorBufferSRV);
+
+	pContext->OMSetRenderTargets(1, &pRTV, nullptr);
+	RenderQuad(pContext, activeTech, this->screen_width, this->screen_height);
+	UnbindResources(pContext);
 }
 
+
+void Cloud::Resize(int screen_width, int screen_height, float fFOV, float fAspect, float fNear, float fFar)
+{
+	this->screen_width = screen_width;
+	this->screen_height = screen_height;
+	//m_FirstPersonCamera.SetProjParams(fFOV, fAspect, fNear, fFar);
+}
+
+
+void Cloud::SetLightParams(LightParams* pLight)
+{
+	this->pLightParams = pLight;
+	VarMap["light"]->SetRawValue(pLight, 0, sizeof(LightParams));
+}
+
+
+void Cloud::SetCamParams(CameraParams* pCam)
+{
+	this->pCameraParams = pCam;
+	VarMap["camera"]->SetRawValue(pCam, 0, sizeof(CameraParams));
+}
+
+
+void Cloud::SetAtmosphereParams(AtmosphereParams* pAtmosphere)
+{
+	this->pAtmosphereParams = pAtmosphere;
+	VarMap["atmosphere"]->SetRawValue(pAtmosphere, 0, sizeof(AtmosphereParams));
+}

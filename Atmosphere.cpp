@@ -68,7 +68,7 @@ void Atmosphere::Initialize()
 		return static_cast<float>(x*(1 - s) + y*s);
 	};
 
-	ZeroMemory(&atmosphereParams, sizeof(AtmosphereParameters));
+	ZeroMemory(&atmosphereParams, sizeof(AtmosphereParams));
 	for(int i=0;i<lambda.size();++i)
 	{
 		double l = lambda[i];
@@ -124,6 +124,7 @@ void Atmosphere::Initialize()
 	scatter_order_num = 4;
 	
 	m_pCloud = new Cloud();
+	m_pCloud->Initialize();
 
 	SetView(9000.0, 1.47, -0.1, 1.3, 2.9, 10.0);
 }	
@@ -222,6 +223,7 @@ HRESULT Atmosphere::OnD3D11CreateDevice(ID3D11Device* pDevice, ID3D11DeviceConte
 
 	m_pCloud->OnD3D11CreateDevice(pDevice, pContext);
 
+	m_pCloud->SetAtmosphereParams(&atmosphereParams);
 	return hr;
 }
 
@@ -275,6 +277,8 @@ void Atmosphere::SetCameraParams()
 	cameraParams.fFarZ = fCamFar * 0.999999f;
 
 	VarMap["camera"]->SetRawValue(&cameraParams, 0, sizeof(CameraParams));
+
+	m_pCloud->SetCamParams(&cameraParams);
 }
 
 
@@ -315,6 +319,8 @@ void Atmosphere::SetLightParams()
 	VarMap["light"]->SetRawValue(&lightParams, 0, sizeof(LightParams));
 
 	fEnableLightShaft = 1;
+
+	m_pCloud->SetLightParams(&lightParams);
 }
 
 
@@ -359,22 +365,23 @@ void Atmosphere::Render(ID3D11Device* pDevice, ID3D11DeviceContext* pContext,
 {
 	SetCameraParams();
 	SetLightParams();
-	VarMap["atmosphere"]->SetRawValue(&atmosphereParams, 0, sizeof(AtmosphereParameters));
+	VarMap["atmosphere"]->SetRawValue(&atmosphereParams, 0, sizeof(AtmosphereParams));
 	VarMap["SHADOWMAP_TEXTURE_DIM"]->SetRawValue(&shadowMapResolution, 0, sizeof(UINT));
 
 	//RenderBackGround(pDevice, pContext, pRTV, pColorBufferSRV,pDepthSRV);
 	ComputeSpaceLinearDepthTex2D(pDevice, pContext, pDepthSRV);
-	ComputeSliceEndTex2D(pDevice, pContext);
-	ComputeEpipolarCoordTex2D(pDevice, pContext);
-	ComputeUnshadowedSampleScatter(pDevice, pContext);
-	RefineSampleLocal(pDevice, pContext);
-	ComputeSliceUVOrigDirTex2D(pDevice, pContext, pShadowMapSRV);
-	Build1DMinMaxMipMap(pDevice, pContext, pShadowMapSRV, shadowMapResolution);
-	MarkRayMarchSample(pDevice, pContext);
-	if(fEnableLightShaft)
-		DoRayMarch(pDevice, pContext, pShadowMapSRV);
-	InterpolateScatter(pDevice, pContext);
-	ApplyAndFixInterpolateScatter(pDevice, pContext, pRTV, pColorBufferSRV);
+	//ComputeSliceEndTex2D(pDevice, pContext);
+	//ComputeEpipolarCoordTex2D(pDevice, pContext);
+	//ComputeUnshadowedSampleScatter(pDevice, pContext);
+	//RefineSampleLocal(pDevice, pContext);
+	//ComputeSliceUVOrigDirTex2D(pDevice, pContext, pShadowMapSRV);
+	//Build1DMinMaxMipMap(pDevice, pContext, pShadowMapSRV, shadowMapResolution);
+	//MarkRayMarchSample(pDevice, pContext);
+	//if(fEnableLightShaft)
+	//	DoRayMarch(pDevice, pContext, pShadowMapSRV);
+	//InterpolateScatter(pDevice, pContext);
+	//ApplyAndFixInterpolateScatter(pDevice, pContext, pRTV, pColorBufferSRV);
+	m_pCloud->Render(pDevice, pContext, pRTV, pColorBufferSRV, pSpaceLinearDepthSRV);
 }
 
 
@@ -422,7 +429,7 @@ HRESULT Atmosphere::PreComputeTransmittanceTex2D(ID3D11Device* pDevice, ID3D11De
 
 	ID3DX11EffectTechnique* activeTech = TechMap["ComputeTransmittanceTex2DTech"];
 
-	VarMap["atmosphere"]->SetRawValue(&atmosphereParams, 0, sizeof(AtmosphereParameters));
+	VarMap["atmosphere"]->SetRawValue(&atmosphereParams, 0, sizeof(AtmosphereParams));
 
 	ID3D11RenderTargetView* pRTVs[] =
 	{
@@ -454,7 +461,7 @@ HRESULT Atmosphere::PreComputeOpticalLengthTex2D(ID3D11Device* pDevice, ID3D11De
 
 	ID3DX11EffectTechnique* activeTech = TechMap["ComputeOpticalLengthTex2DTech"];
 
-	VarMap["atmosphere"]->SetRawValue(&atmosphereParams, 0, sizeof(AtmosphereParameters));
+	VarMap["atmosphere"]->SetRawValue(&atmosphereParams, 0, sizeof(AtmosphereParams));
 
 	ID3D11RenderTargetView* pRTVs[] =
 	{
@@ -543,7 +550,7 @@ HRESULT Atmosphere::PreComputeSingleSctrTex3D(ID3D11Device* pDevice, ID3D11Devic
 
 		ID3DX11EffectTechnique* activeTech = TechMap["ComputeSingleScatterTex3DTech"];
 
-		VarMap["atmosphere"]->SetRawValue(&atmosphereParams, 0, sizeof(AtmosphereParameters));
+		VarMap["atmosphere"]->SetRawValue(&atmosphereParams, 0, sizeof(AtmosphereParams));
 
 	
 		UINT uiW = depthSlice % SCATTERING_TEXTURE_MU_S_SIZE;
@@ -664,7 +671,7 @@ HRESULT Atmosphere::PreComputeMultiSctrTex3D(ID3D11Device* pDevice, ID3D11Device
 		
 		ID3DX11EffectTechnique* activeTech = TechMap["ComputeMultiScatterTex3DTech"];
 
-		VarMap["atmosphere"]->SetRawValue(&atmosphereParams, 0, sizeof(AtmosphereParameters));
+		VarMap["atmosphere"]->SetRawValue(&atmosphereParams, 0, sizeof(AtmosphereParams));
 
 		misc.scatter_order = scatter_order;
 		UINT uiW = depthSlice % SCATTERING_TEXTURE_MU_S_SIZE;
@@ -1268,6 +1275,8 @@ void Atmosphere::Resize(int screen_width, int screen_height, float fFOV, float f
 
 	VarMap["SCREEN_WIDTH"]->SetRawValue(&screen_width, 0, sizeof(int));
 	VarMap["SCREEN_HEIGHT"]->SetRawValue(&screen_height, 0, sizeof(int));
+
+	m_pCloud->Resize(screen_width, screen_height, fFOV, fAspect, fNear, fFar);
 
 	//m_FirstPersonCamera.SetProjParams(fFOV, fAspect, fNear, fFar);
 }

@@ -8,42 +8,6 @@
 #include "Common.h"
 #include "Cloud.h"
 
-
-struct DensityProfileLayer
-{
-	float exp_term;
-	float exp_scale;
-	float linear_term;
-	float const_term;
-};
-
-struct AtmosphereParameters
-{
-	D3DXVECTOR3 solar_irradiance;
-	float bottom_radius;
-
-	D3DXVECTOR3 rayleigh_scattering;
-	float top_radius;
-
-	D3DXVECTOR3 mie_scattering;
-	float mie_g;
-
-	D3DXVECTOR3 mie_extinction;
-	float ground_albedo;
-
-	D3DXVECTOR3 absorption_extinction;
-	float ozone_width;
-
-	float sun_angular_radius;
-	float mu_s_min;
-	float nu_power;
-	float exposure;
-
-	DensityProfileLayer rayleigh_density;
-	DensityProfileLayer mie_density;
-	DensityProfileLayer ozone_density[2];
-};
-
 class Atmosphere : public GameObject
 {
 public:
@@ -91,9 +55,8 @@ private:
 	float exposure = 10.f;
 
 	//D3DXMATRIX InvView, InvProj;
-	UINT screen_width, screen_height;
 
-	AtmosphereParameters atmosphereParams;
+	AtmosphereParams atmosphereParams;
 	CameraParams cameraParams;
 	LightParams lightParams;
 

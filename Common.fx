@@ -389,7 +389,9 @@ bool IsValidScreenLocation(in float2 f2XY)
 
 float ReMap(float fVal,float fMin_old,float fMax_old,float fMin_new,float fMax_new)
 {
-    return (fVal - fMin_old) / (fMax_old - fMin_old) * (fMax_new - fMin_new) + fMin_new;
+    //if (fMax_old == fMin_old)
+    //    return fMax_new;
+    return ((fVal - fMin_old) / (fMax_old - fMin_old)) * (fMax_new - fMin_new) + fMin_new;
 }
 
 float3 GetRMuMuS(float3 f3Pos, float3 f3ViewRay)
@@ -444,7 +446,7 @@ float GetRayMarchLen(float4 f4RMuMuSNu,
     {
         fRayMarchLen = min(fRayMarchLen, fDistToEarthNear);
         bIsMarchToAtmosphere = false;
-        bIsMarchToEarth = (fViewRayLenInWorldSpace == fDistToEarthNear);
+        bIsMarchToEarth = (fRayMarchLen == fDistToEarthNear);
     }
 
     return fRayMarchLen;

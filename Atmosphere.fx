@@ -1574,7 +1574,7 @@ float4 ComputeShadowInscatter(float2 f2ScreenXY,float fRayEndCamDepth,float fDep
     if ((bIsMarchToAtmosphere && f4RMuMuSNu.w <= 0) || bIsMarchToEarth)
 #endif
     {
-        return float4(m_f4ExtraLight * GetSkyMultiScatter(f4RMuMuSNu.x, f4RMuMuSNu.y, f4RMuMuSNu.z, f4RMuMuSNu.w), fViewRayLenInWorldSpace);
+        return float4(m_f4ExtraLight * GetSkyMultiScatter(f4RMuMuSNu.x, f4RMuMuSNu.y, f4RMuMuSNu.z, f4RMuMuSNu.w), 1);
     }
 
     float3 f3StartPos = camera.f3CameraPos;
