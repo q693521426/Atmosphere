@@ -910,7 +910,7 @@ float3 GetSkyMultiScatterToAtmosphere(float r, float mu, float mu_s, float nu, f
 
 float3 HDR(float3 L)
 {
-    L = L * atmosphere.exposure;
+    L = L * 10.f;
     L.r = L.r < 1.413 ? pow(L.r * 0.38317, 1.0 / 2.2) : 1.0 - exp(-L.r);
     L.g = L.g < 1.413 ? pow(L.g * 0.38317, 1.0 / 2.2) : 1.0 - exp(-L.g);
     L.b = L.b < 1.413 ? pow(L.b * 0.38317, 1.0 / 2.2) : 1.0 - exp(-L.b);

@@ -48,7 +48,7 @@ struct AtmosphereParams
 	float sun_angular_radius;
 	float mu_s_min;
 	float nu_power;
-	float exposure;
+	float radius_scale;
 
 	DensityProfileLayer rayleigh_density;
 	DensityProfileLayer mie_density;

@@ -103,7 +103,7 @@ void Atmosphere::Initialize()
 	atmosphereParams.ground_albedo = 0.1f;
 	atmosphereParams.ozone_width = 25.0f;
 	atmosphereParams.nu_power = 1.5;
-	atmosphereParams.exposure = exposure;
+	atmosphereParams.radius_scale = 1 / (atmosphereParams.top_radius - atmosphereParams.bottom_radius);
 	atmosphereParams.rayleigh_density = DensityProfileLayer
 	{
 		1.f, -1.0 / kRayleighScaleHeight * 1000.0, 0.f, 0.f
@@ -126,7 +126,7 @@ void Atmosphere::Initialize()
 	m_pCloud = new Cloud();
 	m_pCloud->Initialize();
 
-	SetView(9000.0, 1.47, -0.1, 1.3, 2.9, 10.0);
+	SetView(9000.0, 1.47, -0.1, 1.3, 2.9);
 }	
 
 
@@ -1173,14 +1173,13 @@ HRESULT Atmosphere::ApplyAndFixInterpolateScatter(ID3D11Device* pDevice, ID3D11D
 
 
 void Atmosphere::SetView(float view_distance_meters, float view_zenith_angle_radians, float view_azimuth_angle_radians,
-							float sun_zenith_angle_radians, float sun_azimuth_angle_radians,float exposure)
+							float sun_zenith_angle_radians, float sun_azimuth_angle_radians)
 {
 	this->view_distance_meters = view_distance_meters;
 	this->view_zenith_angle_radians = view_zenith_angle_radians;
 	this->view_azimuth_angle_radians = view_azimuth_angle_radians;
 	this->sun_zenith_angle_radians = sun_zenith_angle_radians;
 	this->sun_azimuth_angle_radians = sun_azimuth_angle_radians;
-	this->exposure = exposure;
 
 	float cos_z = cos(view_zenith_angle_radians);
 	float sin_z = sin(view_zenith_angle_radians);
@@ -1206,39 +1205,39 @@ void Atmosphere::MsgProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			{
 				case 0x31:
 				{
-					SetView(9000.0, 1.47, -0.1, 1.3, 2.9, 10.0);
+					SetView(9000.0, 1.47, -0.1, 1.3, 2.9);
 				}break;
 				case 0x32:
 				{
-					SetView(9000.0, 1.47, 0.0, 1.564, -3.0, 10.0);
+					SetView(9000.0, 1.47, 0.0, 1.564, -3.0);
 				}break;
 				case 0x33:
 				{
-					SetView(7000.0, 1.57, 0.0, 1.54, -2.96, 10.0);
+					SetView(7000.0, 1.57, 0.0, 1.54, -2.96);
 				}break;
 				case 0x34:
 				{
-					SetView(7000.0, 1.57, 0.0, 1.328, -3.044, 10.0);
+					SetView(7000.0, 1.57, 0.0, 1.328, -3.044);
 				}break;
 				case 0x35:
 				{
-					SetView(9000.0, 1.39, 0.0, 1.2, 0.7, 10.0);
+					SetView(9000.0, 1.39, 0.0, 1.2, 0.7);
 				}break;
 				case 0x36:
 				{
-					SetView(9000.0, 1.5, 0.0, 1.628, 1.05, 200.0);
+					SetView(9000.0, 1.5, 0.0, 1.628, 1.05);
 				}break;
 				case 0x37:
 				{
-					SetView(7000.0, 1.43, 0.0, 1.57, 1.34, 40.0);
+					SetView(7000.0, 1.43, 0.0, 1.57, 1.34);
 				}break;
 				case 0x38:
 				{
-					SetView(2.7e6, 0.81, 0.0, 1.57, 2.0, 10.0);
+					SetView(2.7e6, 0.81, 0.0, 1.57, 2.0);
 				}break;
 				case 0x39:
 				{
-					SetView(1.2e7, 0.0, 0.0, 0.93, -2.0, 10.0);
+					SetView(1.2e7, 0.0, 0.0, 0.93, -2.0);
 				}break;
 			}
 		}

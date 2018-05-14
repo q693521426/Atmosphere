@@ -17,7 +17,7 @@ public:
 	void Initialize();
 	void Release();
 
-	void SetView(float, float, float, float, float, float);
+	void SetView(float, float, float, float, float);
 
 	void Resize(int, int, float, float, float, float);
 
@@ -52,7 +52,6 @@ private:
 	float view_azimuth_angle_radians = -0.1f;
 	float sun_zenith_angle_radians = 1.3f;
 	float sun_azimuth_angle_radians = 2.9f;
-	float exposure = 10.f;
 
 	//D3DXMATRIX InvView, InvProj;
 
