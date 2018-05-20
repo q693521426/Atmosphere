@@ -15,7 +15,7 @@ struct CloudParams
 {
 	CloudTypeLayer mCloudTypeLayer[3];
 
-	D3DXVECTOR2 f2CloudLayerHeightScale;
+	D3DXVECTOR2 f2CloudLayerHeight;
 	float fTransition;
 	float fUpperDensity;
 };
@@ -60,6 +60,9 @@ private:
 	CComPtr<ID3D11Texture3D>				pCurlTex3D;
 	CComPtr<ID3D11ShaderResourceView>		pCurlSRV;
 
+	CComPtr<ID3D11ShaderResourceView>		pNoiseBasePackedSRV;
+	CComPtr<ID3D11ShaderResourceView>		pNoiseDetailPackedSRV;
+
 	CloudParams cloudParams;
 	AtmosphereParams* pAtmosphereParams;
 	CameraParams* pCameraParams;
@@ -79,13 +82,23 @@ private:
 		"light",
 		"atmosphere",
 		"misc",
-		"cloud"
+		"cloud",
+
+		"SCREEN_WIDTH",
+		"SCREEN_HEIGHT",
+
+		"NOISE_BASE_TEXTURE_DIM",
+		"NOISE_DETAIL_TEXTURE_DIM"
 	};
 
 	std::vector<std::string> ShaderResourceVarStr
 	{
-		"g_tex3DPerlinWorleyNoise",
-		"g_tex3DWorleyNoise",
+		"g_tex3DNoiseBase",
+		"g_tex3DNoiseDetail",
+		"g_tex2DNoiseBase",
+		"g_tex2DNoiseDetail",
+		"g_tex2DNoiseBasePacked",
+		"g_tex2DNoiseDetailPacked",
 		"g_tex2DSpaceDepth",
 		"g_tex2DColorBuffer"
 	};

@@ -24,6 +24,12 @@ SamplerState samPointClamp
     AddressV = Clamp;
 };
 
+SamplerState samLinearWrap
+{
+    Filter = MIN_MAG_MIP_LINEAR;
+    AddressU = Wrap;
+    AddressV = Wrap;
+};
 
 SamplerState samLinearBorder0
 {
@@ -255,6 +261,9 @@ cbuffer cbTextureDim
 
     uint SHADOWMAP_TEXTURE_DIM;
     uint MIN_MAX_TEXTURE_DIM;
+
+    uint NOISE_BASE_TEXTURE_DIM;
+    uint NOISE_DETAIL_TEXTURE_DIM;
 };
 
 Texture2D<float3> g_tex2DTransmittanceLUT;
@@ -290,8 +299,12 @@ Texture2D<float4> g_tex2DInterpolatedScatter;
 
 Texture2D<float3> g_tex2DColorBuffer;
 
-Texture3D<float4> g_tex3DPerlinWorleyNoise;
-Texture3D<float3> g_tex3DWorleyNoise;
+Texture3D<float4> g_tex3DNoiseBase;
+Texture3D<float4> g_tex3DNoiseDetail;
+
+Texture2D<float4> g_tex2DNoiseBasePacked;
+Texture2D<float4> g_tex2DNoiseDetailPacked;
+
 
 QuadVertexOut GenerateScreenSizeQuadVS(in uint VertexId : SV_VertexID,
                                                  in uint InstID : SV_InstanceID)
@@ -391,7 +404,7 @@ float ReMap(float fVal,float fMin_old,float fMax_old,float fMin_new,float fMax_n
 {
     //if (fMax_old == fMin_old)
     //    return fMax_new;
-    return ((fVal - fMin_old) / (fMax_old - fMin_old)) * (fMax_new - fMin_new) + fMin_new;
+    return saturate((fVal - fMin_old) / (fMax_old - fMin_old)) * (fMax_new - fMin_new) + fMin_new;
 }
 
 float3 GetRMuMuS(float3 f3Pos, float3 f3ViewRay)

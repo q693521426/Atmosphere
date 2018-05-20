@@ -13,11 +13,13 @@
 #include <sstream>
 #include <set>
 #include <memory>
+#include "DirectXTex.h"
 
 #define CREATE_TEXTURE_DDS_TEST 0
 #define USE_LUT_DDS 1
 #define READ_LUT(x,res) { if(res) { hr = (x); if( FAILED(hr) ) { res = false; } } }
 #define D3D_COMPILE_STANDARD_FILE_INCLUDE ((ID3DInclude*)(UINT_PTR)1)
+
 
 
 struct DensityProfileLayer
@@ -403,6 +405,15 @@ inline HRESULT SaveTextureToDDS(ID3D11DeviceContext* pContext, const char* path,
 	ss << path;
 	V_RETURN(D3DX11SaveTextureToFile(pContext, pTex2D, D3DX11_IFF_DDS, ss.str().c_str()));
 	return hr;
+}
+
+inline HRESULT LoadTGAToSRV(ID3D11Device* pDevice,const wchar_t* szFile, ID3D11ShaderResourceView** ppSRV)
+{
+	HRESULT hr = S_OK;
+	DirectX::TexMetadata metadata;
+	DirectX::ScratchImage image;
+	V_RETURN(DirectX::LoadFromTGAFile(szFile, &metadata, image));
+	V_RETURN(DirectX::CreateShaderResourceView(pDevice, image.GetImages(), image.GetImageCount(), metadata, ppSRV));
 }
 
 template<typename T1,typename T2>

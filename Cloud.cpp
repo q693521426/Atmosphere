@@ -1,7 +1,6 @@
 #include "DXUT.h"
 #include "Cloud.h"
 #include <sstream>
-
 Cloud::Cloud()
 {
 }
@@ -14,16 +13,31 @@ Cloud::~Cloud()
 
 void Cloud::Initialize()
 {
-	float fAtmosphereScale = 6420.f - 6360.f;
-	cloudParams.f2CloudLayerHeightScale = D3DXVECTOR2(1.5, 8.0) / fAtmosphereScale;
-	cloudParams.mCloudTypeLayer[0].f2LayerHeightScale = D3DXVECTOR2(1.5, 4.0) / fAtmosphereScale;
-	cloudParams.mCloudTypeLayer[0].f2LayerDensityPoint = D3DXVECTOR2(2.0, 3.0) / fAtmosphereScale;
+	//float fCloudLowHeight = 1.5;
+	//float fCloudHighHeight = 8.0;
+	//float fCloudHeight = fCloudHighHeight - fCloudLowHeight;
+	//D3DXVECTOR2 f2CloudLowHeight = D3DXVECTOR2(fCloudLowHeight, fCloudLowHeight);
 
-	cloudParams.mCloudTypeLayer[1].f2LayerHeightScale = D3DXVECTOR2(1.5, 6.0) / fAtmosphereScale;
-	cloudParams.mCloudTypeLayer[1].f2LayerDensityPoint = D3DXVECTOR2(4.0, 5.0) / fAtmosphereScale;
+	//cloudParams.f2CloudLayerHeight = D3DXVECTOR2(fCloudLowHeight, fCloudHighHeight) ;
 
-	cloudParams.mCloudTypeLayer[2].f2LayerHeightScale = D3DXVECTOR2(6.0, 8.0) / fAtmosphereScale;
-	cloudParams.mCloudTypeLayer[2].f2LayerDensityPoint = D3DXVECTOR2(6.5, 7.5) / fAtmosphereScale;
+	//cloudParams.mCloudTypeLayer[0].f2LayerHeightScale = (D3DXVECTOR2(1.5, 4.0) - f2CloudLowHeight) / fCloudHeight;
+	//cloudParams.mCloudTypeLayer[0].f2LayerDensityPoint = (D3DXVECTOR2(2.0, 3.0) - f2CloudLowHeight) / fCloudHeight;
+
+	//cloudParams.mCloudTypeLayer[1].f2LayerHeightScale = (D3DXVECTOR2(1.5, 6.0) - f2CloudLowHeight) / fCloudHeight;
+	//cloudParams.mCloudTypeLayer[1].f2LayerDensityPoint = (D3DXVECTOR2(4.0, 5.0) - f2CloudLowHeight) / fCloudHeight;
+
+	//cloudParams.mCloudTypeLayer[2].f2LayerHeightScale = (D3DXVECTOR2(6.0, 8.0) - f2CloudLowHeight) / fCloudHeight;
+	//cloudParams.mCloudTypeLayer[2].f2LayerDensityPoint = (D3DXVECTOR2(6.5, 7.5) - f2CloudLowHeight) / fCloudHeight;
+	cloudParams.f2CloudLayerHeight = D3DXVECTOR2(1.5, 8.0);
+	cloudParams.mCloudTypeLayer[0].f2LayerHeightScale = D3DXVECTOR2(0.0,0.5);
+	cloudParams.mCloudTypeLayer[0].f2LayerDensityPoint = D3DXVECTOR2(0.1,0.4);
+
+	cloudParams.mCloudTypeLayer[1].f2LayerHeightScale = D3DXVECTOR2(0.4,0.8);
+	cloudParams.mCloudTypeLayer[1].f2LayerDensityPoint = D3DXVECTOR2(0.5, 0.7);
+
+	cloudParams.mCloudTypeLayer[2].f2LayerHeightScale = D3DXVECTOR2(0.7, 1);
+	cloudParams.mCloudTypeLayer[2].f2LayerDensityPoint = D3DXVECTOR2(0.8, 0.9) ;
+
 }
 
 
@@ -35,6 +49,9 @@ void Cloud::Release()
 	pWorleySRV.Release();
 	pCurlTex3D.Release();
 	pCurlSRV.Release();
+
+	pNoiseBasePackedSRV.Release();
+	pNoiseDetailPackedSRV.Release();
 
 	GameObject::Release();
 }
@@ -50,7 +67,11 @@ HRESULT Cloud::OnD3D11CreateDevice(ID3D11Device* pDevice, ID3D11DeviceContext* p
 	READ_LUT(D3DX11CreateShaderResourceViewFromFile(pDevice, L"Texture/PerlinWorley.dds", nullptr, nullptr, &pPerlinWorleySRV.p, nullptr), IsPreComputed);
 	READ_LUT(D3DX11CreateShaderResourceViewFromFile(pDevice, L"Texture/Worley.dds", nullptr, nullptr, &pWorleySRV.p, nullptr), IsPreComputed);
 #endif
-
+#if USE_LUT_DDS
+	IsPreComputed = true;
+	READ_LUT(LoadTGAToSRV(pDevice, L"Texture/noiseShapePacked.tga", &pNoiseBasePackedSRV.p), IsPreComputed);
+	READ_LUT(LoadTGAToSRV(pDevice, L"Texture/noiseErosionPacked.tga", &pNoiseDetailPackedSRV.p), IsPreComputed);
+#endif
 	return hr;
 }
 
@@ -186,10 +207,18 @@ void Cloud::Render(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, ID3D11R
 
 	ID3DX11EffectTechnique* activeTech = TechMap["DrawCloudTech"];
 
-	ShaderResourceVarMap["g_tex3DPerlinWorleyNoise"]->SetResource(pPerlinWorleySRV);
-	ShaderResourceVarMap["g_tex3DWorleyNoise"]->SetResource(pWorleySRV);
+	//ShaderResourceVarMap["g_tex3DPerlinWorleyNoise"]->SetResource(pPerlinWorleySRV);
+	//ShaderResourceVarMap["g_tex3DWorleyNoise"]->SetResource(pWorleySRV);
+	ShaderResourceVarMap["g_tex2DNoiseBasePacked"]->SetResource(pNoiseBasePackedSRV);
+	ShaderResourceVarMap["g_tex2DNoiseDetailPacked"]->SetResource(pNoiseDetailPackedSRV);
 	ShaderResourceVarMap["g_tex2DSpaceDepth"]->SetResource(pSpaceLinearDepthSRV);
 	ShaderResourceVarMap["g_tex2DColorBuffer"]->SetResource(pColorBufferSRV);
+
+	VarMap["SCREEN_WIDTH"]->SetRawValue(&screen_width, 0, sizeof(UINT));
+	VarMap["SCREEN_HEIGHT"]->SetRawValue(&screen_height, 0, sizeof(UINT));
+
+	VarMap["NOISE_BASE_TEXTURE_DIM"]->SetRawValue(&PERLIN_WORLEY_TEXTURE_DIM, 0, sizeof(UINT));
+	VarMap["NOISE_DETAIL_TEXTURE_DIM"]->SetRawValue(&WORLEY_TEXTURE_DIM, 0, sizeof(UINT));
 
 	pContext->OMSetRenderTargets(1, &pRTV, nullptr);
 	RenderQuad(pContext, activeTech, this->screen_width, this->screen_height);
