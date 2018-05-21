@@ -18,6 +18,8 @@
 #define new new( _NORMAL_BLOCK , __FILE__ , __LINE__ )
 #endif  // _DEBUG
 
+#define LOAD_MODEL 0
+
 Atmosphere*							m_pAtmosphere;
 Model*								m_pModel;
 FrameBuffer*						m_pFrameBuffer;
@@ -31,7 +33,7 @@ D3DXMATRIX							g_View;
 D3DXMATRIX							g_Projection;
 D3DXMATRIX							g_LightView;
 D3DXMATRIX							g_LightProjection;
-float								m_EyeHeight = 1000.f;	// Unit:m 
+float								m_EyeHeight = 2000.f;	// Unit:m 
 //float								m_EyeHeight = 9.f;	// Unit:km 
 float								m_ModelScaling = 1000;
 D3DXVECTOR3							g_Eye(10 * m_ModelScaling, m_EyeHeight, 20 * m_ModelScaling);
@@ -186,10 +188,12 @@ void CALLBACK OnD3D11FrameRender( ID3D11Device* pd3dDevice, ID3D11DeviceContext*
 	{
 		m_pShadowMapFrameBuffer->Activate();
 		m_pShadowMapFrameBuffer->ActivateDepth(true);
-
+#if LOAD_MODEL
 		pd3dImmediateContext->RSSetState(RenderStates::NoCullRS);
 		m_pModel->RenderShadowMap(pd3dDevice, pd3dImmediateContext, g_DirectionalLight.Direction,m_shadowMapDim);
-
+#else
+		m_pModel->UpdateLightParams(g_DirectionalLight.Direction);
+#endif
 		g_LightView = m_pModel->GetLightView();
 		g_LightProjection = m_pModel->GetLightProj();
 
@@ -198,10 +202,11 @@ void CALLBACK OnD3D11FrameRender( ID3D11Device* pd3dDevice, ID3D11DeviceContext*
 	{
 		m_pFrameBuffer->Activate();
 		m_pFrameBuffer->ActivateDepth(true);
+#if LOAD_MODEL
 		pd3dImmediateContext->RSSetState(RenderStates::CullClockWiseRS);
 		m_pModel->Render(pd3dDevice, pd3dImmediateContext, m_pShadowMapFrameBuffer->GetDepthSRV());
 		pd3dImmediateContext->RSSetState(RenderStates::CullCounterClockWiseRS);
-
+#endif
 		m_pFrameBuffer->DeactivateDepth();
 	}
 	m_pAtmosphere->Render(pd3dDevice, pd3dImmediateContext, pRTV, 

@@ -26,6 +26,8 @@ public:
 	void RenderShadowMap(ID3D11Device*, ID3D11DeviceContext*, const D3DXVECTOR3&, UINT);
 	void Model::RenderModel(ID3D11Device*, ID3D11DeviceContext*,ID3D11ShaderResourceView*, const D3DXMATRIX&, bool);
 
+	void UpdateLightParams(const D3DXVECTOR3&);
+
 	void Resize(const DXGI_SURFACE_DESC*);
 
 	void SetViewProj(const D3DXMATRIX&);

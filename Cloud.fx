@@ -255,19 +255,22 @@ float GetCloudHeightGradientType(float fHeightScale,int type)
 
 }
 
-float3 GetNoiseUVW(float3 f3Pos, float fHeightScale)
+bool GetNoiseUVW(float3 f3Pos, float fHeightScale, out float3 f3UVW)
 {
     //float2 f2XZ = f3Pos.xz - camera.f3CameraPos.xz;
     //float fRadius = length(f3Pos.xz - camera.f3CameraPos.xz);
     //f2XZ /= fRadius;
     //float2 f2XZ = f3Pos.xz / NOISE_BASE_TEXTURE_DIM;
     //f2XZ = saturate(f2XZ * 0.5 + 0.5);
-    //float3 f2XZ = (f3Pos - float3(10, 2.0, 20)) / 2;
+    //float3 f2XZ = (f3Pos - float3(10, 2.0+ atmosphere.bottom_radius, 20)) / 2;
     //f2XZ = f2XZ * 0.5 + 0.5;
     //return float3(f2XZ.x, fHeightScale, f2XZ.y);
-    float3 f3UVW = (f3Pos - float3(10, 2, 20)) / 2;
-    f3UVW = f3UVW * 0.5 + 0.5;
-    return f3UVW;
+    f3UVW = (f3Pos - float3(5, 2.5 + atmosphere.bottom_radius, 20));
+    float fLength = length(f3UVW);
+    float fRadius = 1.f;
+    if (fLength>fRadius)
+        return false;
+    return true;
 }
 
 float GetBaseCloudDensity(float3 f3Pos, float3 f3UVW,float fHeight, float fHeightScale,float fMipLevel,out float fType)
@@ -287,9 +290,15 @@ float GetBaseCloudDensity(float3 f3Pos, float3 f3UVW,float fHeight, float fHeigh
     //float fx = (f3UVW.x * NOISE_BASE_TEXTURE_DIM - 0.5) * NOISE_BASE_TEXTURE_DIM;
     //float fy = (f3UVW.y * NOISE_BASE_TEXTURE_DIM - 0.5);
     //fx = (fx + fy + 0.5) / (NOISE_BASE_TEXTURE_DIM * NOISE_BASE_TEXTURE_DIM) ;
+    float fLength = length(f3UVW);
+    if (fLength > 1.0)
+        return 0;
+
     float fU = f3UVW.x + (f3UVW.y - 0.5) / NOISE_BASE_TEXTURE_DIM;
     float2 f2UV = float2(fU, f3UVW.z);
-    float fNoise = g_tex2DNoiseBasePacked.SampleLevel(samLinearBorder0, f2UV, fMipLevel);
+    float fNoise = g_tex2DNoiseBasePacked.SampleLevel(samLinearWrap, f2UV, fMipLevel);
+
+    return fNoise;
 
     float fBaseCloud = fNoise * GetCloudHeightGradientType(fHeightScale, fType);
     //return fBaseCloud;
@@ -299,8 +308,13 @@ float GetBaseCloudDensity(float3 f3Pos, float3 f3UVW,float fHeight, float fHeigh
     return fBaseCloudWithCoverage;
 }
 
-float GetFullCloudDensity(float fBaseCloudDensity, float3 f3UVW, float fHeightScale, float fMipLevel)
+float GetFullCloudDensity(float3 f3Pos,float3 f3UVW, float fHeight,float fHeightScale, float fMipLevel)
 {
+    float fType;
+    float fBaseCloudDensity = GetBaseCloudDensity(f3Pos, f3UVW, fHeight, fHeightScale, fMipLevel, fType);
+
+    return fBaseCloudDensity;
+
     f3UVW *= 0.1;
     float fU = f3UVW.x + (f3UVW.y - 0.5) / NOISE_DETAIL_TEXTURE_DIM;
     float2 f2UV = float2(fU, f3UVW.z);
@@ -342,12 +356,16 @@ float GetCloudDensityToLight(float3 f3Pos, float fMipLevel)
         f3Pos = f3Pos + f3Step;
         GetHeightAndScale(f3Pos, fHeight, fHeightScale);
         
-        float3 f3UVW = GetNoiseUVW(f3Pos, fHeight);
-
-        float fBaseDensity = GetBaseCloudDensity(f3Pos,f3UVW,fHeight, fHeightScale, fMipLevel + 1, fType);
+        float3 f3UVW;
+        if (!GetNoiseUVW(f3Pos, fHeight, f3UVW))
+        {
+            f3Pos += f3Step;
+            continue;
+        }
+        float fBaseDensity = GetBaseCloudDensity(f3Pos, f3UVW, fHeight, fHeightScale, fMipLevel + 1, fType);
         if(fDensity<0.3)
         {
-            fDensity += GetFullCloudDensity(fBaseDensity, f3UVW, fHeightScale, fMipLevel + 1);
+            fDensity += GetFullCloudDensity(f3Pos, f3UVW, fHeight, fHeightScale, fMipLevel + 1);
         }
         else
         {
@@ -364,10 +382,11 @@ float4 DrawCloud(QuadVertexOut In) : SV_Target
     float2 f2UV = ProjToUV(In.m_f2PosPS);
     float fCamDepth = g_tex2DSpaceDepth.Load(uint3(ui2XY, 0));
     float fDepth = camera.Proj[2][2] + camera.Proj[3][2] / fCamDepth;
-
+    
     float3 f3BackColor = g_tex2DColorBuffer.SampleLevel(samLinearClamp, f2UV, 0);
 
     float4 f4RayEndPos = mul(float4(In.m_f2PosPS, fDepth, 1), camera.InvViewProj);
+    //float4 f4RayEndPos = mul(float4(0,0, fDepth, 1), camera.InvViewProj);
     //float4 f4RayEndPos = mul(float4(In.m_f2PosPS, 1, 1), camera.InvViewProj);
     float3 f3ViewRay = f4RayEndPos.xyz / f4RayEndPos.w - camera.f3CameraPos;
     float fViewRayLen = length(f3ViewRay);
@@ -408,7 +427,8 @@ float4 DrawCloud(QuadVertexOut In) : SV_Target
     float fHorizonMu = -sqrt((fRSqr - atmosphere.bottom_radius * atmosphere.bottom_radius) / fRSqr);
 
     float fStartLen, fEndLen;
-    float2 f2IntersectLayerDiscriminantSqrt = float2(SafeSqrt(f2IntersectLayerDiscriminant.x), SafeSqrt(f2IntersectLayerDiscriminant.y));
+    float2 f2IntersectLayerDiscriminantSqrt = float2(SafeSqrt(f2IntersectLayerDiscriminant.x), 
+                        SafeSqrt(f2IntersectLayerDiscriminant.y));
     float2 f2IntersectLayerFar = -fRMu + f2IntersectLayerDiscriminantSqrt;
     float2 f2IntersectLayerNear = -fRMu - f2IntersectLayerDiscriminantSqrt;
     if (f4RMuMuSNu.x >= f2LayerHeight.x && f4RMuMuSNu.x <= f2LayerHeight.y)
@@ -439,23 +459,30 @@ float4 DrawCloud(QuadVertexOut In) : SV_Target
     {
         fEndLen = f2IntersectLayerFar.y;
     }
-
-    float fMaxDistance = 3.5;
-    float fMinDistance = 1.5;
+    
     
     float3 f3StartPos = f3CameraPos + f3ViewRay * fStartLen;
     float3 f3EndPos = f3CameraPos + f3ViewRay * fEndLen;
     float fViewRayLenInWorldSpace = fEndLen - fStartLen;
+    //float fViewRayLenInWorldSpace = min(3.5, fEndLen - fStartLen);
+    //fEndLen = fStartLen + fViewRayLenInWorldSpace;
+    //float3 f3StartPos = f3CameraPos + f3ViewRay * fStartLen;
+    //float3 f3EndPos = f3CameraPos + f3ViewRay * fEndLen;
 
-    int SAMPLE_COUNT = ((f4RMuMuSNu.y > fHorizonMu) && (f4RMuMuSNu.y < 0.2 + fHorizonMu)) ? 128 : 64;
+    bool bIsNearHorizonMu = (f4RMuMuSNu.y > fHorizonMu) && (f4RMuMuSNu.y < 0.2 + fHorizonMu);
+    int SAMPLE_COUNT = 128;
     float fStepLen = fViewRayLenInWorldSpace / SAMPLE_COUNT;
     float3 f3Pos = f3StartPos;
     float3 f3Step = f3ViewRay * fStepLen;
+
+    int SAMPLE_COUNT_CLOUD = 6;
+    float fCloudStepLen = fStepLen / SAMPLE_COUNT_CLOUD;
+    float f3CloudStep = f3ViewRay * fCloudStepLen;
     
     float fDensityToCam = 0;
     float fCloudTest = 0;
     float fMipLevel = 0;
-    float3 f3TotalInscatter = 0;
+    float4 f4TotalInscatter = 0;
     float3 f3PreInscatter = 0;
     float3 f3CurInscatter = 0;
     int fZeroSampleCount = 0;
@@ -466,6 +493,8 @@ float4 DrawCloud(QuadVertexOut In) : SV_Target
     //return float4(fStartLen, fEndLen, 0, 1);
     for (int i = 0; i < SAMPLE_COUNT; ++i)
     {
+        if (f4TotalInscatter.a > 0.9)
+            break;
         GetHeightAndScale(f3Pos, fHeight, fHeightScale);
         if (fHeight < cloud.f2CloudLayerHeight.x)
         {
@@ -474,25 +503,53 @@ float4 DrawCloud(QuadVertexOut In) : SV_Target
             continue;
         }
 
-        float3 f3UVW = GetNoiseUVW(f3Pos, fHeight);
+        float3 f3UVW;
 
         if (fCloudTest > 0.f)
         {
-            float fSampleDensity = GetFullCloudDensity(fCloudTest, f3UVW, fHeightScale,fMipLevel);
-            
-            fDensityToCam += fSampleDensity;
-		    //float fDensityToLight = GetCloudDensityToLight(f3Pos, fMipLevel);
-		    //float fTransmittance = GetCloudTransmittance(fDensityToCam) * GetCloudTransmittance(fDensityToLight);
-            float fTransmittance = GetCloudTransmittance(fDensityToCam);
-		    //f3CurInscatter = fTransmittance;
-		    //f3PreInscatter = f3CurInscatter;
-            f3TotalInscatter += fTransmittance;
-        
-            fCloudTest = 0.f;
-            f3Pos += f3Step;
+            for (int j = 0; j < SAMPLE_COUNT_CLOUD;j++)
+            {
+                if (f4TotalInscatter.a > 0.9)
+                    break;
+
+                GetNoiseUVW(f3Pos, fHeight, f3UVW);
+
+                float fSampleDensity = GetFullCloudDensity(f3Pos, f3UVW, fHeight, fHeightScale, fMipLevel);
+                if (fSampleDensity == 0)
+                {
+                    fZeroSampleCount++;
+                    if (fZeroSampleCount == 6)
+                    {
+                        fCloudTest = 0;
+                        fZeroSampleCount = 0;
+                        f3Pos += f3CloudStep;
+                        break;
+                    }
+                }
+                else
+                {
+                    fDensityToCam += fSampleDensity;
+		            //float fDensityToLight = GetCloudDensityToLight(f3Pos, fMipLevel);
+		            //float fTransmittance = GetCloudTransmittance(fDensityToCam) * GetCloudTransmittance(fDensityToLight);
+                    float fTransmittance = GetCloudTransmittance(fDensityToCam);
+		            //f3CurInscatter = fTransmittance;
+		            //f3PreInscatter = f3CurInscatter;
+                    float3 lin = float3(0.65, 0.7, 0.75) * 1.4 + float3(1.0, 0.6, 0.3) * fSampleDensity;
+                    float4 col = float4(lerp(float3(1.0, 0.95, 0.8), float3(0.25, 0.3, 0.35), fSampleDensity), fSampleDensity);
+                    col.xyz *= lin;
+                    col.xyz = lerp(col.xyz, f3BackColor, fTransmittance);
+                    // front to back blending    
+                    col.a *= 0.4;
+                    col.rgb *= col.a;
+
+                    f4TotalInscatter += col * (1.0 - f4TotalInscatter.a);
+                }
+                f3Pos += f3CloudStep;
+            }
         }
         else
         {
+            GetNoiseUVW(f3Pos, fHeight, f3UVW);
             fCloudTest = GetBaseCloudDensity(f3Pos,f3UVW, fHeight, fHeightScale, fMipLevel, fType);
             if (fCloudTest == 0.f)
             {
@@ -500,11 +557,11 @@ float4 DrawCloud(QuadVertexOut In) : SV_Target
             }
         }
     }
-    f3TotalInscatter *= HGPhaseFunction(f4RMuMuSNu.w, atmosphere.mie_g);
+    f4TotalInscatter *= HGPhaseFunction(f4RMuMuSNu.w, atmosphere.mie_g);
 
     if (fCamDepth > camera.fFarZ)
     {
-        return float4(f3TotalInscatter, 1);
+        return float4(fDensityToCam, fDensityToCam, fDensityToCam, 1);
     }
     else
     {

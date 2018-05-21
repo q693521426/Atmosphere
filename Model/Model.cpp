@@ -246,7 +246,7 @@ void Model::Render(ID3D11Device* pd3dDevice, ID3D11DeviceContext* pd3dImmediateC
 #endif
 }
 
-void Model::RenderShadowMap(ID3D11Device* pd3dDevice, ID3D11DeviceContext* pd3dImmediateContext, const D3DXVECTOR3& SunDir,UINT shadowMapDim)
+void Model::UpdateLightParams(const D3DXVECTOR3& SunDir)
 {
 	D3DXVECTOR3 lightDir = -SunDir;
 	D3DXVECTOR3 lightSpaceZ = lightDir;
@@ -289,8 +289,8 @@ void Model::RenderShadowMap(ID3D11Device* pd3dDevice, ID3D11DeviceContext* pd3dI
 	for (int iClipPlaneCorner = 0; iClipPlaneCorner < 8; ++iClipPlaneCorner)
 	{
 		D3DXVECTOR3 f3PlaneCornerProjSpace((iClipPlaneCorner & 0x01) ? +1.f : -1.f,
-										(iClipPlaneCorner & 0x02) ? +1.f : -1.f,
-										(iClipPlaneCorner & 0x04) ? 1.f : 0.f);
+			(iClipPlaneCorner & 0x02) ? +1.f : -1.f,
+			(iClipPlaneCorner & 0x04) ? 1.f : 0.f);
 		D3DXVECTOR3 f3PlaneCornerLightSpace;
 		D3DXVec3TransformCoord(&f3PlaneCornerLightSpace, &f3PlaneCornerProjSpace, &camProjSpaceToLightSpace);
 		D3DXVec3Minimize(&f3MinXYZ, &f3MinXYZ, &f3PlaneCornerLightSpace);
@@ -336,6 +336,11 @@ void Model::RenderShadowMap(ID3D11Device* pd3dDevice, ID3D11DeviceContext* pd3dI
 	m_LightProj = ScaleMatrix * ScaledBiasMatrix;
 	//D3DXMatrixOrthoOffCenterLH(&lightProj, f3MinXYZ.x, f3MaxXYZ.x, f3MinXYZ.y, f3MaxXYZ.y, f3MinXYZ.z, f3MaxXYZ.z);
 	m_LightViewProj = m_LightView * m_LightProj;
+}
+
+void Model::RenderShadowMap(ID3D11Device* pd3dDevice, ID3D11DeviceContext* pd3dImmediateContext, const D3DXVECTOR3& SunDir,UINT shadowMapDim)
+{
+	UpdateLightParams(SunDir);
 	RenderModel(pd3dDevice, pd3dImmediateContext, nullptr,m_LightViewProj, true);
 }
 
