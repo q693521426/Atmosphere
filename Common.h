@@ -4,6 +4,7 @@
 #define COMMON_H
 
 #include "DXUT.h"
+
 #include "SDKmisc.h"
 #include <algorithm>
 #include <string>
@@ -15,11 +16,13 @@
 #include <memory>
 #include "DirectXTex.h"
 
+#include "./MicroProfile/microprofile.h"
+
 #define CREATE_TEXTURE_DDS_TEST 0
 #define USE_LUT_DDS 1
 #define READ_LUT(x,res) { if(res) { hr = (x); if( FAILED(hr) ) { res = false; } } }
 #define D3D_COMPILE_STANDARD_FILE_INCLUDE ((ID3DInclude*)(UINT_PTR)1)
-
+#define MICROPROFILE 0
 
 
 struct DensityProfileLayer
@@ -70,7 +73,8 @@ struct MiscDynamicParams
 
 	float fEnableLightShaft;
 	float fIsLightInSpaceCorrect;
-	float padding[2];
+	float fTime;
+	float padding;
 };
 
 struct CameraParams

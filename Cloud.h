@@ -16,8 +16,8 @@ struct CloudParams
 	CloudTypeLayer mCloudTypeLayer[3];
 
 	D3DXVECTOR2 f2CloudLayerHeight;
-	float fTransition;
-	float fUpperDensity;
+	float fScale;
+	float padding;
 };
 
 class Cloud : public GameObject
@@ -32,6 +32,8 @@ public:
 	HRESULT OnD3D11CreateDevice(ID3D11Device*, ID3D11DeviceContext*);
 	void Resize(int, int, float, float, float, float);
 
+	void OnFrameMove(double fTime, float fElapsedTime);
+
 	HRESULT PreCompute(ID3D11Device*, ID3D11DeviceContext*, ID3D11RenderTargetView*);
 	HRESULT PreComputePerlinWorleyTex3D(ID3D11Device*, ID3D11DeviceContext*);
 	HRESULT PreComputeWorleyTex3D(ID3D11Device*, ID3D11DeviceContext*);
@@ -42,13 +44,14 @@ public:
 	void SetLightParams(LightParams* light);
 	void SetCamParams(CameraParams* cam);
 	void SetAtmosphereParams(AtmosphereParams* atmosphere);
+
 private:
 	const int PERLIN_WORLEY_TEXTURE_DIM = 128;
 	const int WORLEY_TEXTURE_DIM = 32;
 	const int CURL_TEXTURE_DIM = 128;
 
 	float fLowerLayer = 1500;
-	float fUpperLayer = 8000;
+	float fUpperLayer = 4000;
 
 	bool IsPreComputed = true;
 	CComPtr<ID3D11Texture3D>				pPerlinWorleyTex3D;
@@ -62,6 +65,9 @@ private:
 
 	CComPtr<ID3D11ShaderResourceView>		pNoiseBasePackedSRV;
 	CComPtr<ID3D11ShaderResourceView>		pNoiseDetailPackedSRV;
+
+	CComPtr<ID3D11ShaderResourceView>		pNoiseBaseSRV;
+	CComPtr<ID3D11ShaderResourceView>		pNoiseDetailSRV;
 
 	CloudParams cloudParams;
 	AtmosphereParams* pAtmosphereParams;
@@ -93,14 +99,14 @@ private:
 
 	std::vector<std::string> ShaderResourceVarStr
 	{
-		"g_tex3DNoiseBase",
-		"g_tex3DNoiseDetail",
 		"g_tex2DNoiseBase",
 		"g_tex2DNoiseDetail",
 		"g_tex2DNoiseBasePacked",
 		"g_tex2DNoiseDetailPacked",
-		"g_tex2DSpaceDepth",
-		"g_tex2DColorBuffer"
+		"g_tex2DSpaceLinearDepth",
+		"g_tex2DColorBuffer",
+		"g_tex3DPerlinWorleyNoise",
+		"g_tex3DWorleyNoise"
 	};
 };
 

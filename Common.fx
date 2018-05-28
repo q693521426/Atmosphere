@@ -31,6 +31,13 @@ SamplerState samLinearWrap
     AddressV = Wrap;
 };
 
+SamplerState samPointWrap
+{
+    Filter = MIN_MAG_MIP_POINT;
+    AddressU = Wrap;
+    AddressV = Wrap;
+};
+
 SamplerState samLinearBorder0
 {
     Filter = MIN_MAG_MIP_LINEAR;
@@ -169,7 +176,8 @@ struct MiscDynamicParams
 
     float fEnableLightShaft;
     float fIsLightInSpaceCorrect;
-    float2 padding;
+    float fTime;
+    float padding;
 };
 
 cbuffer cbMiscDynamicParams
@@ -299,8 +307,11 @@ Texture2D<float4> g_tex2DInterpolatedScatter;
 
 Texture2D<float3> g_tex2DColorBuffer;
 
-Texture3D<float4> g_tex3DNoiseBase;
-Texture3D<float4> g_tex3DNoiseDetail;
+Texture3D<float4> g_tex3DPerlinWorleyNoise;
+Texture3D<float4> g_tex3DWorleyNoise;
+
+Texture2D<float4> g_tex2DNoiseBase;
+Texture2D<float4> g_tex2DNoiseDetail;
 
 Texture2D<float4> g_tex2DNoiseBasePacked;
 Texture2D<float4> g_tex2DNoiseDetailPacked;

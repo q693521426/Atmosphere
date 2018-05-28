@@ -1264,6 +1264,8 @@ void Atmosphere::OnFrameMove(double fTime, float fElapsedTime, float fScale)
 	{
 		sun_azimuth_angle_radians -= fElapsedTime / fScale;
 	}
+	if(m_pCloud)
+		m_pCloud->OnFrameMove(fTime, fElapsedTime);
 }
 
 

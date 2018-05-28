@@ -29,8 +29,8 @@ void Cloud::Initialize()
 	//cloudParams.mCloudTypeLayer[2].f2LayerHeightScale = (D3DXVECTOR2(6.0, 8.0) - f2CloudLowHeight) / fCloudHeight;
 	//cloudParams.mCloudTypeLayer[2].f2LayerDensityPoint = (D3DXVECTOR2(6.5, 7.5) - f2CloudLowHeight) / fCloudHeight;
 	cloudParams.f2CloudLayerHeight = D3DXVECTOR2(1.5, 8.0);
-	cloudParams.mCloudTypeLayer[0].f2LayerHeightScale = D3DXVECTOR2(0.0,0.5);
-	cloudParams.mCloudTypeLayer[0].f2LayerDensityPoint = D3DXVECTOR2(0.1,0.4);
+	cloudParams.mCloudTypeLayer[0].f2LayerHeightScale = D3DXVECTOR2(0.0,1);
+	cloudParams.mCloudTypeLayer[0].f2LayerDensityPoint = D3DXVECTOR2(0.3,0.7);
 
 	cloudParams.mCloudTypeLayer[1].f2LayerHeightScale = D3DXVECTOR2(0.4,0.8);
 	cloudParams.mCloudTypeLayer[1].f2LayerDensityPoint = D3DXVECTOR2(0.5, 0.7);
@@ -38,6 +38,9 @@ void Cloud::Initialize()
 	cloudParams.mCloudTypeLayer[2].f2LayerHeightScale = D3DXVECTOR2(0.7, 1);
 	cloudParams.mCloudTypeLayer[2].f2LayerDensityPoint = D3DXVECTOR2(0.8, 0.9) ;
 
+	cloudParams.fScale = 1 / 10.f;
+
+	misc.fTime = 0;
 }
 
 
@@ -52,6 +55,9 @@ void Cloud::Release()
 
 	pNoiseBasePackedSRV.Release();
 	pNoiseDetailPackedSRV.Release();
+
+	pNoiseBaseSRV.Release();
+	pNoiseDetailSRV.Release();
 
 	GameObject::Release();
 }
@@ -71,6 +77,10 @@ HRESULT Cloud::OnD3D11CreateDevice(ID3D11Device* pDevice, ID3D11DeviceContext* p
 	IsPreComputed = true;
 	READ_LUT(LoadTGAToSRV(pDevice, L"Texture/noiseShapePacked.tga", &pNoiseBasePackedSRV.p), IsPreComputed);
 	READ_LUT(LoadTGAToSRV(pDevice, L"Texture/noiseErosionPacked.tga", &pNoiseDetailPackedSRV.p), IsPreComputed);
+
+	READ_LUT(LoadTGAToSRV(pDevice, L"Texture/noiseShape.tga", &pNoiseBaseSRV.p), IsPreComputed);
+	READ_LUT(LoadTGAToSRV(pDevice, L"Texture/noiseErosion.tga", &pNoiseDetailSRV.p), IsPreComputed);
+
 #endif
 	return hr;
 }
@@ -204,14 +214,16 @@ HRESULT Cloud::PreComputeWorleyTex3D(ID3D11Device* pDevice, ID3D11DeviceContext*
 void Cloud::Render(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, ID3D11RenderTargetView* pRTV, ID3D11ShaderResourceView* pColorBufferSRV,ID3D11ShaderResourceView* pSpaceLinearDepthSRV)
 {
 	VarMap["cloud"]->SetRawValue(&cloudParams, 0, sizeof(CloudParams));
-
+	VarMap["misc"]->SetRawValue(&misc, 0, sizeof(MiscDynamicParams));
 	ID3DX11EffectTechnique* activeTech = TechMap["DrawCloudTech"];
 
-	//ShaderResourceVarMap["g_tex3DPerlinWorleyNoise"]->SetResource(pPerlinWorleySRV);
-	//ShaderResourceVarMap["g_tex3DWorleyNoise"]->SetResource(pWorleySRV);
+	ShaderResourceVarMap["g_tex3DPerlinWorleyNoise"]->SetResource(pPerlinWorleySRV);
+	ShaderResourceVarMap["g_tex3DWorleyNoise"]->SetResource(pWorleySRV);
 	ShaderResourceVarMap["g_tex2DNoiseBasePacked"]->SetResource(pNoiseBasePackedSRV);
 	ShaderResourceVarMap["g_tex2DNoiseDetailPacked"]->SetResource(pNoiseDetailPackedSRV);
-	ShaderResourceVarMap["g_tex2DSpaceDepth"]->SetResource(pSpaceLinearDepthSRV);
+	ShaderResourceVarMap["g_tex2DNoiseBase"]->SetResource(pNoiseBaseSRV);
+	ShaderResourceVarMap["g_tex2DNoiseDetail"]->SetResource(pNoiseDetailSRV);
+	ShaderResourceVarMap["g_tex2DSpaceLinearDepth"]->SetResource(pSpaceLinearDepthSRV);
 	ShaderResourceVarMap["g_tex2DColorBuffer"]->SetResource(pColorBufferSRV);
 
 	VarMap["SCREEN_WIDTH"]->SetRawValue(&screen_width, 0, sizeof(UINT));
@@ -251,5 +263,14 @@ void Cloud::SetCamParams(CameraParams* pCam)
 void Cloud::SetAtmosphereParams(AtmosphereParams* pAtmosphere)
 {
 	this->pAtmosphereParams = pAtmosphere;
+	this->pAtmosphereParams->bottom_radius *= cloudParams.fScale;
+	this->pAtmosphereParams->top_radius *= cloudParams.fScale;
 	VarMap["atmosphere"]->SetRawValue(pAtmosphere, 0, sizeof(AtmosphereParams));
+	this->pAtmosphereParams->bottom_radius /= cloudParams.fScale;
+	this->pAtmosphereParams->top_radius /= cloudParams.fScale;
+}
+
+void Cloud::OnFrameMove(double fTime, float fElapsedTime)
+{
+	misc.fTime += fElapsedTime;
 }

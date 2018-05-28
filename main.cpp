@@ -6,6 +6,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 //--------------------------------------------------------------------------------------
 #include "DXUT.h"
+
 #include "Atmosphere.h"
 #include "Model/Model.h"
 #include "FrameBuffer.h"
@@ -18,7 +19,9 @@
 #define new new( _NORMAL_BLOCK , __FILE__ , __LINE__ )
 #endif  // _DEBUG
 
-#define LOAD_MODEL 0
+#define LOAD_MODEL 1
+#define WIN32_LEAN_AND_MEAN
+
 
 Atmosphere*							m_pAtmosphere;
 Model*								m_pModel;
@@ -120,6 +123,21 @@ HRESULT CALLBACK OnD3D11CreateDevice( ID3D11Device* pd3dDevice, const DXGI_SURFA
 
 	m_pShadowMapFrameBuffer->Resize(m_shadowMapDim, m_shadowMapDim);
 
+#if MICROPROFILE
+	MicroProfileOnThreadCreate("Atmosphere");
+	//	MicroProfileSetForceEnable(true);
+	MicroProfileSetEnableAllGroups(true);
+	MicroProfileSetForceMetaCounters(true);
+
+	MicroProfileGpuInitD3D11(pd3dDevice, pContext);
+
+	MICROPROFILE_GPU_SET_CONTEXT(pContext, MicroProfileGetGlobalGpuThreadLog());
+	MicroProfileStartContextSwitchTrace();
+
+	char buffer[256];
+	snprintf(buffer, sizeof(buffer) - 1, "Webserver started in localhost:%d\n", MicroProfileWebServerPort());
+	OutputDebugStringA(buffer);
+#endif
     return S_OK;
 }
 
@@ -255,6 +273,9 @@ void CALLBACK OnD3D11DestroyDevice(void* pUserContext)
 		delete m_pModel;
 		m_pModel = nullptr;
 	}
+#if MICROPROFILE
+	MicroProfileShutdown();
+#endif
 }
 
 
@@ -319,7 +340,7 @@ int WINAPI wWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdL
     DXUTCreateWindow( L"Atmosphere" );
 
     // Only require 10-level hardware
-    DXUTCreateDevice( D3D_FEATURE_LEVEL_10_0, true, screen_width, screen_height );
+    DXUTCreateDevice( D3D_FEATURE_LEVEL_11_0, true, screen_width, screen_height );
     DXUTMainLoop(); // Enter into the DXUT ren  der loop
 
     // Perform any application-level cleanup here
