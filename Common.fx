@@ -1,3 +1,5 @@
+#include "Structures.fxh"
+
 static const float PI = 3.141592654f;
 
 #define USE_LUT_PARAMETERIZATION 1
@@ -126,58 +128,10 @@ BlendState NoBlending
     BlendEnable[2] = FALSE;
 };
 
-struct DensityProfileLayer
-{
-    float exp_term;
-    float exp_scale;
-    float linear_term;
-    float const_term;
-};
-
-struct AtmosphereParams
-{
-    float3 solar_irradiance;
-    float bottom_radius;
-    
-    float3 rayleigh_scattering;
-    float top_radius;
-    
-    float3 mie_scattering;
-    float mie_g;
-    
-    float3 mie_extinction;
-    float ground_albedo;
-    
-    float3 absorption_extinction;
-    float ozone_width;
-
-    float sun_angular_radius;
-    float mu_s_min;
-    float nu_power;
-    float radius_scale;
-
-    DensityProfileLayer rayleigh_density;
-    DensityProfileLayer mie_density;
-    DensityProfileLayer ozone_density[2];
-};
 
 cbuffer cbAtmosphereParams
 {
     AtmosphereParams atmosphere;
-};
-
-struct MiscDynamicParams
-{
-    float2 f2WQ;
-    float scatter_order;
-    uint uiMinMaxLevelMax;
-
-    uint4 ui4SrcDstMinMaxOffset;
-
-    float fEnableLightShaft;
-    float fIsLightInSpaceCorrect;
-    float fTime;
-    float padding;
 };
 
 cbuffer cbMiscDynamicParams
@@ -185,36 +139,9 @@ cbuffer cbMiscDynamicParams
     MiscDynamicParams misc;
 };
 
-struct CameraParams
-{
-    float3 f3CameraPos;
-    float fNearZ;
-
-    float3 f3CameraDir;
-    float fFarZ;
-
-    float4x4 View;
-    float4x4 Proj;
-    float4x4 ViewProj;
-    float4x4 InvViewProj;
-};
-
 cbuffer cbCameraParams
 {
     CameraParams camera;
-};
-
-struct LightParams
-{
-    float3 f3LightDir;
-    float padding;
-
-    float4 f4LightScreenPos;
-
-    matrix View;
-    matrix Proj;
-    matrix ViewProj;
-    matrix InvViewProj;
 };
 
 cbuffer cbLightParams
@@ -444,12 +371,13 @@ float GetRayMarchLen(float4 f4RMuMuSNu,
     float fRMuSqr = fRMu * fRMu;
 
     float fIntersectAtmosphereDiscriminant = fRMuSqr - fRSqr + atmosphere.top_radius * atmosphere.top_radius;
+    bIsNoScatter = false;
     bIsNoScatter = f4RMuMuSNu.x > atmosphere.top_radius &&
                       (fIntersectAtmosphereDiscriminant < 0 || (fIntersectAtmosphereDiscriminant >= 0 && f4RMuMuSNu.y > 0));
-    //if (bIsNoScatter)
-    //{
-    //    return fRayMarchLen;
-    //}
+    if (bIsNoScatter)
+    {
+        return fRayMarchLen;
+    }
 
     float fIntersectAtmosphereSqrt = SafeSqrt(fIntersectAtmosphereDiscriminant);
     fDistToAtmosphereNear = -fRMu - fIntersectAtmosphereSqrt;

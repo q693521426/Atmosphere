@@ -340,7 +340,6 @@ void Model::UpdateLightParams(const D3DXVECTOR3& SunDir)
 
 void Model::RenderShadowMap(ID3D11Device* pd3dDevice, ID3D11DeviceContext* pd3dImmediateContext, const D3DXVECTOR3& SunDir,UINT shadowMapDim)
 {
-	UpdateLightParams(SunDir);
 	RenderModel(pd3dDevice, pd3dImmediateContext, nullptr,m_LightViewProj, true);
 }
 

@@ -370,18 +370,18 @@ void Atmosphere::Render(ID3D11Device* pDevice, ID3D11DeviceContext* pContext,
 
 	//RenderBackGround(pDevice, pContext, pRTV, pColorBufferSRV,pDepthSRV);
 	ComputeSpaceLinearDepthTex2D(pDevice, pContext, pDepthSRV);
-	//ComputeSliceEndTex2D(pDevice, pContext);
-	//ComputeEpipolarCoordTex2D(pDevice, pContext);
-	//ComputeUnshadowedSampleScatter(pDevice, pContext);
-	//RefineSampleLocal(pDevice, pContext);
-	//ComputeSliceUVOrigDirTex2D(pDevice, pContext, pShadowMapSRV);
-	//Build1DMinMaxMipMap(pDevice, pContext, pShadowMapSRV, shadowMapResolution);
-	//MarkRayMarchSample(pDevice, pContext);
-	//if(fEnableLightShaft)
-	//	DoRayMarch(pDevice, pContext, pShadowMapSRV);
-	//InterpolateScatter(pDevice, pContext);
-	//ApplyAndFixInterpolateScatter(pDevice, pContext, pRTV, pColorBufferSRV);
-	m_pCloud->Render(pDevice, pContext, pRTV, pColorBufferSRV, pSpaceLinearDepthSRV);
+	ComputeSliceEndTex2D(pDevice, pContext);
+	ComputeEpipolarCoordTex2D(pDevice, pContext);
+	ComputeUnshadowedSampleScatter(pDevice, pContext);
+	RefineSampleLocal(pDevice, pContext);
+	ComputeSliceUVOrigDirTex2D(pDevice, pContext, pShadowMapSRV);
+	Build1DMinMaxMipMap(pDevice, pContext, pShadowMapSRV, shadowMapResolution);
+	MarkRayMarchSample(pDevice, pContext);
+	if(fEnableLightShaft)
+		DoRayMarch(pDevice, pContext, pShadowMapSRV);
+	InterpolateScatter(pDevice, pContext);
+	ApplyAndFixInterpolateScatter(pDevice, pContext, pRTV, pColorBufferSRV);
+	//m_pCloud->Render(pDevice, pContext, pRTV, pColorBufferSRV, pSpaceLinearDepthSRV);
 }
 
 

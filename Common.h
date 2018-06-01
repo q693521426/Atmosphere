@@ -16,6 +16,8 @@
 #include <memory>
 #include "DirectXTex.h"
 
+#include "Structures.fxh"
+
 #include "./MicroProfile/microprofile.h"
 
 #define CREATE_TEXTURE_DDS_TEST 0
@@ -23,86 +25,6 @@
 #define READ_LUT(x,res) { if(res) { hr = (x); if( FAILED(hr) ) { res = false; } } }
 #define D3D_COMPILE_STANDARD_FILE_INCLUDE ((ID3DInclude*)(UINT_PTR)1)
 #define MICROPROFILE 0
-
-
-struct DensityProfileLayer
-{
-	float exp_term;
-	float exp_scale;
-	float linear_term;
-	float const_term;
-};
-
-struct AtmosphereParams
-{
-	D3DXVECTOR3 solar_irradiance;
-	float bottom_radius;
-
-	D3DXVECTOR3 rayleigh_scattering;
-	float top_radius;
-
-	D3DXVECTOR3 mie_scattering;
-	float mie_g;
-
-	D3DXVECTOR3 mie_extinction;
-	float ground_albedo;
-
-	D3DXVECTOR3 absorption_extinction;
-	float ozone_width;
-
-	float sun_angular_radius;
-	float mu_s_min;
-	float nu_power;
-	float radius_scale;
-
-	DensityProfileLayer rayleigh_density;
-	DensityProfileLayer mie_density;
-	DensityProfileLayer ozone_density[2];
-};
-
-struct MiscDynamicParams
-{
-	D3DXVECTOR2 f2WQ;
-	float scatter_order;
-	UINT uiMinMaxLevelMax;
-
-	UINT uiSrcMinMaxOffsetX;
-	UINT uiSrcMinMaxOffsetY;
-	UINT uiDstMinMaxOffsetX;
-	UINT uiDstMinMaxOffsetY;
-
-	float fEnableLightShaft;
-	float fIsLightInSpaceCorrect;
-	float fTime;
-	float padding;
-};
-
-struct CameraParams
-{
-	D3DXVECTOR3 f3CameraPos;
-	float fNearZ;
-
-	D3DXVECTOR3 f3CameraDir;
-	float fFarZ;
-
-	D3DXMATRIX View;
-	D3DXMATRIX Proj;
-	D3DXMATRIX ViewProj;
-	D3DXMATRIX InvViewProj;
-};
-
-struct LightParams
-{
-	D3DXVECTOR3 f3LightDir;
-	float padding;
-
-	D3DXVECTOR4 f4LightScreenPos;
-
-	D3DXMATRIX View;
-	D3DXMATRIX Proj;
-	D3DXMATRIX ViewProj;
-	D3DXMATRIX InvViewProj;
-};
 
 class GameObject
 {

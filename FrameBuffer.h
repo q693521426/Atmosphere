@@ -1,4 +1,7 @@
 #pragma once
+#ifndef FRAMEBUFFER_H_
+#define FRAMEBUFFER_H_
+
 #include "RenderStates.h"
 
 class FrameBuffer
@@ -53,4 +56,4 @@ private:
 	int												width;
 	int												height;
 };
-
+#endif

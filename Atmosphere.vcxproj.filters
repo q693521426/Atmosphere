@@ -14,6 +14,18 @@
     <Filter Include="Model\FBXLoader">
       <UniqueIdentifier>{1de3a802-d20a-4d1c-b0ec-d3ffecc1476a}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Microprofile">
+      <UniqueIdentifier>{2f65d09c-42c3-4495-9624-0605d555a555}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header">
+      <UniqueIdentifier>{4c47dacb-d496-4e3e-9fa4-df45113815e2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Shader">
+      <UniqueIdentifier>{757aaef4-a727-4937-8a49-95ff4e970149}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source">
+      <UniqueIdentifier>{8a82bf87-3de0-454a-9b4d-6e50865ee20e}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <None Include="DXUT\Optional\directx.ico">
@@ -79,18 +91,23 @@
     <ClCompile Include="DXUT\Optional\SDKmisc.cpp">
       <Filter>DXUT</Filter>
     </ClCompile>
-    <None Include="Atmosphere.fx" />
-    <None Include="Common.fx" />
-    <None Include="Cloud.fx" />
     <None Include="Model\LoadModel.hlsl">
       <Filter>Model</Filter>
     </None>
+    <None Include="Cloud.fx">
+      <Filter>Shader</Filter>
+    </None>
+    <None Include="Common.fx">
+      <Filter>Shader</Filter>
+    </None>
+    <None Include="Atmosphere.fx">
+      <Filter>Shader</Filter>
+    </None>
+    <None Include="Structures.fxh">
+      <Filter>Header</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="main.cpp" />
-    <ClCompile Include="Atmosphere.cpp" />
-    <ClCompile Include="Cloud.cpp" />
-    <ClCompile Include="Common.cpp" />
     <ClCompile Include="Model\Model.cpp">
       <Filter>Model</Filter>
     </ClCompile>
@@ -103,8 +120,27 @@
     <ClCompile Include="Model\FBXLoader\DDSTextureLoader.cpp">
       <Filter>Model\FBXLoader</Filter>
     </ClCompile>
-    <ClCompile Include="FrameBuffer.cpp" />
-    <ClCompile Include="RenderStates.cpp" />
+    <ClCompile Include="MicroProfile\microprofile.cpp">
+      <Filter>Microprofile</Filter>
+    </ClCompile>
+    <ClCompile Include="Atmosphere.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="RenderStates.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="main.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="FrameBuffer.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Common.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Cloud.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <CLInclude Include="resource.h">
@@ -113,9 +149,6 @@
     <ResourceCompile Include="Atmosphere.rc">
       <Filter>Resource Files</Filter>
     </ResourceCompile>
-    <ClInclude Include="Atmosphere.h" />
-    <ClInclude Include="Common.h" />
-    <ClInclude Include="Cloud.h" />
     <ClInclude Include="Model\Model.h">
       <Filter>Model</Filter>
     </ClInclude>
@@ -131,7 +164,23 @@
     <ClInclude Include="Model\FBXLoader\DDSTextureLoader.h">
       <Filter>Model\FBXLoader</Filter>
     </ClInclude>
-    <ClInclude Include="FrameBuffer.h" />
-    <ClInclude Include="RenderStates.h" />
+    <ClInclude Include="MicroProfile\microprofile.h">
+      <Filter>Microprofile</Filter>
+    </ClInclude>
+    <ClInclude Include="Cloud.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="Common.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="FrameBuffer.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderStates.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="Atmosphere.h">
+      <Filter>Header</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
