@@ -391,6 +391,8 @@
     <ClCompile Include="Model\FBXLoader\DDSTextureLoader.cpp" />
     <ClCompile Include="Model\Model.cpp" />
     <ClCompile Include="RenderStates.cpp" />
+    <ClCompile Include="UIControl.cpp" />
+    <ClInclude Include="UIControl.h" />
     <None Include="Structures.fxh">
       <FileType>CppHeader</FileType>
     </None>

@@ -141,6 +141,9 @@
     <ClCompile Include="Cloud.cpp">
       <Filter>Source</Filter>
     </ClCompile>
+    <ClCompile Include="UIControl.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <CLInclude Include="resource.h">
@@ -180,6 +183,9 @@
       <Filter>Header</Filter>
     </ClInclude>
     <ClInclude Include="Atmosphere.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="UIControl.h">
       <Filter>Header</Filter>
     </ClInclude>
   </ItemGroup>
