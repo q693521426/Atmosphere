@@ -68,7 +68,7 @@ void Atmosphere::Initialize()
 		return static_cast<float>(x*(1 - s) + y*s);
 	};
 
-	ZeroMemory(&atmosphereParams, sizeof(AtmosphereParams));
+	ZeroMemory(&cb_AtmosphereParams, sizeof(AtmosphereParams));
 	for(int i=0;i<lambda.size();++i)
 	{
 		double l = lambda[i];
@@ -84,44 +84,44 @@ void Atmosphere::Initialize()
 		double mie = lerp(kMieAngstromBeta / kMieScaleHeight * pow(lambda_x_um, -kMieAngstromAlpha),
 			kMieAngstromBeta / kMieScaleHeight * pow(lambda_y_um, -kMieAngstromAlpha), s) * 1000;
 
-		atmosphereParams.solar_irradiance[i]=
+		cb_AtmosphereParams.solar_irradiance[i]=
 			lerp(kSolarIrradiance[index], kSolarIrradiance[index + 1], s) ;
-		atmosphereParams.rayleigh_scattering[i] =
+		cb_AtmosphereParams.rayleigh_scattering[i] =
 			lerp(kRayleigh * pow(lambda_x_um, -4), kRayleigh *pow(lambda_y_um, -4), s) * 1000;
-		atmosphereParams.mie_scattering[i] = mie;
-		atmosphereParams.mie_extinction[i] = mie*kMieSingleScatteringAlbedo;
-		atmosphereParams.absorption_extinction[i] =
+		cb_AtmosphereParams.mie_scattering[i] = mie;
+		cb_AtmosphereParams.mie_extinction[i] = mie*kMieSingleScatteringAlbedo;
+		cb_AtmosphereParams.absorption_extinction[i] =
 			lerp(kMaxOzoneNumberDensity * kOzoneCrossSection[index],
 				kMaxOzoneNumberDensity * kOzoneCrossSection[index+1],s) * 1000;
 	}
 	
-	atmosphereParams.mu_s_min = cos(102.0*D3DX_PI/180.0);
-	atmosphereParams.sun_angular_radius = 32.f / 2.f / 60.f * ((2.f * D3DX_PI) / 180); //0.2678 * D3DX_PI / 180.0;
-	atmosphereParams.bottom_radius = 6360.f;
-	atmosphereParams.top_radius = 6420.f;
-	atmosphereParams.mie_g = 0.8f;
-	atmosphereParams.ground_albedo = 0.1f;
-	atmosphereParams.ozone_width = 25.0f;
-	atmosphereParams.nu_power = 1.5;
-	atmosphereParams.radius_scale = 1 / (atmosphereParams.top_radius - atmosphereParams.bottom_radius);
-	atmosphereParams.rayleigh_density = DensityProfileLayer
+	cb_AtmosphereParams.mu_s_min = cos(102.0*D3DX_PI/180.0);
+	cb_AtmosphereParams.sun_angular_radius = 32.f / 2.f / 60.f * ((2.f * D3DX_PI) / 180); //0.2678 * D3DX_PI / 180.0;
+	cb_AtmosphereParams.bottom_radius = 6360.f;
+	cb_AtmosphereParams.top_radius = 6420.f;
+	cb_AtmosphereParams.mie_g = 0.8f;
+	cb_AtmosphereParams.ground_albedo = 0.1f;
+	cb_AtmosphereParams.ozone_width = 25.0f;
+	cb_AtmosphereParams.nu_power = 1.5;
+	cb_AtmosphereParams.radius_scale = 1 / (cb_AtmosphereParams.top_radius - cb_AtmosphereParams.bottom_radius);
+	cb_AtmosphereParams.rayleigh_density = DensityProfileLayer
 	{
 		1.f, -1.0 / kRayleighScaleHeight * 1000.0, 0.f, 0.f
 	};
-	atmosphereParams.mie_density = DensityProfileLayer
+	cb_AtmosphereParams.mie_density = DensityProfileLayer
 	{
 		1.f, -1.0 / kMieScaleHeight * 1000.0, 0.f, 0.f
 	};
-	atmosphereParams.ozone_density[0] = DensityProfileLayer
+	cb_AtmosphereParams.ozone_density[0] = DensityProfileLayer
 	{
 		0.0, 0.0, 1.0 / 15.0, -2.0 / 3.0
 	};
-	atmosphereParams.ozone_density[1] = DensityProfileLayer
+	cb_AtmosphereParams.ozone_density[1] = DensityProfileLayer
 	{
 		0.0, 0.0, -1.0 / 15.0, 8.0 / 3.0
 	};
 	
-	scatter_order_num = 4;
+	m_scatter_order_num = 4;
 	
 	m_pCloud = new Cloud();
 	m_pCloud->Initialize();
@@ -211,19 +211,19 @@ HRESULT Atmosphere::OnD3D11CreateDevice(ID3D11Device* pDevice, ID3D11DeviceConte
 	V_RETURN(D3DX11CreateShaderResourceViewFromFile(pDevice, L"Texture/earth.tiff", nullptr, nullptr, &pEarthGroundSRV.p, nullptr));
 
 #if USE_LUT_DDS
-	IsPreComputed = true;
-	READ_LUT(D3DX11CreateShaderResourceViewFromFile(pDevice, L"Texture/OpticalLength.dds", nullptr, nullptr, &pOpticalLengthSRV.p, nullptr), IsPreComputed);
-	READ_LUT(D3DX11CreateShaderResourceViewFromFile(pDevice, L"Texture/DirectIrradiance.dds", nullptr, nullptr, &pDirectIrradianceSRV.p, nullptr), IsPreComputed);
-	READ_LUT(D3DX11CreateShaderResourceViewFromFile(pDevice, L"Texture/SingleScatterCombined.dds", nullptr, nullptr, &pSingleScatterCombinedSRV.p, nullptr), IsPreComputed);
-	READ_LUT(D3DX11CreateShaderResourceViewFromFile(pDevice, L"Texture/IndirectIrradiance.dds", nullptr, nullptr, &pIndirectIrradianceSRV.p, nullptr), IsPreComputed);
-	READ_LUT(D3DX11CreateShaderResourceViewFromFile(pDevice, L"Texture/MultiScatterCombined.dds", nullptr, nullptr, &pMultiScatterCombinedSRV.p, nullptr), IsPreComputed);
+	m_IsPreComputed = true;
+	READ_LUT(D3DX11CreateShaderResourceViewFromFile(pDevice, L"Texture/OpticalLength.dds", nullptr, nullptr, &pOpticalLengthSRV.p, nullptr), m_IsPreComputed);
+	READ_LUT(D3DX11CreateShaderResourceViewFromFile(pDevice, L"Texture/DirectIrradiance.dds", nullptr, nullptr, &pDirectIrradianceSRV.p, nullptr), m_IsPreComputed);
+	READ_LUT(D3DX11CreateShaderResourceViewFromFile(pDevice, L"Texture/SingleScatterCombined.dds", nullptr, nullptr, &pSingleScatterCombinedSRV.p, nullptr), m_IsPreComputed);
+	READ_LUT(D3DX11CreateShaderResourceViewFromFile(pDevice, L"Texture/IndirectIrradiance.dds", nullptr, nullptr, &pIndirectIrradianceSRV.p, nullptr), m_IsPreComputed);
+	READ_LUT(D3DX11CreateShaderResourceViewFromFile(pDevice, L"Texture/MultiScatterCombined.dds", nullptr, nullptr, &pMultiScatterCombinedSRV.p, nullptr), m_IsPreComputed);
 #endif
 
 	SetTextureSize();
 
 	m_pCloud->OnD3D11CreateDevice(pDevice, pContext);
 
-	m_pCloud->SetAtmosphereParams(&atmosphereParams);
+	m_pCloud->SetAtmosphereParams(&cb_AtmosphereParams);
 	return hr;
 }
 
@@ -258,39 +258,39 @@ void Atmosphere::SetCameraParams()
 	//D3DXVECTOR3 EyePos = *m_FirstPersonCamera.GetEyePt();
 	//D3DXVECTOR3 LookAt = *m_FirstPersonCamera.GetLookAtPt();
 
-	cameraParams.f3CameraPos = f3CamPos;
-	cameraParams.View = camView;
-	cameraParams.Proj = camProj;
-	cameraParams.ViewProj = cameraParams.View * cameraParams.Proj;
-	float det = D3DXMatrixDeterminant(&cameraParams.ViewProj);
-	D3DXMatrixInverse(&cameraParams.InvViewProj, &det, &cameraParams.ViewProj);
+	cb_CameraParams.f3CameraPos = f3CamPos;
+	cb_CameraParams.View = mCamView;
+	cb_CameraParams.Proj = mCamProj;
+	cb_CameraParams.ViewProj = cb_CameraParams.View * cb_CameraParams.Proj;
+	float det = D3DXMatrixDeterminant(&cb_CameraParams.ViewProj);
+	D3DXMatrixInverse(&cb_CameraParams.InvViewProj, &det, &cb_CameraParams.ViewProj);
 
-	D3DXMatrixTranspose(&cameraParams.View, &cameraParams.View);
-	D3DXMatrixTranspose(&cameraParams.Proj, &cameraParams.Proj);
-	D3DXMatrixTranspose(&cameraParams.ViewProj, &cameraParams.ViewProj);
-	D3DXMatrixTranspose(&cameraParams.InvViewProj, &cameraParams.InvViewProj);
+	D3DXMatrixTranspose(&cb_CameraParams.View, &cb_CameraParams.View);
+	D3DXMatrixTranspose(&cb_CameraParams.Proj, &cb_CameraParams.Proj);
+	D3DXMatrixTranspose(&cb_CameraParams.ViewProj, &cb_CameraParams.ViewProj);
+	D3DXMatrixTranspose(&cb_CameraParams.InvViewProj, &cb_CameraParams.InvViewProj);
 
-	cameraParams.f3CameraDir = f3CamDir;
-	D3DXVec3Normalize(&cameraParams.f3CameraDir, &cameraParams.f3CameraDir);
+	cb_CameraParams.f3CameraDir = f3CamDir;
+	D3DXVec3Normalize(&cb_CameraParams.f3CameraDir, &cb_CameraParams.f3CameraDir);
 
-	cameraParams.fNearZ = fCamNear;
-	cameraParams.fFarZ = fCamFar * 0.999999f;
+	cb_CameraParams.fNearZ = fCamNear;
+	cb_CameraParams.fFarZ = fCamFar * 0.999999f;
 
-	VarMap["camera"]->SetRawValue(&cameraParams, 0, sizeof(CameraParams));
+	VarMap["camera"]->SetRawValue(&cb_CameraParams, 0, sizeof(CameraParams));
 
-	m_pCloud->SetCamParams(&cameraParams);
+	m_pCloud->SetCamParams(&cb_CameraParams);
 }
 
 
 void Atmosphere::SetLightParams()
 {
-	lightParams.f3LightDir = GetSunDir();
+	cb_LightParams.f3LightDir = GetSunDir();
 	//D3DXMATRIX View = *m_FirstPersonCamera.GetViewMatrix();
 	//D3DXMATRIX Proj = *m_FirstPersonCamera.GetProjMatrix();
-	D3DXMATRIX camViewProj = camView * camProj;
-	D3DXVECTOR4 f4LightPos = D3DXVECTOR4(lightParams.f3LightDir + f3CamPos,1);
-	D3DXVec4Transform(&lightParams.f4LightScreenPos, &f4LightPos, &camViewProj);
-	if (lightParams.f4LightScreenPos.w < 0)
+	D3DXMATRIX camViewProj = mCamView * mCamProj;
+	D3DXVECTOR4 f4LightPos = D3DXVECTOR4(cb_LightParams.f3LightDir + f3CamPos,1);
+	D3DXVec4Transform(&cb_LightParams.f4LightScreenPos, &f4LightPos, &camViewProj);
+	if (cb_LightParams.f4LightScreenPos.w < 0)
 	{
 		fIsLightInSpaceCorrect = 0;
 	}
@@ -299,28 +299,28 @@ void Atmosphere::SetLightParams()
 		fIsLightInSpaceCorrect = 1;
 	}
 
-	lightParams.f4LightScreenPos /= abs(lightParams.f4LightScreenPos.w);
-	float fDistLightToScreen = D3DXVec2Length((D3DXVECTOR2*)(&lightParams.f4LightScreenPos));
+	cb_LightParams.f4LightScreenPos /= abs(cb_LightParams.f4LightScreenPos.w);
+	float fDistLightToScreen = D3DXVec2Length((D3DXVECTOR2*)(&cb_LightParams.f4LightScreenPos));
 	//float fMaxDist = 100;
 	//if (fDistLightToScreen > 100)
-	//	lightParams.f4LightScreenPos *= fMaxDist / fDistLightToScreen;
+	//	cb_LightParams.f4LightScreenPos *= fMaxDist / fDistLightToScreen;
 
-	lightParams.View = lightView;
-	lightParams.Proj = lightProj;
-	lightParams.ViewProj = lightParams.View *lightParams.Proj;
-	float det = D3DXMatrixDeterminant(&lightParams.ViewProj);
-	D3DXMatrixInverse(&lightParams.InvViewProj, &det, &lightParams.ViewProj);
+	cb_LightParams.View = mLightView;
+	cb_LightParams.Proj = mLightProj;
+	cb_LightParams.ViewProj = cb_LightParams.View *cb_LightParams.Proj;
+	float det = D3DXMatrixDeterminant(&cb_LightParams.ViewProj);
+	D3DXMatrixInverse(&cb_LightParams.InvViewProj, &det, &cb_LightParams.ViewProj);
 
-	D3DXMatrixTranspose(&lightParams.View, &lightParams.View);
-	D3DXMatrixTranspose(&lightParams.Proj, &lightParams.Proj);
-	D3DXMatrixTranspose(&lightParams.ViewProj, &lightParams.ViewProj);
-	D3DXMatrixTranspose(&lightParams.InvViewProj, &lightParams.InvViewProj);
+	D3DXMatrixTranspose(&cb_LightParams.View, &cb_LightParams.View);
+	D3DXMatrixTranspose(&cb_LightParams.Proj, &cb_LightParams.Proj);
+	D3DXMatrixTranspose(&cb_LightParams.ViewProj, &cb_LightParams.ViewProj);
+	D3DXMatrixTranspose(&cb_LightParams.InvViewProj, &cb_LightParams.InvViewProj);
 
-	VarMap["light"]->SetRawValue(&lightParams, 0, sizeof(LightParams));
+	VarMap["light"]->SetRawValue(&cb_LightParams, 0, sizeof(LightParams));
 
 	fEnableLightShaft = 1;
 
-	m_pCloud->SetLightParams(&lightParams);
+	m_pCloud->SetLightParams(&cb_LightParams);
 }
 
 
@@ -329,14 +329,14 @@ HRESULT Atmosphere::PreCompute(ID3D11Device* pDevice, ID3D11DeviceContext* pCont
 	HRESULT hr = S_OK;
 
 	m_pCloud->PreCompute(pDevice, pContext, pRTV);
-	if(!IsPreComputed)
+	if(!m_IsPreComputed)
 	{
 		V_RETURN(PreComputeOpticalLengthTex2D(pDevice, pContext));
 		//V_RETURN(PreComputeTransmittanceTex2D(pDevice, pContext));
 		V_RETURN(PreComputeDirectIrradianceTex2D(pDevice, pContext));
 		V_RETURN(PreComputeSingleSctrTex3D(pDevice, pContext));
 
-		for (int scatter_order = 2; scatter_order <= scatter_order_num; ++scatter_order)
+		for (int scatter_order = 2; scatter_order <= m_scatter_order_num; ++scatter_order)
 		{
 			V_RETURN(PreComputeInDirectIrradianceTex2D(pDevice, pContext, scatter_order - 1));
 			V_RETURN(PreComputeMultiSctrTex3D(pDevice, pContext, scatter_order));
@@ -350,7 +350,7 @@ HRESULT Atmosphere::PreCompute(ID3D11Device* pDevice, ID3D11DeviceContext* pCont
 			V_RETURN(SaveTextureToDDS(pContext, "Texture/IndirectIrradiance.dds", pIndirectIrradianceTex2D));
 			V_RETURN(SaveTextureToDDS(pContext, "Texture/MultiScatterCombined.dds", pMultiScatterCombinedTex3D));
 		}
-		IsPreComputed = true;
+		m_IsPreComputed = true;
 	}
 	return hr;
 }
@@ -365,23 +365,29 @@ void Atmosphere::Render(ID3D11Device* pDevice, ID3D11DeviceContext* pContext,
 {
 	SetCameraParams();
 	SetLightParams();
-	VarMap["atmosphere"]->SetRawValue(&atmosphereParams, 0, sizeof(AtmosphereParams));
+	VarMap["atmosphere"]->SetRawValue(&cb_AtmosphereParams, 0, sizeof(AtmosphereParams));
 	VarMap["SHADOWMAP_TEXTURE_DIM"]->SetRawValue(&shadowMapResolution, 0, sizeof(UINT));
 
-	//RenderBackGround(pDevice, pContext, pRTV, pColorBufferSRV,pDepthSRV);
-	ComputeSpaceLinearDepthTex2D(pDevice, pContext, pDepthSRV);
-	ComputeSliceEndTex2D(pDevice, pContext);
-	ComputeEpipolarCoordTex2D(pDevice, pContext);
-	ComputeUnshadowedSampleScatter(pDevice, pContext);
-	RefineSampleLocal(pDevice, pContext);
-	ComputeSliceUVOrigDirTex2D(pDevice, pContext, pShadowMapSRV);
-	Build1DMinMaxMipMap(pDevice, pContext, pShadowMapSRV, shadowMapResolution);
-	MarkRayMarchSample(pDevice, pContext);
-	if(fEnableLightShaft)
-		DoRayMarch(pDevice, pContext, pShadowMapSRV);
-	InterpolateScatter(pDevice, pContext);
-	ApplyAndFixInterpolateScatter(pDevice, pContext, pRTV, pColorBufferSRV);
-	//m_pCloud->Render(pDevice, pContext, pRTV, pColorBufferSRV, pSpaceLinearDepthSRV);
+	//if (m_IsUseEpipolarLine)
+	//{
+		ComputeSpaceLinearDepthTex2D(pDevice, pContext, pDepthSRV);
+	//	ComputeSliceEndTex2D(pDevice, pContext);
+	//	ComputeEpipolarCoordTex2D(pDevice, pContext);
+	//	ComputeUnshadowedSampleScatter(pDevice, pContext);
+	//	RefineSampleLocal(pDevice, pContext);
+	//	ComputeSliceUVOrigDirTex2D(pDevice, pContext, pShadowMapSRV);
+	//	Build1DMinMaxMipMap(pDevice, pContext, pShadowMapSRV, shadowMapResolution);
+	//	MarkRayMarchSample(pDevice, pContext);
+	//	if (fEnableLightShaft)
+	//		DoRayMarch(pDevice, pContext, pShadowMapSRV);
+	//	InterpolateScatter(pDevice, pContext);
+	//	ApplyAndFixInterpolateScatter(pDevice, pContext, pRTV, pColorBufferSRV);
+	//}
+	//else
+	//{
+	//	RenderBackGround(pDevice, pContext, pRTV, pColorBufferSRV, pDepthSRV);
+	//}
+	m_pCloud->Render(pDevice, pContext, pRTV, pColorBufferSRV, pSpaceLinearDepthSRV);
 }
 
 
@@ -429,7 +435,7 @@ HRESULT Atmosphere::PreComputeTransmittanceTex2D(ID3D11Device* pDevice, ID3D11De
 
 	ID3DX11EffectTechnique* activeTech = TechMap["ComputeTransmittanceTex2DTech"];
 
-	VarMap["atmosphere"]->SetRawValue(&atmosphereParams, 0, sizeof(AtmosphereParams));
+	VarMap["atmosphere"]->SetRawValue(&cb_AtmosphereParams, 0, sizeof(AtmosphereParams));
 
 	ID3D11RenderTargetView* pRTVs[] =
 	{
@@ -461,7 +467,7 @@ HRESULT Atmosphere::PreComputeOpticalLengthTex2D(ID3D11Device* pDevice, ID3D11De
 
 	ID3DX11EffectTechnique* activeTech = TechMap["ComputeOpticalLengthTex2DTech"];
 
-	VarMap["atmosphere"]->SetRawValue(&atmosphereParams, 0, sizeof(AtmosphereParams));
+	VarMap["atmosphere"]->SetRawValue(&cb_AtmosphereParams, 0, sizeof(AtmosphereParams));
 
 	ID3D11RenderTargetView* pRTVs[] =
 	{
@@ -550,7 +556,7 @@ HRESULT Atmosphere::PreComputeSingleSctrTex3D(ID3D11Device* pDevice, ID3D11Devic
 
 		ID3DX11EffectTechnique* activeTech = TechMap["ComputeSingleScatterTex3DTech"];
 
-		VarMap["atmosphere"]->SetRawValue(&atmosphereParams, 0, sizeof(AtmosphereParams));
+		VarMap["atmosphere"]->SetRawValue(&cb_AtmosphereParams, 0, sizeof(AtmosphereParams));
 
 	
 		UINT uiW = depthSlice % SCATTERING_TEXTURE_MU_S_SIZE;
@@ -671,7 +677,7 @@ HRESULT Atmosphere::PreComputeMultiSctrTex3D(ID3D11Device* pDevice, ID3D11Device
 		
 		ID3DX11EffectTechnique* activeTech = TechMap["ComputeMultiScatterTex3DTech"];
 
-		VarMap["atmosphere"]->SetRawValue(&atmosphereParams, 0, sizeof(AtmosphereParams));
+		VarMap["atmosphere"]->SetRawValue(&cb_AtmosphereParams, 0, sizeof(AtmosphereParams));
 
 		misc.scatter_order = scatter_order;
 		UINT uiW = depthSlice % SCATTERING_TEXTURE_MU_S_SIZE;
@@ -900,8 +906,8 @@ HRESULT Atmosphere::RefineSampleLocal(ID3D11Device* pDevice, ID3D11DeviceContext
 	V_RETURN(pDevice->CreateShaderResourceView(pInterpolationSampleTex2D, nullptr, &pInterpolationSampleSRV));
 	V_RETURN(pDevice->CreateUnorderedAccessView(pInterpolationSampleTex2D, nullptr, &pInterpolationSampleUAV));
 	
-	RefineSampleCSThreadGroupSize = max(RefineSampleCSThreadGroupSize, InterpolationSampleStep);
-	RefineSampleCSThreadGroupSize = min(RefineSampleCSThreadGroupSize, EPIPOLAR_SAMPLE_NUM);
+	m_RefineSampleCSThreadGroupSize = max(m_RefineSampleCSThreadGroupSize, m_InterpolationSampleStep);
+	m_RefineSampleCSThreadGroupSize = min(m_RefineSampleCSThreadGroupSize, EPIPOLAR_SAMPLE_NUM);
 
 	ID3DX11EffectTechnique* activeTech = TechMap["RefineSampleTech"];
 
@@ -942,7 +948,7 @@ HRESULT Atmosphere::RefineSampleLocal(ID3D11Device* pDevice, ID3D11DeviceContext
 		//pContext->CSSetUnorderedAccessViews(0, 1, &pInterpolationSampleUAV.p, nullptr);
 		//pContext->CSSetShaderResources(0, 1, &pEpipolarSampleSRV.p);
 		//pContext->CSSetShaderResources(1, 1, &pEpipolarSampleCamDepthSRV.p);
-		pContext->Dispatch(EPIPOLAR_SAMPLE_NUM / RefineSampleCSThreadGroupSize,
+		pContext->Dispatch(EPIPOLAR_SAMPLE_NUM / m_RefineSampleCSThreadGroupSize,
 			EPIPOLAR_SLICE_NUM, 1);
 	}
 
@@ -1013,7 +1019,7 @@ HRESULT Atmosphere::Build1DMinMaxMipMap(ID3D11Device* pDevice, ID3D11DeviceConte
 
 	UINT offsetX = shadowMapResolution / 2;
 	UINT preOffsetX = 0;
-	for (UINT level = 2, step = 4; level <= MaxMinMaxMapLevel; level++,step <<= 1)
+	for (UINT level = 2, step = 4; level <= m_MaxMinMaxMapLevel; level++,step <<= 1)
 	{
 		ShaderResourceVarMap["g_tex2DMinMaxMipMap"]->SetResource(pMinMaxMinMapTexSRV[level % 2]);
 		misc.uiSrcMinMaxOffsetX = preOffsetX;
@@ -1080,7 +1086,7 @@ HRESULT Atmosphere::DoRayMarch(ID3D11Device* pDevice, ID3D11DeviceContext* pCont
 
 	misc.fEnableLightShaft = fEnableLightShaft;
 	misc.fIsLightInSpaceCorrect = fIsLightInSpaceCorrect;
-	misc.uiMinMaxLevelMax = MaxMinMaxMapLevel;
+	misc.uiMinMaxLevelMax = m_MaxMinMaxMapLevel;
 	misc.scatter_order = 2;
 	VarMap["misc"]->SetRawValue(&misc, 0, sizeof(MiscDynamicParams));
 
@@ -1295,36 +1301,41 @@ D3DXVECTOR3 Atmosphere::GetSunDir()
 void Atmosphere::SetLightParam(const D3DXMATRIX& lightView, 
 								const D3DXMATRIX& lightProj)
 {
-	this->lightView = lightView;
-	this->lightProj = lightProj;
-	this->lightProj.m[0][0] *= 1000;
-	this->lightProj.m[1][1] *= 1000;
-	this->lightProj.m[2][2] *= 1000;
+	this->mLightView = lightView;
+	this->mLightProj = lightProj;
+	this->mLightProj.m[0][0] *= 1000;
+	this->mLightProj.m[1][1] *= 1000;
+	this->mLightProj.m[2][2] *= 1000;
 }
 
 void Atmosphere::SetCamParam(const D3DXVECTOR3& f3CamPos, const D3DXVECTOR3& f3CamDir, 
-							const D3DXMATRIX& camView, const D3DXMATRIX& camProj,
+							const D3DXMATRIX& mCamView, const D3DXMATRIX& mCamProj,
 							float fCamNear,float fCamFar)
 {
 	this->f3CamPos = f3CamPos / 1000;
 	this->f3CamDir = f3CamDir;
-	this->camView = camView;
-	D3DXVECTOR3* pos = (D3DXVECTOR3*)(&this->camView.m[3][0]);
+	this->mCamView = mCamView;
+	D3DXVECTOR3* pos = (D3DXVECTOR3*)(&this->mCamView.m[3][0]);
 	*pos = *pos / 1000;
 
-	this->camProj = camProj;
-	this->camProj.m[3][2] = this->camProj.m[3][2] / 1000;
+	this->mCamProj = mCamProj;
+	this->mCamProj.m[3][2] = this->mCamProj.m[3][2] / 1000;
 
 	this->fCamNear = fCamNear / 1000;
 	this->fCamFar = fCamFar / 1000;
 
 	//this->f3CamPos = f3CamPos;
 	//this->f3CamDir = f3CamDir;
-	//this->camView = camView;
+	//this->mCamView = mCamView;
 
-	//this->camProj = camProj;
-	//this->camProj.m[3][2] = this->camProj.m[3][2];
+	//this->mCamProj = mCamProj;
+	//this->mCamProj.m[3][2] = this->mCamProj.m[3][2];
 
 	//this->fCamNear = fCamNear;
 	//this->fCamFar = fCamFar;
+}
+
+void Atmosphere::UseEpipolarLine(bool IsUseEpipolarLine)
+{
+	this->m_IsUseEpipolarLine = IsUseEpipolarLine;
 }

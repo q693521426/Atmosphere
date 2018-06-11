@@ -45,6 +45,9 @@ ID3D11DeviceContext*				g_pd3dImmediateContext = nullptr;
 ID3D11RenderTargetView*				g_pRenderTargetView = nullptr;
 ID3D11DepthStencilView*				g_pDepthStencilView = nullptr;
 
+bool								g_IsRenderModel = false;
+bool								g_UseEpipolarLine = true;
+
 float fNear = 1 * m_ModelScaling, fFar = 20 * m_ModelScaling;// Unit:m
 
 void UpdateMatrix()
@@ -199,13 +202,15 @@ void CALLBACK OnD3D11FrameRender( ID3D11Device* pd3dDevice, ID3D11DeviceContext*
 
 
 	m_pAtmosphere->PreCompute(pd3dDevice, pd3dImmediateContext,pRTV);
+
 	{
 		m_pShadowMapFrameBuffer->Activate();
 		m_pShadowMapFrameBuffer->ActivateDepth(true);
 
 		pd3dImmediateContext->RSSetState(RenderStates::NoCullRS);
 		m_pModel->UpdateLightParams(g_DirectionalLight.Direction);
-		m_pModel->RenderShadowMap(pd3dDevice, pd3dImmediateContext, g_DirectionalLight.Direction,m_shadowMapDim);
+		if(g_IsRenderModel)
+			m_pModel->RenderShadowMap(pd3dDevice, pd3dImmediateContext, g_DirectionalLight.Direction,m_shadowMapDim);
 
 		g_LightView = m_pModel->GetLightView();
 		g_LightProjection = m_pModel->GetLightProj();
@@ -215,18 +220,26 @@ void CALLBACK OnD3D11FrameRender( ID3D11Device* pd3dDevice, ID3D11DeviceContext*
 	{
 		m_pFrameBuffer->Activate();
 		m_pFrameBuffer->ActivateDepth(true);
-
-		pd3dImmediateContext->RSSetState(RenderStates::CullClockWiseRS);
-		m_pModel->Render(pd3dDevice, pd3dImmediateContext, m_pShadowMapFrameBuffer->GetDepthSRV());
-		pd3dImmediateContext->RSSetState(RenderStates::CullCounterClockWiseRS);
+		
+		if (g_IsRenderModel)
+		{
+			pd3dImmediateContext->RSSetState(RenderStates::CullClockWiseRS);
+			m_pModel->Render(pd3dDevice, pd3dImmediateContext, m_pShadowMapFrameBuffer->GetDepthSRV());
+			pd3dImmediateContext->RSSetState(RenderStates::CullCounterClockWiseRS);
+		}
 
 		m_pFrameBuffer->DeactivateDepth();
 	}
+	m_pAtmosphere->UseEpipolarLine(g_UseEpipolarLine);
 	m_pAtmosphere->Render(pd3dDevice, pd3dImmediateContext, pRTV, 
 							m_pFrameBuffer->GetFrameBufferSRV(),
 							m_pFrameBuffer->GetDepthSRV(), 
 							m_pShadowMapFrameBuffer->GetDepthSRV(),
 							m_shadowMapDim);
+
+	WCHAR str[256] = L"Atmosphere:";
+	wcscat_s(str, DXUTGetFrameStats(DXUTIsVsyncEnabled()));
+	SetWindowText(DXUTGetHWND(), str);
 }
 
 

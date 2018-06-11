@@ -38,14 +38,16 @@ public:
 	D3DXVECTOR3 GetSunDir();
 	void SetLightParam(const D3DXMATRIX&, const D3DXMATRIX&);
 	void SetCamParam(const D3DXVECTOR3&, const D3DXVECTOR3&, const D3DXMATRIX&, const D3DXMATRIX&,float,float);
+	void UseEpipolarLine(bool);
 private:
 	//CFirstPersonCamera					m_FirstPersonCamera;
 	Cloud*								m_pCloud;
 
-	int scatter_order_num;
+	int m_scatter_order_num;
 
-	bool IsPreComputed = false;
-	UINT MaxMinMaxMapLevel = 4;
+	bool m_IsPreComputed = false;
+	bool m_IsUseEpipolarLine = true;
+	UINT m_MaxMinMaxMapLevel = 4;
 
 	float view_distance_meters = 9000.f;
 	float view_zenith_angle_radians = 1.47f;
@@ -55,21 +57,21 @@ private:
 
 	//D3DXMATRIX InvView, InvProj;
 
-	AtmosphereParams atmosphereParams;
-	CameraParams cameraParams;
-	LightParams lightParams;
+	AtmosphereParams cb_AtmosphereParams;
+	CameraParams cb_CameraParams;
+	LightParams cb_LightParams;
 
 	D3DXVECTOR3 f3LightDir;
-	D3DXMATRIX lightView;
-	D3DXMATRIX lightProj;
+	D3DXMATRIX mLightView;
+	D3DXMATRIX mLightProj;
 
 	float fEnableLightShaft;
 	float fIsLightInSpaceCorrect;
 
 	D3DXVECTOR3 f3CamPos;
 	D3DXVECTOR3 f3CamDir;
-	D3DXMATRIX camView;
-	D3DXMATRIX camProj;
+	D3DXMATRIX mCamView;
+	D3DXMATRIX mCamProj;
 	float fCamFar;
 	float fCamNear;
 
@@ -117,8 +119,8 @@ private:
 	UINT EPIPOLAR_SLICE_NUM = 512;
 	UINT EPIPOLAR_SAMPLE_NUM = 256;
 
-	UINT RefineSampleCSThreadGroupSize = 128;
-	UINT InterpolationSampleStep = 16;
+	UINT m_RefineSampleCSThreadGroupSize = 128;
+	UINT m_InterpolationSampleStep = 16;
 
 	CComPtr<ID3D11Texture2D>							pTransmittanceTex2D;
 	CComPtr<ID3D11ShaderResourceView>					pTransmittanceSRV;
